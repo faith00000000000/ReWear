@@ -3,125 +3,7 @@ import Link from "next/link";
 import { ChevronDown, Heart, SlidersHorizontal, Tag } from "lucide-react";
 import Navbar from "@/layout/Navbar";
 import Footer from "@/layout/Footer";
-
-type Status = "SALE" | "RENT" | "SALE + RENT";
-
-type Product = {
-  id: number;
-  name: string;
-  brand: string;
-  price: string;
-  oldPrice?: string;
-  size: string;
-  condition: string;
-  era: string;
-  status: Status;
-  image: string;
-};
-
-const products: Product[] = [
-  {
-    id: 1,
-    brand: "Vintage 90s",
-    name: "Rust Cable-Knit Cropped Cardigan",
-    price: "$38",
-    oldPrice: "$120",
-    size: "S/M",
-    condition: "Excellent",
-    era: "1990s",
-    status: "SALE",
-    image:
-      "https://images.unsplash.com/photo-1618333452884-5c8c7d1fb6c4?auto=format&fit=crop&w=760&q=90",
-  },
-  {
-    id: 2,
-    brand: "Levi's Heritage",
-    name: "Tan Corduroy Workwear Jacket",
-    price: "$62",
-    oldPrice: "$180",
-    size: "M",
-    condition: "Very Good",
-    era: "1980s",
-    status: "SALE + RENT",
-    image:
-      "https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=760&q=90",
-  },
-  {
-    id: 3,
-    brand: "Edwardian Revival",
-    name: "Cream Lace Embroidered Blouse",
-    price: "$44",
-    size: "S",
-    condition: "Like New",
-    era: "Y2K",
-    status: "RENT",
-    image:
-      "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=760&q=90",
-  },
-  {
-    id: 4,
-    brand: "Wrangler",
-    name: "High-Waist Wide-Leg Denim",
-    price: "$56",
-    oldPrice: "$140",
-    size: "27",
-    condition: "Excellent",
-    era: "1990s",
-    status: "SALE",
-    image:
-      "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=760&q=90",
-  },
-  {
-    id: 5,
-    brand: "Studio Slip",
-    name: "Black Silk Bias-Cut Midi Dress",
-    price: "$72",
-    size: "S",
-    condition: "Excellent",
-    era: "Modern",
-    status: "SALE + RENT",
-    image:
-      "https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=760&q=90",
-  },
-  {
-    id: 6,
-    brand: "London Fog",
-    name: "Sand Belted Trench Coat",
-    price: "$48",
-    oldPrice: "$155",
-    size: "M/L",
-    condition: "Very Good",
-    era: "1980s",
-    status: "RENT",
-    image:
-      "https://images.unsplash.com/photo-1548624313-0396c75e4b1a?auto=format&fit=crop&w=760&q=90",
-  },
-  {
-    id: 7,
-    brand: "Garden Edit",
-    name: "Floral Wrap Day Dress",
-    price: "$58",
-    size: "M",
-    condition: "Like New",
-    era: "Y2K",
-    status: "SALE",
-    image:
-      "https://images.unsplash.com/photo-1581044777550-4cfa60707c03?auto=format&fit=crop&w=760&q=90",
-  },
-  {
-    id: 8,
-    brand: "Evening Tailor",
-    name: "Cream Oversized Occasion Blazer",
-    price: "$66",
-    oldPrice: "$190",
-    size: "L",
-    condition: "Excellent",
-    era: "1990s",
-    status: "SALE + RENT",
-    image:
-      "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=760&q=90",
-  },
-];
+import { Product, Status, products } from "./products";
 
 const filters = [
   {
@@ -131,7 +13,7 @@ const filters = [
   },
   {
     title: "Availability",
-    options: ["Sale", "Rent", "Sale + Rent"],
+    options: ["Thrift", "Rent", "Thrift + Rent"],
     open: true,
   },
   {
@@ -151,10 +33,10 @@ const filters = [
   },
 ];
 
-const statusClass: Record<Status, string> = {
-  SALE: "bg-[#AC1B18] text-[#FAF2E6]",
+export const statusClass: Record<Status, string> = {
+  THRIFT: "bg-[#AC1B18] text-[#FAF2E6]",
   RENT: "bg-[#5E6B52] text-white",
-  "SALE + RENT": "bg-[#211714] text-[#FAF2E6]",
+  "THRIFT + RENT": "bg-[#211714] text-[#FAF2E6]",
 };
 
 export default function BrowseFindsPage() {
@@ -180,7 +62,8 @@ export default function BrowseFindsPage() {
                   </h1>
                   <p className="mt-8 max-w-[650px] text-[18px] font-medium leading-8 text-[#6f665c]">
                     Eight new arrivals every Friday. Each piece is
-                    photographed, measured and steamed before it goes live.
+                    photographed, measured, steamed, and marked for thrift,
+                    rent, or both before it goes live.
                   </p>
                 </div>
 
@@ -208,8 +91,8 @@ export default function BrowseFindsPage() {
                     <span className="text-[#AC1B18]">8</span> arrivals found
                   </p>
                   <p className="text-[12px] font-bold text-[#6f665c]">
-                    Status labels show whether each piece is available to buy,
-                    rent, or both.
+                    Status labels show whether each piece is available to
+                    thrift, rent, or both.
                   </p>
                 </div>
 
@@ -306,31 +189,37 @@ function FilterRail() {
 
 function ProductCard({ product }: { product: Product }) {
   return (
-    <article className="group">
-      <div className="relative aspect-[0.86/1] overflow-hidden bg-[#f4d7a7]">
-        <Image
-          src={product.image}
-          alt={product.name}
-          fill
-          sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw"
-          className="object-cover transition duration-500 group-hover:scale-105"
-        />
-        <span className="absolute left-4 top-4 rounded-full bg-[#FAF2E6]/95 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#5E6B52] shadow-sm">
-          One of one
-        </span>
-        <span
-          className={`absolute bottom-4 left-4 rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] shadow-sm ${statusClass[product.status]}`}
-        >
-          {product.status}
-        </span>
-        <button
-          type="button"
-          aria-label={`Save ${product.name}`}
-          className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-[#FAF2E6]/95 text-[#AC1B18] shadow-sm transition hover:bg-white"
-        >
-          <Heart size={18} />
-        </button>
-      </div>
+    <article className="group relative">
+      <Link
+        href={`/browse-finds/${product.id}`}
+        aria-label={`View ${product.name}`}
+        className="block"
+      >
+        <div className="relative aspect-[0.86/1] overflow-hidden bg-[#f4d7a7]">
+          <Image
+            src={product.image}
+            alt={product.name}
+            fill
+            sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw"
+            className="object-cover transition duration-500 group-hover:scale-105"
+          />
+          <span className="absolute left-4 top-4 rounded-full bg-[#FAF2E6]/95 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#5E6B52] shadow-sm">
+            One of one
+          </span>
+          <span
+            className={`absolute bottom-4 left-4 rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] shadow-sm ${statusClass[product.status]}`}
+          >
+            {product.status}
+          </span>
+        </div>
+      </Link>
+      <button
+        type="button"
+        aria-label={`Save ${product.name}`}
+        className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-[#FAF2E6]/95 text-[#AC1B18] shadow-sm transition hover:bg-white"
+      >
+        <Heart size={18} />
+      </button>
 
       <div className="pt-4">
         <p className="text-[12px] font-black uppercase tracking-[0.28em] text-[#9f9286]">
@@ -345,7 +234,7 @@ function ProductCard({ product }: { product: Product }) {
             {product.size}
           </span>
           <span>{product.condition}</span>
-          <span>{product.era}</span>
+          <span>{product.status}</span>
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-4">
@@ -358,7 +247,7 @@ function ProductCard({ product }: { product: Product }) {
             ) : null}
           </p>
           <Link
-            href="#"
+            href={`/browse-finds/${product.id}`}
             className="text-[11px] font-black uppercase tracking-[0.24em] text-[#5E6B52] transition hover:text-[#AC1B18]"
           >
             View
