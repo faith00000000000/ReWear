@@ -1,7 +1,5 @@
 package com.rewear.backend.model;
 
-
-// import com.rewear.backend.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -9,9 +7,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
-/**
- * User entity — represents both owners and renters on ReWear.
- */
 @Entity
 @Table(name = "users")
 @Getter
@@ -31,22 +26,21 @@ public class User {
     @Column(nullable = false, unique = true, length = 255)
     private String email;
 
+    /** Blank string for OAuth-only users — never null */
     @Column(nullable = false)
-    private String password;
+    @Builder.Default
+    private String password = "";
 
-    //@Enumerated(EnumType.STRING)
-    // @Column(nullable = false)
-    // private Role role;
-
-    // @Column(name = "profile_picture_url")
-    // private String profilePictureUrl;
+    @Column(name = "profile_picture_url")
+    private String profilePictureUrl;
 
     @Column(name = "is_active")
     @Builder.Default
     private Boolean isActive = true;
 
-    // @Column(name = "oauth_provider")
-    // private String oauthProvider; // e.g., "google" — null for regular signup
+    /** "google" for OAuth users, null for email/password users */
+    @Column(name = "oauth_provider")
+    private String oauthProvider;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -55,5 +49,4 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-    
 }

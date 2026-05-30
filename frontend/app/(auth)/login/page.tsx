@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import Navbar from "@/layout/Navbar";
 import Footer from "@/layout/Footer";
+import api from "@/app/lib/axios";
+import {
+  saveTokens,
+  saveUser,
+  isAuthenticated,
+  redirectToGoogle,
+} from "@/app/lib/auth";
 
 const inputClass =
   "h-14 w-full border border-[#d7cbbb] bg-[#fffaf2] px-5 text-[15px] font-medium text-[#211714] outline-none transition placeholder:text-[#8a8177] focus:border-[#AC1B18] focus:bg-white";
@@ -48,18 +56,74 @@ function Label({ children }: { children: React.ReactNode }) {
 }
 
 export default function LoginPage() {
+  const router = useRouter();
+
+  const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
+  // ── Auth guard: if already logged in, skip straight to dashboard ──────────
+  useEffect(() => {
+    if (isAuthenticated()) {
+      router.replace("/dashboard");
+    }
+  }, [router]);
+
+  // ── Show OAuth error message if redirected back from Google with ?error= ──
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") === "oauth_failed") {
+      setError("Google sign-in failed. Please try again.");
+    }
+  }, []);
+
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    console.log("FORM SUBMITTED");
     event.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      const { data } = await api.post("/api/auth/login", {
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      console.log("LOGIN RESPONSE:", data);
+
+      //
+      // setTimeout(() => {
+      //   setIsLoading(false);
+      //   console.log("Login:", { email, password, remember });
+      // }, 1000);
+
+      // data = { accessToken, refreshToken, expiresIn, user: { id, fullName, email, profilePictureUrl, ... } }
+      saveTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresIn: data.expiresIn,
+      });
+      saveUser(data.user);
+
+      console.log("ACCESS TOKEN:", localStorage.getItem("accessToken"));
+      console.log("USER:", localStorage.getItem("user"));
+
+      // ✅ JWT login → /dashboard
+      router.push("/dashboard");
+    } catch (err: any) {
+      if (err.response?.status === 401) {
+        setError("Invalid email or password.");
+      } else if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+    } finally {
       setIsLoading(false);
-      console.log("Login:", { email, password, remember });
-    }, 1000);
+    }
   };
 
   return (
@@ -96,8 +160,8 @@ export default function LoginPage() {
                 Sign in.
               </h1>
               <p className="mt-4 max-w-[480px] text-[16px] font-medium leading-7 text-[#5f5048]">
-                Pick up where you left off - your wishlist, rentals and
-                donation credits are saved here.
+                Pick up where you left off - your wishlist, rentals and donation
+                credits are saved here.
               </p>
 
               <form onSubmit={handleLogin} className="mt-9 space-y-6">
@@ -113,16 +177,40 @@ export default function LoginPage() {
                   />
                 </div>
 
+                {/*<div>*/}
+                {/*  <Label>Password</Label>*/}
+                {/*  <input*/}
+                {/*      type="password"*/}
+                {/*      required*/}
+                {/*      placeholder="Password"*/}
+                {/*      value={password}*/}
+                {/*      onChange={(event) => setPassword(event.target.value)}*/}
+                {/*      className={inputClass}*/}
+                {/*  />*/}
+                {/*</div>*/}
+
                 <div>
                   <Label>Password</Label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    className={inputClass}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      placeholder="Password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      className={`${inputClass} pr-14`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8a8177] transition hover:text-[#AC1B18]"
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
+                    >
+                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-4 text-[14px] font-medium text-[#4f4039]">

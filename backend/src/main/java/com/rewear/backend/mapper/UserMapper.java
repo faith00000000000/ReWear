@@ -22,6 +22,7 @@ public class UserMapper {
                 .id(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
+                .profilePictureUrl(user.getProfilePictureUrl()) 
                 .isActive(user.getIsActive())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())

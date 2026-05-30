@@ -6,10 +6,12 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import Navbar from "@/layout/Navbar";
 import Footer from "@/layout/Footer";
+import api from "@/app/lib/axios";
+import { saveTokens, saveUser, redirectToGoogle } from "@/app/lib/auth";
+import { useRouter } from "next/navigation";
 
 interface FormData {
-  firstName: string;
-  lastName: string;
+  fullName: string;
   email: string;
   password: string;
   weeklyDrops: boolean;
@@ -27,14 +29,16 @@ function Label({ children }: { children: React.ReactNode }) {
 }
 
 export default function SignupPage() {
+  const router = useRouter();
+
   const [formData, setFormData] = useState<FormData>({
-    firstName: "",
-    lastName: "",
+    fullName: "",
     email: "",
     password: "",
     weeklyDrops: false,
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = event.target;
@@ -44,13 +48,59 @@ export default function SignupPage() {
     }));
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  // const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  //   event.preventDefault();
+  //   setIsLoading(true);
+  //   setTimeout(() => {
+  //     setIsLoading(false);
+  //     console.log("Signup:", formData);
+  //   }, 1000);
+  // };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      const { data } = await api.post("/api/auth/signup", {
+        fullName: `${formData.fullName.trim()}`,
+        email: formData.email,
+        password: formData.password,
+      });
+
+      console.log("Signup success:", data);
+
+      saveTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+      });
+
+      console.log("Redirecting...");
+
+      saveUser(data.user);
+      router.push("/login");
+    } catch (err: any) {
+      const messages: string[] = [];
+
+      if (err.response?.data?.validationErrors) {
+        Object.values(err.response.data.validationErrors).forEach((val) => {
+          if (Array.isArray(val)) {
+            messages.push(...val);
+          } else {
+            messages.push(String(val));
+          }
+        });
+      } else if (err.response?.data?.message) {
+        messages.push(String(err.response.data.message));
+      } else {
+        messages.push("Signup failed. Please try again.");
+      }
+
+      setError(messages.join(" · "));
+    } finally {
       setIsLoading(false);
-      console.log("Signup:", formData);
-    }, 1000);
+    }
   };
 
   return (
@@ -79,45 +129,30 @@ export default function SignupPage() {
                 </span>
               </h1>
               <p className="mt-5 max-w-[500px] text-[16px] font-medium leading-7 text-[#5f5048]">
-                Get 10% off your first thrift, early access to Friday drops,
-                and $5 credit for every donation.
+                Get 10% off your first thrift, early access to Friday drops, and
+                $5 credit for every donation.
               </p>
 
               <form onSubmit={handleSubmit} className="mt-9 space-y-6">
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <Label>First name</Label>
-                    <input
-                      type="text"
-                      name="firstName"
-                      required
-                      placeholder="June"
-                      value={formData.firstName}
-                      onChange={handleChange}
-                      className={inputClass}
-                    />
-                  </div>
-                  <div>
-                    <Label>Last name</Label>
-                    <input
-                      type="text"
-                      name="lastName"
-                      required
-                      placeholder="Carter"
-                      value={formData.lastName}
-                      onChange={handleChange}
-                      className={inputClass}
-                    />
-                  </div>
+                <div>
+                  <Label>Full name</Label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    required
+                    placeholder="Enter your full name"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    className={inputClass}
+                  />
                 </div>
-
                 <div>
                   <Label>Email</Label>
                   <input
                     type="email"
                     name="email"
                     required
-                    placeholder="you@rewear.studio"
+                    placeholder="Enter your email address"
                     value={formData.email}
                     onChange={handleChange}
                     className={inputClass}
@@ -167,6 +202,23 @@ export default function SignupPage() {
                   Sign in
                 </Link>
               </p>
+
+              <div className="my-7 flex items-center gap-4">
+                <hr className="flex-1 border-[#d7cbbb]" />
+                <span className="text-[12px] font-bold uppercase tracking-widest text-[#9e9186]">
+                  or
+                </span>
+                <hr className="flex-1 border-[#d7cbbb]" />
+              </div>
+
+              <button
+                type="button"
+                onClick={redirectToGoogle}
+                className="mt-8 flex h-14 w-full items-center justify-center gap-3 rounded-full border border-[#d7cbbb] bg-white text-[15px] font-semibold text-[#211714] transition hover:border-[#AC1B18] hover:bg-[#fff5ee]"
+              >
+                <GoogleIcon />
+                Continue with Google
+              </button>
             </div>
           </section>
 
@@ -186,5 +238,28 @@ export default function SignupPage() {
       <div className="h-[6px] bg-[#AC1B18]" />
       <Footer />
     </div>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 48 48">
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.8 2.5 30.2 0 24 0 14.8 0 6.9 5.4 3 13.3l7.8 6C12.7 13 17.9 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.8 28.7A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7L2.5 13.3A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.5 10.7l8.3-6z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.1 0-11.3-4.1-13.2-9.6l-7.8 6C6.9 42.6 14.8 48 24 48z"
+      />
+    </svg>
   );
 }
