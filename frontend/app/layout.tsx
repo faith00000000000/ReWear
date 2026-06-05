@@ -1,43 +1,3 @@
-// import type { Metadata } from "next";
-// import { Geist, Geist_Mono, Poppins } from "next/font/google";
-// import "./globals.css";
-
-// const geistSans = Geist({
-//   variable: "--font-geist-sans",
-//   subsets: ["latin"],
-// });
-
-// const geistMono = Geist_Mono({
-//   variable: "--font-geist-mono",
-//   subsets: ["latin"],
-// });
-
-// const poppins = Poppins({
-//   weight: ["400", "500", "600", "700"],
-//   subsets: ["latin"],
-//   variable: "--font-poppins",
-// });
-
-// export const metadata: Metadata = {
-//   title: "RE:WEAR - Fashion That Lasts",
-//   description: "Curated vintage and thrift fashion for sustainable style",
-// };
-
-// export default function RootLayout({
-//   children,
-// }: Readonly<{
-//   children: React.ReactNode;
-// }>) {
-//   return (
-//     <html
-//       lang="en"
-//       className={`${geistSans.variable} ${geistMono.variable} ${poppins.variable} h-full antialiased`}
-//     >
-//       <body className="min-h-full flex flex-col">{children}</body>
-//     </html>
-//   );
-// }
-
 import type { Metadata } from "next";
 import {
   Geist,
@@ -65,20 +25,21 @@ const poppins = Poppins({
 });
 
 const playfair = Playfair_Display({
-  weight: ["700"],
   subsets: ["latin"],
-  variable: "--font-serif",
+  weight: ["400", "500", "600", "700", "800", "900"],
+  variable: "--font-playfair",
 });
 
 const spaceMono = Space_Mono({
-  weight: ["400", "700"],
   subsets: ["latin"],
-  variable: "--font-mono",
+  weight: ["400", "700"],
+  variable: "--font-space-mono",
 });
 
 export const metadata: Metadata = {
   title: "RE:WEAR - Fashion That Lasts",
-  description: "Curated vintage and thrift fashion for sustainable style",
+  description:
+    "Curated vintage, thrift and rental fashion for sustainable style.",
 };
 
 export default function RootLayout({
@@ -89,17 +50,20 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`
         ${geistSans.variable}
         ${geistMono.variable}
         ${poppins.variable}
         ${playfair.variable}
         ${spaceMono.variable}
-        h-full antialiased
+        antialiased
       `}
-      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+      <body
+        suppressHydrationWarning
+        className="min-h-screen font-sans text-[#1A1A1A] bg-[#FBF7EE]"
+      >
         {children}
       </body>
     </html>

@@ -2,7 +2,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, RefreshCcw } from "lucide-react";
 
-export default function HeroSection() {
+interface HeroSectionProps {
+  isAuthenticated?: boolean;
+  userName?: string;
+}
+
+export default function HeroSection({
+  isAuthenticated = false,
+  userName,
+}: HeroSectionProps) {
+  // Extract first name from full name
+  const firstName = userName ? userName.split(" ")[0] : "";
+
   return (
     <section className="bg-[#FAF2E6]">
       <div className="mx-auto grid min-h-[calc(100vh-74px)] max-w-[1380px] items-center gap-10 px-7 py-14 sm:px-12 lg:grid-cols-[0.95fr_1.05fr] lg:px-24 lg:py-18">
@@ -16,11 +27,22 @@ export default function HeroSection() {
             </span>
           </div>
 
-          {/* Headline */}
+          {/* Headline - Personalized for Authenticated Users */}
           <h1 className="text-[62px] font-normal leading-[1.05] tracking-tight text-[#4a423e] sm:text-[80px] [font-family:Georgia,serif]">
-            Elevate
-            <br />
-            Your Style!
+            {isAuthenticated && firstName ? (
+              <>
+                Elevate
+                <br />
+                Your Style,{" "}
+                <span className="text-[#962D18] italic">{firstName}!</span>
+              </>
+            ) : (
+              <>
+                Elevate
+                <br />
+                Your Style!
+              </>
+            )}
           </h1>
 
           {/* Subheading */}
@@ -30,17 +52,26 @@ export default function HeroSection() {
 
           {/* Description */}
           <p className="mt-4 max-w-[480px] text-[17px] leading-[1.65] text-[#5c5c5c]">
-            A curated marketplace for pre-loved and vintage pieces. Every item
-            tells a story. Every purchase extends a life.
+            {isAuthenticated ? (
+              <>
+                Welcome back! Discover new pieces and continue your style
+                journey with us.
+              </>
+            ) : (
+              <>
+                A curated marketplace for pre-loved and vintage pieces. Every
+                item tells a story. Every purchase extends a life.
+              </>
+            )}
           </p>
 
           {/* Buttons */}
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <Link
-              href="/shops"
+              href={isAuthenticated ? "/browse-finds" : "/shops"}
               className="flex items-center gap-2 rounded-full bg-[#a73322] px-7 py-3 text-[15px] font-medium text-white transition-colors hover:bg-[#8a2a1c]"
             >
-              Explore the Edit
+              {isAuthenticated ? "Continue Shopping" : "Explore the Edit"}
               <ArrowRight className="h-4 w-4" strokeWidth={2.5} />
             </Link>
 

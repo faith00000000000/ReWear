@@ -1,478 +1,473 @@
 "use client";
 
-import { useState } from "react";
-import Navbar from "@/components/Navbar";
+import Image from "next/image";
+import Link from "next/link";
+import {
+  ChevronDown,
+  Heart,
+  Truck,
+  ShoppingBag,
+  Calendar,
+  Sparkles,
+} from "lucide-react";
+import Navbar from "@/layout/Navbar";
 import Footer from "@/layout/Footer";
-import { Heart, ArrowUpRight, ChevronRight } from "lucide-react";
 
-const CATEGORIES = [
+const filters = [
   {
-    name: "Weddings",
-    icon: "💍",
-    count: "84 pieces",
-    image:
-      "https://images.unsplash.com/photo-1595777712802-6b2ecef04908?w=600&h=400&fit=crop&auto=format",
+    title: "Occasion",
+    options: [
+      "Weddings",
+      "Parties",
+      "Work & Events",
+      "Date Night",
+      "Casual Elevated",
+    ],
+    open: true,
   },
   {
-    name: "Streetwear",
-    icon: "🧢",
-    count: "120 pieces",
-    image:
-      "https://images.unsplash.com/photo-1503341455253-b2e723bb3dbb?w=600&h=400&fit=crop&auto=format",
+    title: "Category",
+    options: ["Dresses", "Tops", "Bottoms", "Outerwear", "Sets & Jumpsuits"],
+    open: true,
   },
   {
-    name: "Date Night",
-    icon: "✨",
-    count: "67 pieces",
-    image:
-      "https://images.unsplash.com/photo-1572804013427-4d7ca7268217?w=600&h=400&fit=crop&auto=format",
-  },
-  {
-    name: "Festivals",
-    icon: "🎪",
-    count: "53 pieces",
-    image:
-      "https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=600&h=400&fit=crop&auto=format",
-  },
-  {
-    name: "Designer Fits",
-    icon: "👔",
-    count: "42 pieces",
-    image:
-      "https://images.unsplash.com/photo-1539533018447-63fcce2678e3?w=600&h=400&fit=crop&auto=format",
-  },
-  {
-    name: "Winter Layers",
-    icon: "🧣",
-    count: "78 pieces",
-    image:
-      "https://images.unsplash.com/photo-1584370848010-d7fe6bc767ec?w=600&h=400&fit=crop&auto=format",
+    title: "Designer",
+    options: ["Reformation", "Shona Joy", "Acler", "Camilla and Marc", "SIR."],
+    open: true,
+    hasSearch: true,
   },
 ];
+
+const sizes = ["XXS", "XS", "S", "M", "L", "XL", "XXL"];
+const durations = ["4 Days", "8 Days", "14 Days", "30 Days"];
 
 const RENTALS = [
   {
     id: 1,
-    name: "Silk Midi Slip Dress",
-    price: "$18",
-    deposit: "$60",
-    size: "XS–L",
-    avail: true,
+    name: "Satin One-Shoulder Dress",
+    brand: "Shona Joy",
+    price: "from $79",
     image:
-      "https://images.unsplash.com/photo-1595777712802-6b2ecef04908?w=500&h=620&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1618932260643-eee4a2f652a6?w=600&auto=format&fit=crop&q=80",
   },
   {
     id: 2,
-    name: "Structured Wool Blazer",
-    price: "$14",
-    deposit: "$45",
-    size: "S–XL",
-    avail: true,
-    image:
-      "https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=500&h=620&fit=crop&auto=format",
-  },
-  {
-    id: 3,
-    name: "Velvet Evening Gown",
-    price: "$28",
-    deposit: "$90",
-    size: "XS–M",
-    avail: false,
+    name: "Halter Neck Midi Dress",
+    brand: "Acler",
+    price: "from $89",
     image:
       "https://images.unsplash.com/photo-1572804013427-4d7ca7268217?w=500&h=620&fit=crop&auto=format",
   },
   {
+    id: 3,
+    name: "Strapless Structured Gown",
+    brand: "Bec + Bridge",
+    price: "from $99",
+    image:
+      "https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=500&h=620&fit=crop&auto=format",
+  },
+  {
     id: 4,
-    name: "Camel Overcoat",
-    price: "$16",
-    deposit: "$55",
-    size: "S–XXL",
-    avail: true,
+    name: "Floral Ruffle Maxi Dress",
+    brand: "Zimmermann",
+    price: "from $95",
     image:
       "https://images.unsplash.com/photo-1539533018447-63fcce2678e3?w=500&h=620&fit=crop&auto=format",
   },
   {
     id: 5,
-    name: "Retro Denim Co-ord",
-    price: "$12",
-    deposit: "$40",
-    size: "XS–XL",
-    avail: true,
-    image:
-      "https://images.unsplash.com/photo-1565084888279-aca607bb6c29?w=500&h=620&fit=crop&auto=format",
-  },
-  {
-    id: 6,
-    name: "Chunky Knit Cardigan",
-    price: "$10",
-    deposit: "$35",
-    size: "One Size",
-    avail: true,
+    name: "Oversized Linen Blazer",
+    brand: "Reformation",
+    price: "from $69",
     image:
       "https://images.unsplash.com/photo-1584370848010-d7fe6bc767ec?w=500&h=620&fit=crop&auto=format",
   },
-];
-
-const STEPS = [
   {
-    n: "01",
-    title: "Choose Your Fit",
-    body: "Browse the catalogue, pick your piece, select your occasion.",
-    icon: "👗",
+    id: 6,
+    name: "Bias Cut Satin Dress",
+    brand: "SIR.",
+    price: "from $75",
+    image:
+      "https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=600&auto=format&fit=crop&q=80",
   },
   {
-    n: "02",
-    title: "Book & Pay Deposit",
-    body: "Reserve your dates and pay a small refundable deposit.",
-    icon: "📅",
+    id: 7,
+    name: "Pleated Halter Dress",
+    brand: "Aje",
+    price: "from $85",
+    image:
+      "https://images.unsplash.com/photo-1572804013427-4d7ca7268217?w=500&h=620&fit=crop&auto=format",
   },
   {
-    n: "03",
-    title: "Wear & Enjoy",
-    body: "It arrives cleaned and pressed. Look incredible, zero guilt.",
-    icon: "✨",
-  },
-  {
-    n: "04",
-    title: "Return It",
-    body: "Drop it back via our prepaid label. We handle dry-cleaning.",
-    icon: "📦",
-  },
-  {
-    n: "05",
-    title: "Repeat Sustainably",
-    body: "Every rental keeps a garment from landfill. Keep going.",
-    icon: "♻️",
+    id: 8,
+    name: "Sequin Mini Dress",
+    brand: "Rotate Birger Christensen",
+    price: "from $89",
+    image:
+      "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&auto=format&fit=crop&q=80",
   },
 ];
 
-function RentalCard({ r }: { r: (typeof RENTALS)[0] }) {
-  const [liked, setLiked] = useState(false);
-  const [days, setDays] = useState(3);
-  const total = (parseFloat(r.price.replace("$", "")) * days).toFixed(0);
-
+export default function RentPage() {
   return (
-    <div className="group cursor-pointer bg-white rounded-3xl overflow-hidden border border-gray-100 hover:border-gray-200 hover:shadow-lg transition-all duration-300">
-      <div className="relative overflow-hidden">
-        <img
-          src={r.image}
-          alt={r.name}
-          className="w-full h-[320px] object-cover transition-transform duration-700 group-hover:scale-[1.04]"
-        />
-        {/* Overlays */}
-        {!r.avail && (
-          <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
-            <span className="text-xs font-bold uppercase tracking-widest text-gray-500 bg-white px-5 py-2.5 rounded-full shadow-sm">
-              Waitlist
-            </span>
-          </div>
-        )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setLiked((l) => !l);
-          }}
-          className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center hover:scale-110 transition"
-        >
-          <Heart
-            size={14}
-            className={liked ? "fill-rose-500 text-rose-500" : "text-gray-400"}
-            strokeWidth={2}
-          />
-        </button>
-        {r.avail && (
-          <span className="absolute top-4 left-4 bg-green-700 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full">
-            Available
-          </span>
-        )}
-      </div>
+    <div className="min-h-screen bg-[#FBF7EE] text-[#1A1A1A]">
+      {/* Thick red accent borders matching the template schema */}
+      <div className="border-x-[6px] border-t-[6px] border-[#A62612]">
+        <Navbar />
 
-      <div className="p-5">
-        <h3 className="font-bold text-gray-900 text-[15px] mb-1 leading-snug">
-          {r.name}
-        </h3>
-        <p className="text-xs text-gray-400 mb-4">
-          Size: {r.size} · Deposit: {r.deposit}
-        </p>
+        <main>
+          {/* HERO SECTION */}
+          <section className="relative overflow-hidden px-7 pb-16 pt-12 sm:px-12 lg:px-24">
+            <div className="mx-auto max-w-[1380px]">
+              <div className="grid items-center gap-16 lg:grid-cols-[1fr_520px]">
+                {/* LEFT CONTENT */}
+                <div className="relative z-10 max-w-[620px]">
+                  <p className="mb-6 text-[13px] font-semibold uppercase tracking-[0.35em] text-[#A62612]">
+                    RENT. WEAR. RETURN.
+                  </p>
 
-        {/* Duration */}
-        <div className="flex items-center justify-between mb-4 bg-gray-50 rounded-2xl px-4 py-3">
-          <div>
-            <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">
-              Duration
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setDays((d) => Math.max(1, d - 1))}
-                className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-sm font-bold hover:bg-gray-300 transition"
-              >
-                −
-              </button>
-              <span className="text-sm font-bold text-gray-900 w-6 text-center">
-                {days}
-              </span>
-              <button
-                onClick={() => setDays((d) => Math.min(30, d + 1))}
-                className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-sm font-bold hover:bg-gray-300 transition"
-              >
-                +
-              </button>
-              <span className="text-xs text-gray-400 ml-1">days</span>
+                  <h1 className="font-serif leading-[0.95] tracking-[-0.04em] text-[#111111]">
+                    <span className="block text-[64px] sm:text-[80px] lg:text-[96px] font-medium">
+                      Rent the look,
+                    </span>
+                    <span className="block text-[60px] sm:text-[76px] lg:text-[88px] font-normal italic text-[#A62612] mt-2">
+                      own the moment.
+                    </span>
+                  </h1>
+
+                  <p className="mt-8 max-w-[480px] text-[16px] leading-[1.8] text-[#4D4D4D]">
+                    Designer pieces, occasion-ready picks, and everyday elevated
+                    styles—rent for less, love more.
+                  </p>
+                </div>
+
+                {/* RIGHT VISUAL */}
+                <div className="relative hidden lg:block">
+                  <div className="relative ml-auto h-[480px] w-full overflow-hidden rounded-[4px]">
+                    <Image
+                      src="/images/rent.png"
+                      alt="Rent collection banner"
+                      fill
+                      priority
+                      className="object-cover"
+                    />
+                  </div>
+
+                  {/* Sort Button */}
+                  <div className="absolute -bottom-10 right-0">
+                    <label className="flex items-center gap-2 rounded-full border border-[#E4DDD3] bg-[#FBF7EE]/95 px-5 py-2.5 backdrop-blur-sm shadow-sm">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#555]">
+                        SORT
+                      </span>
+                      <select className="appearance-none bg-transparent pr-4 text-[14px] font-medium text-[#1A1A1A] outline-none cursor-pointer">
+                        <option>Recommended</option>
+                        <option>Newest</option>
+                        <option>Price low</option>
+                        <option>Price high</option>
+                      </select>
+                      <ChevronDown className="h-4 w-4 text-[#707070]" />
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">
-              Total
-            </p>
-            <p className="text-xl font-bold text-gray-900">${total}</p>
-          </div>
-        </div>
+          </section>
 
-        <p className="text-xs text-gray-400 text-center mb-3">{r.price}/day</p>
+          {/* MAIN PRODUCT EXPLORER SECTION */}
+          <section className="px-7 pb-20 sm:px-12 lg:px-24">
+            <div className="mx-auto max-w-[1380px] overflow-hidden rounded-[16px] border border-[#E4DDD3] bg-[#FDFBF7]">
+              <div className="grid lg:grid-cols-[250px_1fr]">
+                {/* Filter Rail Component */}
+                <FilterRail />
 
-        <button
-          disabled={!r.avail}
-          className="w-full py-3 rounded-2xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-gray-900 text-white hover:bg-green-800 active:scale-[0.98]"
-        >
-          {r.avail ? "Rent Now" : "Join Waitlist"}
-        </button>
+                {/* Main Product Canvas */}
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between border-b border-[#E4DDD3] px-6 py-5">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#1A1A1A]">
+                      128 RENTAL PIECES
+                    </p>
+                    <div className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-[#707070]">
+                      <Truck
+                        size={14}
+                        strokeWidth={2}
+                        className="text-[#707070]"
+                      />
+                      <p>Free delivery & return on all rentals</p>
+                    </div>
+                  </div>
+
+                  {/* Rental Products Grid */}
+                  <div className="grid gap-x-5 gap-y-8 p-6 sm:grid-cols-2 xl:grid-cols-4">
+                    {RENTALS.map((rental) => (
+                      <RentalCard key={rental.id} rental={rental} />
+                    ))}
+                  </div>
+
+                  <Pagination />
+                  {/*<section className="px-7 pb-8 sm:px-12 lg:px-12">*/}
+                  {/*  <div className="mx-auto max-w-[1500px] grid grid-cols-1 md:grid-cols-4 gap-4 border-[#E4DDD3] pt-10">*/}
+                  {/*    {[*/}
+                  {/*      { title: "Premium Pieces", desc: "Curated designer & contemporary styles", icon: "👜" },*/}
+                  {/*      { title: "Flexible Rentals", desc: "4, 8, 14 or 30-day rental periods", icon: "📅" },*/}
+                  {/*      { title: "Free Delivery & Returns", desc: "Contactless delivery & easy returns", icon: "🚚" },*/}
+                  {/*      { title: "Cleaned & Checked", desc: "Professionally cleaned & quality-checked", icon: "✨" }*/}
+                  {/*    ].map((prop, index) => (*/}
+                  {/*        <div key={index} className="flex gap-4 p-4 rounded-xl bg-[#FDFBF7] border border-[#E4DDD3]/60">*/}
+                  {/*          <span className="text-2xl">{prop.icon}</span>*/}
+                  {/*          <div>*/}
+                  {/*            <h4 className="text-[12px] font-bold uppercase tracking-wider text-[#1A1A1A]">{prop.title}</h4>*/}
+                  {/*            <p className="text-[12px] text-[#707070] mt-1">{prop.desc}</p>*/}
+                  {/*          </div>*/}
+                  {/*        </div>*/}
+                  {/*    ))}*/}
+                  {/*  </div>*/}
+                  {/*</section>*/}
+                  <section className="px-7 pb-8 sm:px-12 lg:px-12">
+                    <div className="mx-auto max-w-[1500px] grid grid-cols-1 md:grid-cols-4 gap-4 border-[#E4DDD3] pt-10">
+                      {[
+                        {
+                          title: "Premium Pieces",
+                          desc: "Curated designer & contemporary styles",
+                          icon: ShoppingBag,
+                        },
+                        {
+                          title: "Flexible Rentals",
+                          desc: "4, 8, 14 or 30-day rental periods",
+                          icon: Calendar,
+                        },
+                        {
+                          title: "Free Delivery & Returns",
+                          desc: "Contactless delivery & easy returns",
+                          icon: Truck,
+                        },
+                        {
+                          title: "Cleaned & Checked",
+                          desc: "Professionally cleaned & quality-checked",
+                          icon: Sparkles,
+                        },
+                      ].map((prop, index) => {
+                        const IconComponent = prop.icon;
+                        return (
+                          <div
+                            key={index}
+                            className="flex items-start gap-4 p-4 rounded-xl bg-[#FDFBF7] border border-[#E4DDD3]/60 shadow-sm/5"
+                          >
+                            <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-[#F5F0E8] text-[#1A1A1A]">
+                              <IconComponent
+                                size={18}
+                                strokeWidth={1.75}
+                                className="text-[#A62612]"
+                              />
+                            </div>
+                            <div>
+                              <h4 className="text-[12px] font-bold uppercase tracking-wider text-[#1A1A1A]">
+                                {prop.title}
+                              </h4>
+                              <p className="text-[12px] text-[#707070] mt-1 leading-normal">
+                                {prop.desc}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* VALUE PROPS STRIP (Bottom Features) */}
+        </main>
       </div>
+
+      <Footer />
     </div>
   );
 }
 
-export default function RentPage() {
+function FilterRail() {
   return (
-    <div
-      className="min-h-screen bg-[#F7F3EE]"
-      style={{ fontFamily: "'Poppins', sans-serif" }}
-    >
-      <Navbar />
+    <aside className="border-r border-[#E4DDD3] bg-[#FDFBF7] px-5 py-5">
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">
+          RENT FILTERS
+        </h2>
+        <button className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#A62612] hover:opacity-80">
+          CLEAR
+        </button>
+      </div>
 
-      {/* ── Hero ─────────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden min-h-[88vh] flex items-end bg-[#0f1a14]">
-        {/* Background image */}
-        <img
-          src="https://images.unsplash.com/photo-1595777712802-6b2ecef04908?w=1400&fit=crop&auto=format"
-          alt="rent hero"
-          className="absolute inset-0 w-full h-full object-cover opacity-35"
-        />
-        {/* Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-        <div className="relative z-10 max-w-7xl mx-auto px-6 pb-20 w-full">
-          <div className="max-w-xl">
-            <div className="flex items-center gap-2 mb-6">
-              <span className="w-8 h-px bg-amber-300" />
-              <span className="text-xs font-bold uppercase tracking-widest text-amber-300">
-                Premium Rental
-              </span>
-            </div>
-            <h1 className="text-5xl md:text-[76px] font-bold text-white leading-[1.0] tracking-tight mb-6">
-              Wear the
-              <br />
-              moment,
-              <br />
-              <em className="font-light text-white/50 not-italic">
-                not the waste.
-              </em>
-            </h1>
-            <p className="text-white/60 text-lg leading-relaxed mb-10">
-              Rent designer and pre-loved pieces for any occasion. Returned,
-              cleaned and ready for their next chapter.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <button className="px-8 py-4 rounded-2xl bg-white text-gray-900 font-bold text-sm hover:bg-amber-50 transition flex items-center gap-2">
-                Browse Rentals <ArrowUpRight size={15} />
-              </button>
-              <button className="px-8 py-4 rounded-2xl border border-white/30 text-white font-semibold text-sm hover:bg-white/10 transition">
-                How It Works
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats strip */}
-        <div className="absolute bottom-0 right-0 hidden lg:flex gap-px">
-          {[
-            ["284+", "Active Listings"],
-            ["48hr", "Avg Delivery"],
-            ["100%", "Dry Cleaned"],
-          ].map(([v, l], i) => (
-            <div
-              key={i}
-              className="bg-white/10 backdrop-blur-md px-8 py-5 text-white"
-            >
-              <p className="text-2xl font-bold">{v}</p>
-              <p className="text-[11px] text-white/60 mt-0.5">{l}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Categories ───────────────────────────────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-6 py-20">
-        <div className="flex items-end justify-between mb-12">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-6 h-px bg-green-700" />
-              <span className="text-xs font-bold uppercase tracking-widest text-green-700">
-                By Occasion
-              </span>
-            </div>
-            <h2 className="text-4xl font-bold text-gray-900">
-              What are you
-              <br />
-              dressing for?
-            </h2>
-          </div>
-          <button className="hidden md:flex items-center gap-1 text-sm text-gray-400 hover:text-gray-900 transition">
-            All occasions <ChevronRight size={14} />
+      {filters.map((filter) => (
+        <section key={filter.title} className="border-b border-[#E4DDD3] py-5">
+          <button className="flex w-full items-center justify-between text-left">
+            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">
+              {filter.title}
+            </span>
+            <ChevronDown className="h-4 w-4 text-[#707070]" />
           </button>
-        </div>
 
-        {/* 3-2-1 grid layout */}
-        <div className="grid grid-cols-3 gap-4">
-          {CATEGORIES.slice(0, 3).map((cat) => (
-            <div
-              key={cat.name}
-              className="group relative cursor-pointer rounded-3xl overflow-hidden"
-            >
-              <img
-                src={cat.image}
-                alt={cat.name}
-                className="w-full h-52 object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/65 to-transparent" />
-              <div className="absolute bottom-5 left-5 right-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xl mb-1">{cat.icon}</div>
-                    <h3 className="text-white font-bold text-lg">{cat.name}</h3>
-                    <p className="text-white/55 text-xs">{cat.count}</p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                    <ArrowUpRight size={14} className="text-white" />
-                  </div>
-                </div>
-              </div>
+          {filter.open && (
+            <div className="mt-4 space-y-3">
+              {filter.hasSearch && (
+                <input
+                  type="text"
+                  placeholder="Search designer"
+                  className="w-full h-8 px-3 text-[12px] rounded border border-[#E4DDD3] bg-white outline-none focus:border-[#A62612]"
+                />
+              )}
+              {filter.options.map((option) => (
+                <label
+                  key={option}
+                  className="flex cursor-pointer items-center gap-3 text-[13px] text-[#4D4D4D]"
+                >
+                  <input type="checkbox" className="h-4 w-4 accent-[#A62612]" />
+                  {option}
+                </label>
+              ))}
             </div>
-          ))}
-          {CATEGORIES.slice(3).map((cat) => (
-            <div
-              key={cat.name}
-              className="group relative cursor-pointer rounded-3xl overflow-hidden"
+          )}
+        </section>
+      ))}
+
+      {/* SIZE FILTER GRID */}
+      <section className="border-b border-[#E4DDD3] py-5">
+        <button className="flex w-full items-center justify-between text-left mb-4">
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">
+            SIZE
+          </span>
+          <ChevronDown className="h-4 w-4 text-[#707070]" />
+        </button>
+        <div className="grid grid-cols-4 gap-1.5">
+          {sizes.map((size) => (
+            <button
+              key={size}
+              className="h-8 border border-[#E4DDD3] text-[11px] font-semibold text-[#1A1A1A] hover:border-[#1A1A1A] rounded bg-white transition"
             >
-              <img
-                src={cat.image}
-                alt={cat.name}
-                className="w-full h-52 object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/65 to-transparent" />
-              <div className="absolute bottom-5 left-5 right-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xl mb-1">{cat.icon}</div>
-                    <h3 className="text-white font-bold text-lg">{cat.name}</h3>
-                    <p className="text-white/55 text-xs">{cat.count}</p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                    <ArrowUpRight size={14} className="text-white" />
-                  </div>
-                </div>
-              </div>
-            </div>
+              {size}
+            </button>
           ))}
         </div>
       </section>
 
-      {/* ── Rental Grid ──────────────────────────────────────────────────────── */}
-      <section className="bg-[#EFE7DD] py-20">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-end justify-between mb-12">
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-6 h-px bg-green-700" />
-                <span className="text-xs font-bold uppercase tracking-widest text-green-700">
-                  Available Now
-                </span>
-              </div>
-              <h2 className="text-4xl font-bold text-gray-900">Rent a Piece</h2>
-            </div>
-            <p className="hidden md:block text-sm text-gray-500">
-              Prices are per day. Deposits fully refunded on return.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {RENTALS.map((r) => (
-              <RentalCard key={r.id} r={r} />
-            ))}
-          </div>
+      {/* RENTAL DURATION */}
+      <section className="border-b border-[#E4DDD3] py-5">
+        <button className="flex w-full items-center justify-between text-left mb-4">
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">
+            RENTAL DURATION
+          </span>
+          <ChevronDown className="h-4 w-4 text-[#707070]" />
+        </button>
+        <div className="grid grid-cols-2 gap-3">
+          {durations.map((duration) => (
+            <label
+              key={duration}
+              className="flex items-center gap-2 text-[12px] text-[#4D4D4D] cursor-pointer"
+            >
+              <input
+                type="radio"
+                name="duration"
+                className="accent-[#A62612] h-3.5 w-3.5"
+              />
+              {duration}
+            </label>
+          ))}
         </div>
       </section>
 
-      {/* ── How It Works ─────────────────────────────────────────────────────── */}
-      <section className="py-24">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 mb-4">
-              <span className="w-6 h-px bg-green-700" />
-              <span className="text-xs font-bold uppercase tracking-widest text-green-700">
-                The Process
-              </span>
-              <span className="w-6 h-px bg-green-700" />
-            </div>
-            <h2 className="text-4xl font-bold text-gray-900">
-              How Renting Works
-            </h2>
-            <p className="text-gray-500 mt-3 max-w-md mx-auto text-sm">
-              Five effortless steps between you and looking exactly how you want
-              to look.
-            </p>
-          </div>
-
-          {/* Horizontal step indicators */}
-          <div className="hidden md:flex items-center justify-between mb-16 relative">
-            <div className="absolute left-0 right-0 top-5 h-px bg-gray-200 z-0" />
-            {STEPS.map((s, i) => (
-              <div
-                key={i}
-                className="relative z-10 flex flex-col items-center gap-3"
-              >
-                <div className="w-10 h-10 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center text-lg shadow-sm">
-                  {s.icon}
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                  {s.n}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {STEPS.map((s, i) => (
-              <div
-                key={i}
-                className="bg-white rounded-2xl p-6 hover:shadow-md transition group border border-gray-100"
-              >
-                <div className="text-3xl mb-4">{s.icon}</div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-green-700 mb-2">
-                  {s.n}
-                </p>
-                <h3 className="font-bold text-gray-900 text-sm mb-2 leading-snug">
-                  {s.title}
-                </h3>
-                <p className="text-gray-400 text-xs leading-relaxed">
-                  {s.body}
-                </p>
-              </div>
-            ))}
+      {/* PRICE RANGE */}
+      <section className="pt-5">
+        <button className="flex w-full items-center justify-between text-left">
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">
+            PRICE RANGE
+          </span>
+          <ChevronDown className="h-4 w-4 text-[#707070]" />
+        </button>
+        <div className="mt-4">
+          <input
+            type="range"
+            min="0"
+            max="300"
+            className="w-full accent-[#A62612]"
+          />
+          <div className="flex justify-between text-[11px] font-medium text-[#707070] mt-1">
+            <span>$0</span>
+            <span>$300+</span>
           </div>
         </div>
       </section>
+    </aside>
+  );
+}
 
-      <Footer />
-    </div>
+function RentalCard({ rental }: { rental: (typeof RENTALS)[0] }) {
+  return (
+    <article className="group">
+      <div className="relative aspect-[0.78/1] overflow-hidden rounded-[8px] bg-[#F5F0E8]">
+        <Link href={`/rent/${rental.id}`} className="block h-full w-full">
+          <Image
+            src={rental.image}
+            alt={rental.name}
+            fill
+            sizes="(min-width:1280px) 25vw, (min-width:640px) 50vw, 100vw"
+            className="object-cover transition duration-500 group-hover:scale-[1.03]"
+          />
+        </Link>
+
+        <span className="absolute left-2 top-2 rounded bg-[#A62612] text-[#FBF7EE] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+          RENT
+        </span>
+
+        <button
+          type="button"
+          aria-label={`Save ${rental.name}`}
+          className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm"
+        >
+          <Heart
+            size={13}
+            strokeWidth={2}
+            className="text-[#707070] transition hover:text-[#A62612]"
+          />
+        </button>
+      </div>
+
+      <div className="mt-3">
+        <h2 className="line-clamp-1 text-[14px] font-medium leading-5 text-[#1A1A1A]">
+          {rental.name}
+        </h2>
+        <p className="text-[12px] text-[#707070] font-normal leading-4 mt-0.5">
+          {rental.brand}
+        </p>
+        <p className="mt-1 text-[14px] font-bold text-[#1A1A1A]">
+          {rental.price}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function Pagination() {
+  return (
+    <nav className="flex items-center justify-center gap-1.5 border-t border-[#E4DDD3] py-6">
+      <button className="rounded border border-[#E4DDD3] px-3 py-1.5 text-[11px] text-[#707070] transition hover:border-[#A62612] hover:text-[#A62612]">
+        Previous
+      </button>
+      <button className="flex h-7 w-7 items-center justify-center rounded bg-[#A62612] text-[11px] font-semibold text-white">
+        1
+      </button>
+      <button className="flex h-7 w-7 items-center justify-center rounded border border-[#E4DDD3] text-[11px] text-[#1A1A1A] hover:border-[#A62612]">
+        2
+      </button>
+      <button className="flex h-7 w-7 items-center justify-center rounded border border-[#E4DDD3] text-[11px] text-[#1A1A1A] hover:border-[#A62612]">
+        3
+      </button>
+      <span className="text-[11px] text-[#707070] px-1">...</span>
+      <button className="flex h-7 w-7 items-center justify-center rounded border border-[#E4DDD3] text-[11px] text-[#1A1A1A] hover:border-[#A62612]">
+        9
+      </button>
+      <button className="rounded border border-[#E4DDD3] px-3 py-1.5 text-[11px] text-[#707070] transition hover:border-[#A62612] hover:text-[#A62612]">
+        Next
+      </button>
+    </nav>
   );
 }

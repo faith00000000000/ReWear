@@ -68,7 +68,7 @@ export default function LoginPage() {
   // ── Auth guard: if already logged in, skip straight to dashboard ──────────
   useEffect(() => {
     if (isAuthenticated()) {
-      router.replace("/dashboard");
+      router.replace("/");
     }
   }, [router]);
 
@@ -112,7 +112,7 @@ export default function LoginPage() {
       console.log("USER:", localStorage.getItem("user"));
 
       // ✅ JWT login → /dashboard
-      router.push("/dashboard");
+      router.push("/");
     } catch (err: any) {
       if (err.response?.status === 401) {
         setError("Invalid email or password.");

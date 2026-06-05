@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import {
   Heart,
   PackageCheck,
@@ -14,7 +17,9 @@ import {
   ShieldCheck,
   CircleDollarSign,
   Headphones,
+  ArrowUpRight,
 } from "lucide-react";
+import { getUser } from "@/app/lib/auth";
 import Navbar from "@/layout/Navbar";
 import Footer from "@/layout/Footer";
 import HeroSection from "@/components/HeroSection";
@@ -83,11 +88,29 @@ const rentLooks = [
 ];
 
 export default function Home() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+    const currentUser = getUser();
+    if (currentUser) {
+      setIsAuthenticated(true);
+      setUser(currentUser);
+    }
+  }, []);
+
+  if (!isMounted) return null;
+
   return (
     <div className="min-h-screen bg-[#F7F4EB] font-sans antialiased text-[#1A1A1A]">
       <div className="border-x-[6px] border-t-[6px] border-[#962D18]">
         <Navbar />
-        <HeroSection />
+        <HeroSection
+          isAuthenticated={isAuthenticated}
+          userName={user?.fullName}
+        />
 
         {/* 1. Styled Typography Section Header */}
         <div className="bg-[#F7F4EB] pt-16 pb-4 text-center">
@@ -96,181 +119,135 @@ export default function Home() {
           </h2> */}
         </div>
 
-        {/* 2. Value Propositions Grid Section */}
-        <section className="bg-white py-10 px-6 sm:px-12 lg:px-20 border-b border-gray-100">
-          <div className="mx-auto max-w-[1380px] grid grid-cols-2 gap-y-8 gap-x-6 md:grid-cols-4">
-            <div className="flex items-start gap-3.5">
-              <div className="text-[#962D18] p-1 mt-0.5">
-                <ShoppingBag size={24} strokeWidth={1.75} />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-[#1A1A1A] tracking-wide uppercase">
-                  Buy
-                </h4>
-                <p className="text-xs text-gray-500 mt-1 leading-relaxed font-medium">
-                  Curated vintage & pre-loved pieces
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3.5">
-              <div className="text-[#962D18] p-1 mt-0.5">
-                <CalendarClock size={24} strokeWidth={1.75} />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-[#1A1A1A] tracking-wide uppercase">
-                  Rent
-                </h4>
-                <p className="text-xs text-gray-500 mt-1 leading-relaxed font-medium">
-                  Wear once, return, repeat
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3.5">
-              <div className="text-[#962D18] p-1 mt-0.5">
-                <HeartHandshake size={24} strokeWidth={1.75} />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-[#1A1A1A] tracking-wide uppercase">
-                  Donate
-                </h4>
-                <p className="text-xs text-gray-500 mt-1 leading-relaxed font-medium">
-                  Give your wardrobe a second life
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3.5">
-              <div className="text-[#962D18] p-1 mt-0.5">
-                <Sparkles size={24} strokeWidth={1.75} />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-[#1A1A1A] tracking-wide uppercase">
-                  Try On
-                </h4>
-                <p className="text-xs text-gray-500 mt-1 leading-relaxed font-medium">
-                  AI-powered virtual styling
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
+        {/* 2. Value Propositions Grid Section - Guest or Authenticated View */}
+        {isAuthenticated ? <StatsCardsAuthenticated /> : <StatsCardsGuest />}
 
-        {/* Promotional Offers Grid Section */}
-        <section className="bg-[#F7F4EB] px-6 py-12 sm:px-8 lg:px-20">
-          <div className="mx-auto max-w-[1200px] grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* Left Main Feature Banner: Women's Style */}
-            <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#EAEFF4] sm:aspect-auto sm:min-h-[460px]">
-              <Image
-                src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80"
-                alt="Women's Style New Arrivals"
-                fill
-                priority
-                className="object-cover object-center"
-              />
-              {/* Top-Right Stacked Text Elements */}
-              <div className="absolute right-8 top-12 text-right z-10 max-w-[280px]">
-                <span className="text-xs sm:text-sm font-bold tracking-wide text-[#2563EB]">
-                  New Arrivals
-                </span>
-                <h3 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-[#1A1A1A] mt-1 leading-tight">
-                  Women&apos;s Style
-                </h3>
-                <p className="text-sm sm:text-base text-gray-700 font-medium mt-1">
-                  Up to 70% Off
-                </p>
-                <div className="mt-5 flex justify-end">
-                  <Link
-                    href="/browse"
-                    className="inline-flex items-center justify-center bg-transparent border-2 border-[#1A1A1A] text-[#1A1A1A] px-5 py-2 rounded-full text-xs font-bold tracking-wider transition hover:bg-[#1A1A1A] hover:text-white"
-                  >
-                    Shop Now
-                  </Link>
-                </div>
-              </div>
-            </div>
+        {/* Conditional Rendering: Promotional Offers OR Continue Where You Left Off */}
+        {!isAuthenticated ? (
+          <PromotionalOffersSection />
+        ) : (
+          <ContinueWhereYouLeftOffSection userId={user?.id} />
+        )}
 
-            {/* Right Dynamic Grouped Banner Grid */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              {/* Top-Left Grid: Handbag Promo */}
-              <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#B09E8F]">
+        {/* Old Promotional Section - Hidden, replaced above */}
+        {false && (
+          <section className="bg-[#F7F4EB] px-6 py-12 sm:px-8 lg:px-20">
+            <div className="mx-auto max-w-[1200px] grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/* Left Main Feature Banner: Women's Style */}
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#EAEFF4] sm:aspect-auto sm:min-h-[460px]">
                 <Image
-                  src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=600&q=80"
-                  alt="Handbags Promotion"
+                  src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80"
+                  alt="Women's Style New Arrivals"
                   fill
-                  className="object-cover object-center mix-blend-multiply opacity-90"
+                  priority
+                  className="object-cover object-center"
                 />
-                {/* Top-Left Positioned Badge & Content */}
-                <div className="absolute left-5 top-5 z-10 flex flex-col items-start gap-1">
-                  <span className="bg-[#0066CC] text-white font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-sm">
-                    25% OFF
+                {/* Top-Right Stacked Text Elements */}
+                <div className="absolute right-8 top-12 text-right z-10 max-w-[280px]">
+                  <span className="text-xs sm:text-sm font-bold tracking-wide text-[#2563EB]">
+                    New Arrivals
                   </span>
-                  <h4 className="text-2xl font-extrabold text-white tracking-wide mt-1">
-                    Handbag
-                  </h4>
-                  <Link
-                    href="/handbags"
-                    className="text-xs font-bold text-white mt-2 inline-flex items-center gap-0.5 hover:underline"
-                  >
-                    <span>Shop Now</span>
-                    <ChevronRight size={14} strokeWidth={3} />
-                  </Link>
-                </div>
-              </div>
-
-              {/* Top-Right Grid: Watch Promo */}
-              <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#D1CDC6]">
-                <Image
-                  src="https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=600&q=80"
-                  alt="Watches Promotion"
-                  fill
-                  className="object-cover object-center mix-blend-multiply opacity-85"
-                />
-                <div className="absolute left-5 top-5 z-10 flex flex-col items-start gap-1">
-                  <span className="bg-[#0066CC] text-white font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-sm">
-                    45% OFF
-                  </span>
-                  <h4 className="text-2xl font-extrabold text-[#1A1A1A] tracking-wide mt-1">
-                    Watch
-                  </h4>
-                  <Link
-                    href="/watches"
-                    className="text-xs font-bold text-[#1A1A1A] mt-2 inline-flex items-center gap-0.5 hover:underline"
-                  >
-                    <span>Shop Now</span>
-                    <ChevronRight size={14} strokeWidth={3} />
-                  </Link>
-                </div>
-              </div>
-
-              {/* Bottom Full-Width Horizontal Grid: Backpack Promo */}
-              <div className="relative aspect-[2.1/1] w-full overflow-hidden bg-[#9C8E81] sm:col-span-2 lg:col-span-1 xl:col-span-2">
-                <Image
-                  src="https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=1000&q=80"
-                  alt="Backpacks Accessories Promotion"
-                  fill
-                  className="object-cover object-center mix-blend-multiply opacity-80"
-                />
-                <div className="absolute left-6 top-1/5 -translate-y-1/2 z-10 flex flex-col items-start">
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-white/90">
-                    Accessories
-                  </span>
-                  <h4 className="text-3xl font-extrabold text-white tracking-tight mt-0.5">
-                    Backpack
-                  </h4>
-                  <p className="text-xs font-semibold text-white/90 mt-1">
-                    Min. 40–80% Off
+                  <h3 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-[#1A1A1A] mt-1 leading-tight">
+                    Women&apos;s Style
+                  </h3>
+                  <p className="text-sm sm:text-base text-gray-700 font-medium mt-1">
+                    Up to 70% Off
                   </p>
-                  <Link
-                    href="/backpacks"
-                    className="text-xs font-bold text-white mt-4 inline-flex items-center gap-0.5 border-b-2 border-white pb-0.5 hover:opacity-80"
-                  >
-                    <span>Shop Now</span>
-                    <ChevronRight size={14} strokeWidth={3} />
-                  </Link>
+                  <div className="mt-5 flex justify-end">
+                    <Link
+                      href="/browse"
+                      className="inline-flex items-center justify-center bg-transparent border-2 border-[#1A1A1A] text-[#1A1A1A] px-5 py-2 rounded-full text-xs font-bold tracking-wider transition hover:bg-[#1A1A1A] hover:text-white"
+                    >
+                      Shop Now
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Dynamic Grouped Banner Grid */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                {/* Top-Left Grid: Handbag Promo */}
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#B09E8F]">
+                  <Image
+                    src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=600&q=80"
+                    alt="Handbags Promotion"
+                    fill
+                    className="object-cover object-center mix-blend-multiply opacity-90"
+                  />
+                  {/* Top-Left Positioned Badge & Content */}
+                  <div className="absolute left-5 top-5 z-10 flex flex-col items-start gap-1">
+                    <span className="bg-[#0066CC] text-white font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-sm">
+                      25% OFF
+                    </span>
+                    <h4 className="text-2xl font-extrabold text-white tracking-wide mt-1">
+                      Handbag
+                    </h4>
+                    <Link
+                      href="/handbags"
+                      className="text-xs font-bold text-white mt-2 inline-flex items-center gap-0.5 hover:underline"
+                    >
+                      <span>Shop Now</span>
+                      <ChevronRight size={14} strokeWidth={3} />
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Top-Right Grid: Watch Promo */}
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#D1CDC6]">
+                  <Image
+                    src="https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=600&q=80"
+                    alt="Watches Promotion"
+                    fill
+                    className="object-cover object-center mix-blend-multiply opacity-85"
+                  />
+                  <div className="absolute left-5 top-5 z-10 flex flex-col items-start gap-1">
+                    <span className="bg-[#0066CC] text-white font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-sm">
+                      45% OFF
+                    </span>
+                    <h4 className="text-2xl font-extrabold text-[#1A1A1A] tracking-wide mt-1">
+                      Watch
+                    </h4>
+                    <Link
+                      href="/watches"
+                      className="text-xs font-bold text-[#1A1A1A] mt-2 inline-flex items-center gap-0.5 hover:underline"
+                    >
+                      <span>Shop Now</span>
+                      <ChevronRight size={14} strokeWidth={3} />
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Bottom Full-Width Horizontal Grid: Backpack Promo */}
+                <div className="relative aspect-[2.1/1] w-full overflow-hidden bg-[#9C8E81] sm:col-span-2 lg:col-span-1 xl:col-span-2">
+                  <Image
+                    src="https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=1000&q=80"
+                    alt="Backpacks Accessories Promotion"
+                    fill
+                    className="object-cover object-center mix-blend-multiply opacity-80"
+                  />
+                  <div className="absolute left-6 top-1/5 -translate-y-1/2 z-10 flex flex-col items-start">
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-white/90">
+                      Accessories
+                    </span>
+                    <h4 className="text-3xl font-extrabold text-white tracking-tight mt-0.5">
+                      Backpack
+                    </h4>
+                    <p className="text-xs font-semibold text-white/90 mt-1">
+                      Min. 40–80% Off
+                    </p>
+                    <Link
+                      href="/backpacks"
+                      className="text-xs font-bold text-white mt-4 inline-flex items-center gap-0.5 border-b-2 border-white pb-0.5 hover:opacity-80"
+                    >
+                      <span>Shop Now</span>
+                      <ChevronRight size={14} strokeWidth={3} />
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* 3. Product Rails with Category Specific Eyebrows */}
         <ProductRail
@@ -394,6 +371,468 @@ export function ProductRail({
               </div>
             </article>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ==================== GUEST VIEW COMPONENTS ====================
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type StatKey = "saved" | "activeRentals" | "donations" | "tryOns";
+type Stats = Record<StatKey, number>;
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+const CARD_CONFIG = [
+  {
+    href: "/browse-finds",
+    icon: ShoppingBag,
+    iconWrap: "bg-[#FEF0EE]",
+    iconColor: "text-[#AC1B18]",
+    title: "Buy",
+    desc: "Curated vintage & pre-loved pieces at honest prices.",
+    statLabel: "Saved",
+    statKey: "saved" as const,
+  },
+  {
+    href: "/rent",
+    icon: CalendarClock,
+    iconWrap: "bg-[#EFF2EC]",
+    iconColor: "text-[#5E6B52]",
+    title: "Rent",
+    desc: "Wear once, return, repeat — style without commitment.",
+    statLabel: "Active rentals",
+    statKey: "activeRentals" as const,
+  },
+  {
+    href: "/donate",
+    icon: HeartHandshake,
+    iconWrap: "bg-[#FEF0EE]",
+    iconColor: "text-[#AC1B18]",
+    title: "Donate",
+    desc: "Give your wardrobe a second life with someone who needs it.",
+    statLabel: "Donated",
+    statKey: "donations" as const,
+  },
+  {
+    href: "/ai-try-on",
+    icon: Sparkles,
+    iconWrap: "bg-[#F5F0E8]",
+    iconColor: "text-[#8B6F47]",
+    title: "Try On",
+    desc: "Virtual styling — see it on you before you buy.",
+    statLabel: "Try-outs done",
+    statKey: "tryOns" as const,
+  },
+] as const;
+
+// ─── Shared card shell ────────────────────────────────────────────────────────
+
+const CARD_BASE =
+  "group flex flex-col rounded-2xl border border-gray-100 bg-[#fdf8f2] p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#c8bfb4] hover:shadow-[0_14px_32px_-10px_rgba(80,60,40,0.13)]";
+
+interface StatsCardProps {
+  href: string;
+  icon: React.ElementType;
+  iconWrap: string;
+  iconColor: string;
+  title: string;
+  desc: string;
+  footer: React.ReactNode | null;
+}
+
+function StatsCard({
+  href,
+  icon: Icon,
+  iconWrap,
+  iconColor,
+  title,
+  desc,
+  footer,
+}: StatsCardProps) {
+  return (
+    <Link href={href} className={CARD_BASE}>
+      <div className="flex items-start gap-4">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconWrap}`}
+        >
+          <Icon size={20} strokeWidth={1.75} className={iconColor} />
+        </div>
+        <div>
+          <h3 className="mb-1 text-sm font-bold tracking-tight text-[#1e1812]">
+            {title}
+          </h3>
+          <p className="text-xs font-normal leading-relaxed text-gray-500">
+            {desc}
+          </p>
+        </div>
+      </div>
+
+      {footer && (
+        <div className="mt-3 border-t border-[#ece5db] pt-3">{footer}</div>
+      )}
+    </Link>
+  );
+}
+
+// ─── Guest view ───────────────────────────────────────────────────────────────
+
+export function StatsCardsGuest() {
+  return (
+    <section className="border-y border-[#e8e0d5] bg-white px-4 py-12 sm:px-8 lg:px-20">
+      <div className="mx-auto grid max-w-[1380px] grid-cols-2 gap-4 md:grid-cols-4">
+        {CARD_CONFIG.map((card) => (
+          <StatsCard key={card.href} {...card} footer={null} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Authenticated view ───────────────────────────────────────────────────────
+
+const MOCK_STATS: Stats = {
+  saved: 24,
+  activeRentals: 2,
+  donations: 3,
+  tryOns: 5,
+};
+
+export function StatsCardsAuthenticated({
+  stats = MOCK_STATS,
+}: {
+  stats?: Stats;
+}) {
+  return (
+    <section className="border-y border-[#e8e0d5] bg-white px-4 py-12 sm:px-8 lg:px-20">
+      <div className="mx-auto grid max-w-[1380px] grid-cols-2 gap-4 md:grid-cols-4">
+        {CARD_CONFIG.map((card) => (
+          <StatsCard
+            key={card.href}
+            {...card}
+            footer={
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                <p className="text-xs font-semibold tracking-wide text-[#4a3d30]">
+                  {card.statLabel}&nbsp;
+                  <span className="text-sm font-bold text-[#1e1812]">
+                    {stats[card.statKey]}
+                  </span>
+                </p>
+              </div>
+            }
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+/**
+ * Promotional Offers Section - Guest View Only
+ * Extracted from original code
+ */
+function PromotionalOffersSection() {
+  return (
+    <section className="bg-[#F7F4EB] px-6 py-12 sm:px-8 lg:px-20">
+      <div className="mx-auto max-w-[1200px] grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Left Main Feature Banner: Women's Style */}
+        <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#EAEFF4] sm:aspect-auto sm:min-h-[460px]">
+          <Image
+            src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80"
+            alt="Women's Style New Arrivals"
+            fill
+            priority
+            className="object-cover object-center"
+          />
+          {/* Top-Right Stacked Text Elements */}
+          <div className="absolute right-8 top-12 text-right z-10 max-w-[280px]">
+            <span className="text-xs sm:text-sm font-bold tracking-wide text-[#2563EB]">
+              New Arrivals
+            </span>
+            <h3 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-[#1A1A1A] mt-1 leading-tight">
+              Women&apos;s Style
+            </h3>
+            <p className="text-sm sm:text-base text-gray-700 font-medium mt-1">
+              Up to 70% Off
+            </p>
+            <div className="mt-5 flex justify-end">
+              <Link
+                href="/browse"
+                className="inline-flex items-center justify-center bg-transparent border-2 border-[#1A1A1A] text-[#1A1A1A] px-5 py-2 rounded-full text-xs font-bold tracking-wider transition hover:bg-[#1A1A1A] hover:text-white"
+              >
+                Shop Now
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Dynamic Grouped Banner Grid */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+          {/* Top-Left Grid: Handbag Promo */}
+          <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#B09E8F]">
+            <Image
+              src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=600&q=80"
+              alt="Handbags Promotion"
+              fill
+              className="object-cover object-center mix-blend-multiply opacity-90"
+            />
+            {/* Top-Left Positioned Badge & Content */}
+            <div className="absolute left-5 top-5 z-10 flex flex-col items-start gap-1">
+              <span className="bg-[#0066CC] text-white font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-sm">
+                25% OFF
+              </span>
+              <h4 className="text-2xl font-extrabold text-white tracking-wide mt-1">
+                Handbag
+              </h4>
+              <Link
+                href="/handbags"
+                className="text-xs font-bold text-white mt-2 inline-flex items-center gap-0.5 hover:underline"
+              >
+                <span>Shop Now</span>
+                <ChevronRight size={14} strokeWidth={3} />
+              </Link>
+            </div>
+          </div>
+
+          {/* Top-Right Grid: Watch Promo */}
+          <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#D1CDC6]">
+            <Image
+              src="https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=600&q=80"
+              alt="Watches Promotion"
+              fill
+              className="object-cover object-center mix-blend-multiply opacity-85"
+            />
+            <div className="absolute left-5 top-5 z-10 flex flex-col items-start gap-1">
+              <span className="bg-[#0066CC] text-white font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-sm">
+                45% OFF
+              </span>
+              <h4 className="text-2xl font-extrabold text-[#1A1A1A] tracking-wide mt-1">
+                Watch
+              </h4>
+              <Link
+                href="/watches"
+                className="text-xs font-bold text-[#1A1A1A] mt-2 inline-flex items-center gap-0.5 hover:underline"
+              >
+                <span>Shop Now</span>
+                <ChevronRight size={14} strokeWidth={3} />
+              </Link>
+            </div>
+          </div>
+
+          {/* Bottom Full-Width Horizontal Grid: Backpack Promo */}
+          <div className="relative aspect-[2.1/1] w-full overflow-hidden bg-[#9C8E81] sm:col-span-2 lg:col-span-1 xl:col-span-2">
+            <Image
+              src="https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=1000&q=80"
+              alt="Backpacks Accessories Promotion"
+              fill
+              className="object-cover object-center mix-blend-multiply opacity-80"
+            />
+            <div className="absolute left-6 top-1/5 -translate-y-1/2 z-10 flex flex-col items-start">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-white/90">
+                Accessories
+              </span>
+              <h4 className="text-3xl font-extrabold text-white tracking-tight mt-0.5">
+                Backpack
+              </h4>
+              <p className="text-xs font-semibold text-white/90 mt-1">
+                Min. 40–80% Off
+              </p>
+              <Link
+                href="/backpacks"
+                className="text-xs font-bold text-white mt-4 inline-flex items-center gap-0.5 border-b-2 border-white pb-0.5 hover:opacity-80"
+              >
+                <span>Shop Now</span>
+                <ChevronRight size={14} strokeWidth={3} />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Continue Where You Left Off Section - Authenticated View Only
+ * Shows recently viewed, cart items, and saved for later
+ */
+function ContinueWhereYouLeftOffSection({ userId }: { userId?: number }) {
+  // Mock data - in real app, fetch from API based on userId
+  const recentlyViewed = [
+    {
+      id: 1,
+      name: "Vintage Coat",
+      image:
+        "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=60",
+    },
+    {
+      id: 2,
+      name: "Silk Dress",
+      image:
+        "https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=150&q=60",
+    },
+    {
+      id: 3,
+      name: "Denim Jeans",
+      image:
+        "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=150&q=60",
+    },
+  ];
+
+  const cartItems = [
+    {
+      id: 1,
+      name: "Red Cardigan",
+      image:
+        "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=60",
+    },
+    {
+      id: 2,
+      name: "Weekend Jacket",
+      image:
+        "https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=150&q=60",
+    },
+  ];
+
+  const savedForLater = [
+    {
+      id: 1,
+      name: "Lace Blouse",
+      image:
+        "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=150&q=60",
+    },
+    {
+      id: 2,
+      name: "Trench Coat",
+      image:
+        "https://images.unsplash.com/photo-1548624313-0396c75e4b1a?auto=format&fit=crop&w=150&q=60",
+    },
+    {
+      id: 3,
+      name: "Evening Blazer",
+      image:
+        "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=150&q=60",
+    },
+  ];
+
+  return (
+    <section className="bg-[#F7F4EB] px-6 py-12 sm:px-12 lg:px-20 border-b border-gray-200/40">
+      <div className="mx-auto max-w-[1380px]">
+        {/* Section Title */}
+        <div className="mb-10 border-b border-gray-200/50 pb-4">
+          <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#962D18] mb-2">
+            Your Activity
+          </p>
+          <h2 className="text-3xl font-serif tracking-tight text-[#1A1A1A]">
+            Continue Where You Left Off
+          </h2>
+        </div>
+
+        {/* Three Column Grid */}
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+          {/* Recently Viewed */}
+          <div className="flex flex-col">
+            <h3 className="text-lg font-bold text-[#1A1A1A] mb-1 px-3">
+              Recently Viewed
+            </h3>
+            <p className="text-xs font-semibold text-gray-500 mb-4 px-3">
+              3 items
+            </p>
+            <div className="flex flex-wrap gap-3 bg-white/50 p-4 rounded-xl border border-gray-200">
+              {recentlyViewed.map((item) => (
+                <Link
+                  key={item.id}
+                  href={`/browse-finds/${item.id}`}
+                  className="relative group"
+                >
+                  <div className="w-20 h-20 bg-[#EFECE8] rounded-lg overflow-hidden">
+                    <Image
+                      src={item.image}
+                      alt={item.name}
+                      width={80}
+                      height={80}
+                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                    />
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <Link
+              href="/browse-finds"
+              className="text-xs font-bold text-[#962D18] mt-3 px-3 hover:underline"
+            >
+              View all →
+            </Link>
+          </div>
+
+          {/* In Your Cart */}
+          <div className="flex flex-col">
+            <h3 className="text-lg font-bold text-[#1A1A1A] mb-1 px-3">
+              In Your Cart
+            </h3>
+            <p className="text-xs font-semibold text-gray-500 mb-4 px-3">
+              {cartItems.length} items
+            </p>
+            <div className="flex flex-wrap gap-3 bg-[#FFF5F0]/50 p-4 rounded-xl border border-gray-200">
+              {cartItems.map((item) => (
+                <Link key={item.id} href="/cart" className="relative group">
+                  <div className="w-20 h-20 bg-[#EFECE8] rounded-lg overflow-hidden">
+                    <Image
+                      src={item.image}
+                      alt={item.name}
+                      width={80}
+                      height={80}
+                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                    />
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <Link
+              href="/cart"
+              className="text-xs font-bold text-[#962D18] mt-3 px-3 hover:underline\"
+            >
+              View cart →
+            </Link>
+          </div>
+
+          {/* Saved for Later */}
+          <div className="flex flex-col">
+            <h3 className="text-lg font-bold text-[#1A1A1A] mb-1 px-3">
+              Saved for Later
+            </h3>
+            <p className="text-xs font-semibold text-gray-500 mb-4 px-3">
+              {savedForLater.length} items
+            </p>
+            <div className="flex flex-wrap gap-3 bg-gray-100/30 p-4 rounded-xl border border-gray-200">
+              {savedForLater.map((item) => (
+                <Link
+                  key={item.id}
+                  href={`/browse-finds/${item.id}`}
+                  className="relative group"
+                >
+                  <div className="w-20 h-20 bg-[#EFECE8] rounded-lg overflow-hidden">
+                    <Image
+                      src={item.image}
+                      alt={item.name}
+                      width={80}
+                      height={80}
+                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                    />
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <Link
+              href="/saved"
+              className="text-xs font-bold text-[#962D18] mt-3 px-3 hover:underline"
+            >
+              View saved →
+            </Link>
+          </div>
         </div>
       </div>
     </section>
