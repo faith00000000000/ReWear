@@ -53,7 +53,7 @@ export default function FAQSection() {
               key={faq.question}
               className="group border-b border-[#d7cbbb] py-5"
             >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-[15px] font-black text-[#2a1d18] marker:hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-[15px] font-medium text-[#2a1d18] marker:hidden">
                 {faq.question}
                 <span className="text-xl leading-none text-[#AC1B18] transition group-open:rotate-45">
                   +
