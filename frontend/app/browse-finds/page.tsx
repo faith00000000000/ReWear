@@ -1,281 +1,287 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, Heart, SlidersHorizontal, Tag } from "lucide-react";
-import Navbar from "@/layout/Navbar";
-import Footer from "@/layout/Footer";
+import {ArrowRight, ChevronDown, Heart} from "lucide-react";
 import { Product, Status, products } from "./products";
 
 const filters = [
-  {
-    title: "Category",
-    options: ["Ready-to-Wear", "Handbags", "Shoes", "Accessories"],
-    open: true,
-  },
-  {
-    title: "Availability",
-    options: ["Thrift", "Rent", "Thrift + Rent"],
-    open: true,
-  },
-  {
-    title: "Brand",
-    options: ["Vintage", "Levi's", "Wrangler", "Studio Slip"],
-    open: false,
-  },
-  {
-    title: "Size",
-    options: ["XS", "S", "M", "L", "XL", "One Size"],
-    open: false,
-  },
-  {
-    title: "Condition",
-    options: ["Like New", "Excellent", "Very Good", "Vintage"],
-    open: false,
-  },
+    {
+        title: "Category",
+        options: ["Ready-to-Wear", "Handbags", "Shoes", "Accessories"],
+        open: true,
+    },
+    {
+        title: "Availability",
+        options: ["Thrift", "Thrift + Rent"],
+        open: true,
+    },
+    {
+        title: "Brand",
+        options: ["Vintage", "Levi's", "Wrangler", "Studio Slip"],
+        open: false,
+    },
+    {
+        title: "Size",
+        options: ["XS", "S", "M", "L", "XL", "One Size"],
+        open: false,
+    },
+    {
+        title: "Condition",
+        options: ["Like New", "Excellent", "Very Good", "Vintage"],
+        open: false,
+    },
 ];
 
-export const statusClass: Record<Status, string> = {
-  THRIFT: "bg-[#AC1B18] text-[#FAF2E6]",
-  RENT: "bg-[#5E6B52] text-white",
-  "THRIFT + RENT": "bg-[#211714] text-[#FAF2E6]",
+// Both THRIFT and THRIFT + RENT share the same red badge on the thrift page
+const thriftBadgeClass: Record<string, string> = {
+    THRIFT: "bg-[#A62612] text-[#FBF7EE]",
+    "THRIFT + RENT": "bg-[#A62612] text-[#FBF7EE]",
 };
 
+// Only show items relevant to thrift marketplace
+const thriftProducts = products.filter(
+    (p) => p.status === "THRIFT" || p.status === "THRIFT + RENT"
+);
+
 export default function BrowseFindsPage() {
-  return (
-    <div className="min-h-screen bg-[#FAF2E6] text-[#211714]">
-      <div className="border-x-[6px] border-t-[6px] border-[#AC1B18]">
-        <Navbar />
+    return (
+        <div className="min-h-screen bg-[#FBF7EE] text-[#1A1A1A]">
+            <div>
+                <main>
+                    <section className="relative overflow-hidden px-7 pb-16 pt-12 sm:px-12 lg:px-24">
+                        <div className="mx-auto max-w-[1380px]">
+                            <div className="grid items-center gap-16 lg:grid-cols-[1fr_520px]">
 
-        <main>
-          <section className="px-7 pb-10 pt-14 sm:px-12 lg:px-24">
-            <div className="mx-auto max-w-[1380px]">
-              <p className="mb-7 text-[12px] font-black uppercase tracking-[0.42em] text-[#9f9286]">
-                Hand-picked second-hand
-              </p>
-
-              <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
-                <div>
-                  <h1 className="text-[58px] font-black leading-[0.9] tracking-[-0.045em] text-[#1b1110] sm:text-[78px] lg:text-[92px] [font-family:Georgia,serif]">
-                    The Thrift{" "}
-                    <span className="font-normal italic text-[#AC1B18] [font-family:cursive]">
+                                {/* LEFT CONTENT */}
+                                <div className="relative z-10 max-w-[620px]">
+                                    <p className="mb-8 text-[13px] font-semibold uppercase tracking-[0.35em] text-[#A62612]">
+                                        Hand-picked second-hand
+                                    </p>
+                                    <h1 className="font-serif leading-[0.88] tracking-[-0.05em] text-[#111111]">
+                    <span className="block text-[68px] sm:text-[90px] lg:text-[108px] font-medium">
+                      The Thrift
+                    </span>
+                                        <span className="block text-[64px] sm:text-[82px] lg:text-[96px] font-normal italic text-[#A62612]">
                       closet
                     </span>
-                  </h1>
-                  <p className="mt-8 max-w-[650px] text-[18px] font-medium leading-8 text-[#6f665c]">
-                    Eight new arrivals every Friday. Each piece is
-                    photographed, measured, steamed, and marked for thrift,
-                    rent, or both before it goes live.
-                  </p>
-                </div>
+                                    </h1>
+                                    <p className="mt-10 max-w-[520px] text-[18px] leading-[1.9] text-[#4D4D4D]">
+                                        Eight new arrivals every Friday. Each piece is photographed,
+                                        measured, steamed, and marked for thrift, rent, or both before
+                                        it goes live.
+                                    </p>
+                                    <div className="mt-8 flex flex-wrap items-center gap-4">
+                                        <Link
+                                            href="/list-items"
+                                            className="flex items-center gap-2 rounded-full bg-[#a73322] px-7 py-3 text-[15px] font-medium text-white transition-colors hover:bg-[#8a2a1c]"
+                                        >
+                                            List an Item
+                                            <ArrowRight className="h-4 w-4" strokeWidth={2.5} />
+                                        </Link>
+                                    </div>
+                                </div>
 
-                <label className="flex w-fit items-center gap-2 rounded-full border border-[#d7cbbb] bg-[#fffaf2] px-5 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-[#5E6B52]">
-                  Sort
-                  <select className="appearance-none bg-transparent pr-5 text-[#211714] outline-none">
-                    <option>Newest</option>
-                    <option>Recommended</option>
-                    <option>Price low</option>
-                    <option>Price high</option>
-                  </select>
-                  <ChevronDown className="-ml-6 h-4 w-4 text-[#AC1B18]" />
-                </label>
-              </div>
+                                {/* RIGHT VISUAL */}
+                                <div className="relative hidden lg:block">
+                                    <div className="relative ml-auto h-[520px] w-full overflow-hidden">
+                                        <Image
+                                            src="/images/thrift.png"
+                                            alt="Thrift collection"
+                                            fill
+                                            priority
+                                            className="object-cover"
+                                        />
+                                    </div>
+                                    <div className="absolute -bottom-10 right-0">
+                                        <label className="flex items-center gap-2 rounded-full border border-[#D7D1CA] bg-[#FBF7EE]/95 px-5 py-2.5 backdrop-blur-sm shadow-sm">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#555]">
+                        Sort
+                      </span>
+                                            <select className="appearance-none bg-transparent pr-4 text-[14px] w-full font-medium text-[#1A1A1A] outline-none">
+                                                <option>Newest</option>
+                                                <option>Recommended</option>
+                                                <option>Price low</option>
+                                                <option>Price high</option>
+                                            </select>
+                                            <ChevronDown className="h-4 w-4 text-[#707070]" />
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="px-7 pb-20 sm:px-12 lg:px-24">
+                        <div className="mx-auto max-w-[1380px] overflow-hidden rounded-[16px] border border-[#E4DDD3] bg-[#FDFBF7]">
+                            <div className="grid lg:grid-cols-[230px_1fr]">
+                                <FilterRail />
+                                <div className="min-w-0">
+                                    <div className="flex items-center justify-between border-b border-[#E4DDD3] px-6 py-5">
+                                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#1A1A1A]">
+                                            {thriftProducts.length} Arrivals Found
+                                        </p>
+                                        <p className="text-[11px] text-[#707070]">
+                                            Items available to thrift or thrift &amp; rent.
+                                        </p>
+                                    </div>
+                                    <div className="grid gap-x-5 gap-y-8 p-6 sm:grid-cols-2 xl:grid-cols-4">
+                                        {thriftProducts.map((product) => (
+                                            <ProductCard
+                                                key={product.id}
+                                                product={product}
+                                                badgeClass={thriftBadgeClass[product.status]}
+                                            />
+                                        ))}
+                                    </div>
+                                    <Pagination />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </main>
             </div>
-          </section>
-
-          <section className="px-7 pb-20 sm:px-12 lg:px-24">
-            <div className="mx-auto grid max-w-[1380px] gap-10 lg:grid-cols-[250px_1fr]">
-              <FilterRail />
-
-              <div className="min-w-0">
-                <div className="mb-6 flex flex-col gap-3 border-y border-[#d7cbbb] py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-[12px] font-black uppercase tracking-[0.22em] text-[#81776c]">
-                    <span className="text-[#AC1B18]">8</span> arrivals found
-                  </p>
-                  <p className="text-[12px] font-bold text-[#6f665c]">
-                    Status labels show whether each piece is available to
-                    thrift, rent, or both.
-                  </p>
-                </div>
-
-                <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 xl:grid-cols-4">
-                  {products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
-
-                <Pagination />
-              </div>
-            </div>
-          </section>
-        </main>
-      </div>
-
-      <Footer />
-    </div>
-  );
+        </div>
+    );
 }
 
 function FilterRail() {
-  return (
-    <aside className="h-fit border border-[#d7cbbb] bg-[#fffaf2] px-5 py-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-[13px] font-black uppercase tracking-[0.2em] text-[#211714]">
-          <SlidersHorizontal size={15} className="text-[#AC1B18]" />
-          Filters
-        </h2>
-        <button className="text-[10px] font-black uppercase tracking-[0.14em] text-[#5E6B52] underline underline-offset-4">
-          Clear
-        </button>
-      </div>
-
-      {filters.map((filter) => (
-        <section
-          key={filter.title}
-          className="border-b border-[#d7cbbb] py-5 first:pt-0 last:border-b-0 last:pb-0"
-        >
-          <button className="flex w-full items-center justify-between text-left">
-            <span className="text-[12px] font-black uppercase tracking-[0.16em] text-[#211714]">
+    return (
+        <aside className="border-r border-[#E4DDD3] bg-[#FDFBF7] px-5 py-5">
+            <div className="mb-6 flex items-center justify-between">
+                <h2 className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">
+                    FF Filters
+                </h2>
+                <button className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#A62612] hover:opacity-80">
+                    Clear
+                </button>
+            </div>
+            {filters.map((filter) => (
+                <section key={filter.title} className="border-b border-[#E4DDD3] py-5">
+                    <button className="flex w-full items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">
               {filter.title}
             </span>
-            <ChevronDown className="h-4 w-4 text-[#AC1B18]" />
-          </button>
-
-          {filter.open ? (
-            <div className="mt-4 space-y-3">
-              {filter.options.map((option) => (
-                <label
-                  key={option}
-                  className="flex cursor-pointer items-center gap-3 text-[13px] font-medium text-[#665d54]"
-                >
-                  <input className="h-4 w-4 accent-[#AC1B18]" type="checkbox" />
-                  {option}
-                </label>
-              ))}
-            </div>
-          ) : null}
-        </section>
-      ))}
-
-      <section className="pt-5">
-        <button className="flex w-full items-center justify-between text-left">
-          <span className="text-[12px] font-black uppercase tracking-[0.16em] text-[#211714]">
+                        <ChevronDown className="h-4 w-4 text-[#707070]" />
+                    </button>
+                    {filter.open && (
+                        <div className="mt-4 space-y-3">
+                            {filter.options.map((option) => (
+                                <label
+                                    key={option}
+                                    className="flex cursor-pointer items-center gap-3 text-[13px] text-[#4D4D4D]"
+                                >
+                                    <input type="checkbox" className="h-4 w-4 accent-[#A62612]" />
+                                    {option}
+                                </label>
+                            ))}
+                        </div>
+                    )}
+                </section>
+            ))}
+            <section className="pt-5">
+                <button className="flex w-full items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">
             Price Range
           </span>
-          <ChevronDown className="h-4 w-4 text-[#AC1B18]" />
-        </button>
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <label>
-            <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-[#81776c]">
+                    <ChevronDown className="h-4 w-4 text-[#707070]" />
+                </button>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                    <label>
+            <span className="mb-2 block text-[9px] font-bold uppercase tracking-[0.12em] text-[#707070]">
               Min
             </span>
-            <input
-              defaultValue="$0"
-              className="h-10 w-full border border-[#d7cbbb] bg-[#FAF2E6] px-3 text-[12px] font-bold outline-none focus:border-[#5E6B52]"
-            />
-          </label>
-          <label>
-            <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-[#81776c]">
+                        <input
+                            defaultValue="Rs 0"
+                            className="h-9 w-full rounded border border-[#E4DDD3] bg-white px-2 text-[12px] font-medium outline-none focus:border-[#A62612]"
+                        />
+                    </label>
+                    <label>
+            <span className="mb-2 block text-[9px] font-bold uppercase tracking-[0.12em] text-[#707070]">
               Max
             </span>
-            <input
-              defaultValue="$200+"
-              className="h-10 w-full border border-[#d7cbbb] bg-[#FAF2E6] px-3 text-[12px] font-bold outline-none focus:border-[#5E6B52]"
-            />
-          </label>
-        </div>
-      </section>
-    </aside>
-  );
+                        <input
+                            defaultValue="Rs 9999+"
+                            className="h-9 w-full rounded border border-[#E4DDD3] bg-white px-2 text-[12px] font-medium outline-none focus:border-[#A62612]"
+                        />
+                    </label>
+                </div>
+            </section>
+        </aside>
+    );
 }
 
-function ProductCard({ product }: { product: Product }) {
-  return (
-    <article className="group relative">
-      <Link
-        href={`/browse-finds/${product.id}`}
-        aria-label={`View ${product.name}`}
-        className="block"
-      >
-        <div className="relative aspect-[0.86/1] overflow-hidden bg-[#f4d7a7]">
-          <Image
-            src={product.image}
-            alt={product.name}
-            fill
-            sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw"
-            className="object-cover transition duration-500 group-hover:scale-105"
-          />
-          <span className="absolute left-4 top-4 rounded-full bg-[#FAF2E6]/95 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#5E6B52] shadow-sm">
-            One of one
-          </span>
-          <span
-            className={`absolute bottom-4 left-4 rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] shadow-sm ${statusClass[product.status]}`}
-          >
-            {product.status}
-          </span>
-        </div>
-      </Link>
-      <button
-        type="button"
-        aria-label={`Save ${product.name}`}
-        className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-[#FAF2E6]/95 text-[#AC1B18] shadow-sm transition hover:bg-white"
-      >
-        <Heart size={18} />
-      </button>
+export function ProductCard({
+                                product,
+                                badgeClass,
+                            }: {
+    product: Product;
+    badgeClass: string;
+}) {
+    return (
+        <article className="group">
+            <div className="relative aspect-[0.8/1] overflow-hidden rounded-[8px] bg-[#F5F0E8]">
+                <Link
+                    href={`/browse-finds/${product.id}`}
+                    className="block h-full w-full"
+                >
+                    <Image
+                        src={product.image}
+                        alt={product.name}
+                        fill
+                        sizes="(min-width:1280px) 25vw, (min-width:640px) 50vw, 100vw"
+                        className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                    />
+                </Link>
 
-      <div className="pt-4">
-        <p className="text-[12px] font-black uppercase tracking-[0.28em] text-[#9f9286]">
-          {product.brand}
-        </p>
-        <h2 className="mt-2 min-h-[46px] text-[17px] font-black leading-6 text-[#241812] [font-family:Georgia,serif]">
-          {product.name}
-        </h2>
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] font-bold text-[#6f665c]">
-          <span className="inline-flex items-center gap-1">
-            <Tag size={13} className="text-[#5E6B52]" />
-            {product.size}
-          </span>
-          <span>{product.condition}</span>
-          <span>{product.status}</span>
-        </div>
+                {/* Badge always red on thrift page, label reflects actual status */}
+                <span
+                    className={`absolute left-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}
+                >
+          {product.status}
+        </span>
 
-        <div className="mt-4 flex items-center justify-between gap-4">
-          <p className="text-[20px] font-black text-[#AC1B18]">
-            {product.price}{" "}
-            {product.oldPrice ? (
-              <span className="ml-1 text-[13px] font-bold text-[#9f9286] line-through">
-                {product.oldPrice}
-              </span>
-            ) : null}
-          </p>
-          <Link
-            href={`/browse-finds/${product.id}`}
-            className="text-[11px] font-black uppercase tracking-[0.24em] text-[#5E6B52] transition hover:text-[#AC1B18]"
-          >
-            View
-          </Link>
-        </div>
-      </div>
-    </article>
-  );
+                <button
+                    type="button"
+                    aria-label={`Save ${product.name}`}
+                    className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm"
+                >
+                    <Heart
+                        size={14}
+                        strokeWidth={2}
+                        className="text-[#707070] transition hover:text-[#A62612]"
+                    />
+                </button>
+            </div>
+
+            <Link href={`/browse-finds/${product.id}`} className="mt-3 block">
+                <h2 className="line-clamp-2 text-[14px] font-medium leading-5 text-[#1A1A1A]">
+                    {product.name}
+                </h2>
+                <p className="mt-1 text-[15px] font-semibold text-[#1A1A1A]">
+                    {product.price}
+                </p>
+            </Link>
+        </article>
+    );
 }
 
 function Pagination() {
-  return (
-    <nav className="mt-14 flex flex-wrap items-center justify-center gap-3 text-[12px] font-black uppercase tracking-[0.12em]">
-      <button className="h-10 rounded-full border border-[#d7cbbb] px-5 text-[#6f665c] transition hover:border-[#5E6B52] hover:text-[#5E6B52]">
-        Previous
-      </button>
-      <button className="flex h-10 w-10 items-center justify-center rounded-full bg-[#AC1B18] text-[#FAF2E6]">
-        1
-      </button>
-      <button className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d7cbbb] text-[#211714] transition hover:border-[#AC1B18] hover:text-[#AC1B18]">
-        2
-      </button>
-      <button className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d7cbbb] text-[#211714] transition hover:border-[#AC1B18] hover:text-[#AC1B18]">
-        3
-      </button>
-      <button className="h-10 rounded-full border border-[#AC1B18] px-5 text-[#AC1B18] transition hover:bg-[#AC1B18] hover:text-[#FAF2E6]">
-        Next
-      </button>
-    </nav>
-  );
+    return (
+        <nav className="flex items-center justify-center gap-2 border-t border-[#E4DDD3] py-5">
+            <button className="rounded border border-[#E4DDD3] px-3 py-1.5 text-[11px] text-[#707070] transition hover:border-[#A62612] hover:text-[#A62612]">
+                Previous
+            </button>
+            <button className="flex h-7 w-7 items-center justify-center rounded bg-[#A62612] text-[11px] font-semibold text-white">
+                1
+            </button>
+            <button className="flex h-7 w-7 items-center justify-center rounded border border-[#E4DDD3] text-[11px] text-[#1A1A1A]">
+                2
+            </button>
+            <button className="flex h-7 w-7 items-center justify-center rounded border border-[#E4DDD3] text-[11px] text-[#1A1A1A]">
+                3
+            </button>
+            <button className="rounded border border-[#E4DDD3] px-3 py-1.5 text-[11px] text-[#707070] transition hover:border-[#A62612] hover:text-[#A62612]">
+                Next
+            </button>
+        </nav>
+    );
 }

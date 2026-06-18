@@ -1,7 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import Navbar from "@/layout/Navbar";
-import Footer from "@/layout/Footer";
 import { CircleDollarSign, PackageCheck, Truck } from "lucide-react";
 
 const steps = [
@@ -25,7 +23,6 @@ const steps = [
 export default function DonatePage() {
   return (
     <main className="min-h-screen bg-[#FAF2E6] text-[#231914]">
-      <Navbar />
 
       <section className="mx-auto max-w-[1180px] px-6 pb-16 pt-10 sm:px-8 lg:px-9">
         <div className="grid items-start gap-12 lg:grid-cols-[1fr_0.96fr] lg:gap-16">
@@ -114,7 +111,6 @@ export default function DonatePage() {
         </div>
       </section>
 
-      <Footer />
     </main>
   );
 }
