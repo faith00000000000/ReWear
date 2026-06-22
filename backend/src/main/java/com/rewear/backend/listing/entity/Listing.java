@@ -1,6 +1,7 @@
 package com.rewear.backend.listing.entity;
 // listing/entity/Listing.java
 import com.rewear.backend.listing.enums.*;
+import com.rewear.backend.user.model.User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -116,9 +117,13 @@ public class Listing {
     @Builder.Default
     private ListingStatus status = ListingStatus.DRAFT;
 
-    // FK to users table — wire up to your existing User entity later
-    @Column(name = "seller_id", nullable = false)
-    private Long sellerId;
+    // ── Seller relationship ─────────────────────────────────────────────
+    // Replaces the old raw `sellerId` Long column.
+    // LAZY fetch — repository uses JOIN FETCH on the detail-page query so this
+    // stays cheap on list endpoints and complete on the single-listing endpoint.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "seller_id", nullable = false)
+    private User seller;
 
     // ── Audit ─────────────────────────────────────────────────────────
 

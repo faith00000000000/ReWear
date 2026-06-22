@@ -4,6 +4,7 @@ package com.rewear.backend.listing.service;
 import com.rewear.backend.listing.dto.request.ListingRequestDTO;
 import com.rewear.backend.listing.dto.response.ListingResponseDTO;
 import com.rewear.backend.listing.enums.ListingStatus;
+import com.rewear.backend.user.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -12,7 +13,8 @@ import java.util.List;
 public interface ListingService {
 
     // Create a new listing (Draft or Pending Review, depending on publish flag)
-    ListingResponseDTO createListing(ListingRequestDTO request);
+    // seller is resolved server-side from the authenticated JWT principal
+    ListingResponseDTO createListing(ListingRequestDTO request, User seller);
 
     // Get a single listing by ID
     ListingResponseDTO getListingById(Long id);

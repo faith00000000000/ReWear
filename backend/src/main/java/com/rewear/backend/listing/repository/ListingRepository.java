@@ -19,7 +19,7 @@ import java.util.Optional;
 public interface ListingRepository extends JpaRepository<Listing, Long> {
 
     // All listings by seller, newest first
-    List<Listing> findBySellerIdOrderByCreatedAtDesc(Long sellerId);
+    List<Listing> findBySeller_IdOrderByCreatedAtDesc(Long sellerId);
 
     // Paginated listings filtered by status
     Page<Listing> findByStatus(ListingStatus status, Pageable pageable);
@@ -39,7 +39,13 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
     );
 
     // Ownership check (seller can only touch their own listings)
-    Optional<Listing> findByIdAndSellerId(Long id, Long sellerId);
+    Optional<Listing> findByIdAndSeller_Id(Long id, Long sellerId);
+
+    // Single-listing fetch WITH seller eagerly loaded — use this for the
+    // product detail page endpoint so seller name/image come in one query
+    // and you avoid LazyInitializationException outside the transaction.
+    @Query("SELECT l FROM Listing l JOIN FETCH l.seller WHERE l.id = :id")
+    Optional<Listing> findByIdWithSeller(@Param("id") Long id);
 
     // Full-text title search on published listings
     @Query("""
@@ -50,5 +56,5 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
     Page<Listing> searchByTitle(@Param("keyword") String keyword, Pageable pageable);
 
     // Count active listings per seller (useful for dashboard)
-    long countBySellerIdAndStatus(Long sellerId, ListingStatus status);
+    long countBySeller_IdAndStatus(Long sellerId, ListingStatus status);
 }

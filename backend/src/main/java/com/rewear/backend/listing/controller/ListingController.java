@@ -1,10 +1,13 @@
 // listing/controller/ListingController.java
 package com.rewear.backend.listing.controller;
 
+import com.rewear.backend.exception.ResourceNotFoundException;
 import com.rewear.backend.listing.dto.request.ListingRequestDTO;
 import com.rewear.backend.listing.dto.response.ListingResponseDTO;
 import com.rewear.backend.listing.enums.*;
 import com.rewear.backend.listing.service.ListingService;
+import com.rewear.backend.user.model.User;
+import com.rewear.backend.user.repository.UserRepository;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
@@ -18,11 +21,12 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/listings")
+@RequestMapping("/api/listings")
 @RequiredArgsConstructor
 public class ListingController {
 
     private final ListingService listingService;
+    private final UserRepository userRepository;
 
     // ── POST /api/v1/listings ─────────────────────────────────────────────
     // multipart/form-data because request carries file uploads
@@ -67,11 +71,9 @@ public class ListingController {
             // Meta
             @RequestParam(value = "publish", defaultValue = "false") boolean publish,
 
-            // Seller ID extracted from JWT principal
             @AuthenticationPrincipal UserDetails userDetails
     ) {
-        // TODO: replace with your real user-lookup once User entity is wired
-        Long sellerId = resolveSellerIdFromPrincipal(userDetails);
+        User seller = resolveSellerFromPrincipal(userDetails);
 
         ListingRequestDTO request = buildRequest(
                 productTitle, listingMode, clothingType, gender, brand,
@@ -79,12 +81,12 @@ public class ListingController {
                 photoDetail, video, description, size, condition, color,
                 material, originalPrice, availability, shippingOption,
                 defectFlaws, thriftPrice, rentPerDay, securityDeposit,
-                publish, sellerId
+                publish
         );
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(listingService.createListing(request));
+                .body(listingService.createListing(request, seller));
     }
 
     // ── GET /api/v1/listings/{id} ─────────────────────────────────────────
@@ -165,7 +167,10 @@ public class ListingController {
             @RequestParam(value = "publish", defaultValue = "false")   boolean publish,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
-        Long sellerId = resolveSellerIdFromPrincipal(userDetails);
+        // Principal resolved to confirm caller is authenticated; ownership
+        // check (seller actually owns listing {id}) belongs in the service
+        // layer — flagging this as a TODO since it's outside today's scope.
+        resolveSellerFromPrincipal(userDetails);
 
         ListingRequestDTO request = buildRequest(
                 productTitle, listingMode, clothingType, gender, brand,
@@ -173,7 +178,7 @@ public class ListingController {
                 photoDetail, video, description, size, condition, color,
                 material, originalPrice, availability, shippingOption,
                 defectFlaws, thriftPrice, rentPerDay, securityDeposit,
-                publish, sellerId
+                publish
         );
 
         return ResponseEntity.ok(listingService.updateListing(id, request));
@@ -211,7 +216,7 @@ public class ListingController {
             String material, BigDecimal originalPrice, String availability,
             String shippingOption, String defectFlaws,
             BigDecimal thriftPrice, BigDecimal rentPerDay, BigDecimal securityDeposit,
-            boolean publish, Long sellerId
+            boolean publish
     ) {
         return ListingRequestDTO.builder()
                 .productTitle(productTitle)
@@ -239,7 +244,6 @@ public class ListingController {
                 .rentPerDay(rentPerDay)
                 .securityDeposit(securityDeposit)
                 .publish(publish)
-                .sellerId(sellerId)
                 .build();
     }
 
@@ -280,12 +284,18 @@ public class ListingController {
     }
 
     /**
-     * Placeholder — swap out for your real User lookup
-     * once your User entity / UserService is wired in.
+     * Resolves the authenticated User entity from the JWT principal.
+     * Assumes UserDetails#getUsername() returns the user's email —
+     * matches your JwtAuthFilter / UserDetailsService convention.
+     * If your JwtAuthFilter wires a custom UserPrincipal carrying the
+     * User id directly, swap this for a simpler cast instead of a DB hit.
      */
-    private Long resolveSellerIdFromPrincipal(UserDetails userDetails) {
-        if (userDetails == null) return null;
-        // Example: return userService.findByEmail(userDetails.getUsername()).getId();
-        return 1L; // temporary hard-code — replace with real lookup
+    private User resolveSellerFromPrincipal(UserDetails userDetails) {
+        if (userDetails == null) {
+            throw new ResourceNotFoundException("No authenticated user found");
+        }
+        return userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found: " + userDetails.getUsername()));
     }
 }

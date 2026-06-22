@@ -91,6 +91,7 @@ public class ListingRequestDTO {
     // true = "Publish Listing" button, false = "Save Draft" button
     private boolean publish = false;
 
-    // Resolved from JWT in SecurityContext in the controller
-    private Long sellerId;
+    // NOTE: sellerId removed. The seller is resolved server-side from the
+    // authenticated JWT principal in the controller and passed directly
+    // into the service/mapper — never trusted from client input.
 }

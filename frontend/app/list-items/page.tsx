@@ -524,7 +524,7 @@ export default function ListItemPage() {
         try {
             const formData = buildFormData(publish);
 
-            const { data } = await api.post("/api/v1/listings", formData, {
+            const { data } = await api.post("/api/listings", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
             });
 
@@ -1141,8 +1141,8 @@ export default function ListItemPage() {
                                     <span
                                         className={`absolute top-3 left-3 text-[10px] font-bold px-2.5 py-1 rounded-full ${modeColors[form.listingMode]}`}
                                     >
-            {form.listingMode.toUpperCase()}
-        </span>
+                                        {form.listingMode.toUpperCase()}
+                                    </span>
                                 )}
 
                             </div>

@@ -6,6 +6,7 @@ import com.rewear.backend.listing.dto.response.ListingResponseDTO;
 import com.rewear.backend.listing.entity.Listing;
 import com.rewear.backend.listing.enums.Availability;
 import com.rewear.backend.listing.enums.ListingStatus;
+import com.rewear.backend.user.model.User;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -15,8 +16,10 @@ public class ListingMapper {
      * RequestDTO -> new Listing entity.
      * Media URLs and status are intentionally excluded here;
      * they are set by the service after Supabase upload.
+     * Seller is passed in separately by the service (resolved from JWT principal),
+     * not taken from the DTO, to avoid trusting a client-supplied seller id.
      */
-    public Listing toEntity(ListingRequestDTO dto) {
+    public Listing toEntity(ListingRequestDTO dto, User seller) {
         return Listing.builder()
                 .productTitle(dto.getProductTitle())
                 .listingMode(dto.getListingMode())
@@ -41,7 +44,7 @@ public class ListingMapper {
                 .thriftPrice(dto.getThriftPrice())
                 .rentPerDay(dto.getRentPerDay())
                 .securityDeposit(dto.getSecurityDeposit())
-                .sellerId(dto.getSellerId())
+                .seller(seller)
                 .status(ListingStatus.DRAFT)  // always starts as draft
                 .build();
     }
@@ -77,7 +80,7 @@ public class ListingMapper {
                 .rentPerDay(listing.getRentPerDay())
                 .securityDeposit(listing.getSecurityDeposit())
                 .status(listing.getStatus())
-                .sellerId(listing.getSellerId())
+                .seller(SellerMapper.toSellerSummary(listing.getSeller()))
                 .createdAt(listing.getCreatedAt())
                 .updatedAt(listing.getUpdatedAt())
                 .build();
@@ -86,6 +89,7 @@ public class ListingMapper {
     /**
      * Partial update: only overwrite non-null text fields from the DTO
      * onto an existing entity. Media URLs handled separately in service.
+     * Seller is intentionally never reassigned on update.
      */
     public void updateEntityFromDTO(ListingRequestDTO dto, Listing listing) {
         if (dto.getProductTitle() != null)  listing.setProductTitle(dto.getProductTitle());

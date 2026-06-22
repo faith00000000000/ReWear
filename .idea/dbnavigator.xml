@@ -11,10 +11,10 @@
   </component>
   <component name="DBNavigator.Project.DatabaseAssistantManager">
     <assistants>
-      <assistant-state connection-id="35fc4cda-5e25-40cb-bd38-f5c89ef2c5a9" assistant-type="PUBLIC" default-profile-name="" selected-chat-id="" availability="AVAILABLE" acknowledgement="NONE" selected="true">
+      <assistant-state connection-id="35fc4cda-5e25-40cb-bd38-f5c89ef2c5a9" assistant-type="SELECT_AI" default-profile-name="" selected-chat-id="" availability="UNAVAILABLE" acknowledgement="NONE">
         <tools />
       </assistant-state>
-      <assistant-state connection-id="35fc4cda-5e25-40cb-bd38-f5c89ef2c5a9" assistant-type="SELECT_AI" default-profile-name="" selected-chat-id="" availability="UNAVAILABLE" acknowledgement="NONE">
+      <assistant-state connection-id="35fc4cda-5e25-40cb-bd38-f5c89ef2c5a9" assistant-type="PUBLIC" default-profile-name="" selected-chat-id="" availability="AVAILABLE" acknowledgement="NONE" selected="true">
         <tools />
       </assistant-state>
     </assistants>
@@ -32,7 +32,11 @@
     <connection id="35fc4cda-5e25-40cb-bd38-f5c89ef2c5a9">
       <console name="Connection" type="STANDARD" schema="mysql" session="Main"><![CDATA[select * from rewear.users;
 
-select * from rewear.listings;]]></console>
+select * from rewear.listings;
+
+ALTER TABLE listings
+  ADD CONSTRAINT fk_listings_seller
+  FOREIGN KEY (seller_id) REFERENCES users(id);]]></console>
     </connection>
   </component>
   <component name="DBNavigator.Project.DatabaseEditorStateManager">

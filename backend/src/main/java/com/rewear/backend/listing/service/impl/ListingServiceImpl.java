@@ -11,7 +11,7 @@ import com.rewear.backend.listing.mapper.ListingMapper;
 import com.rewear.backend.listing.repository.ListingRepository;
 import com.rewear.backend.listing.service.ListingService;
 import com.rewear.backend.storage.SupabaseStorageService;
-import jakarta.persistence.EntityNotFoundException;
+import com.rewear.backend.user.model.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -37,18 +37,22 @@ public class ListingServiceImpl implements ListingService {
     // ── CREATE ─────────────────────────────────────────────────────────────
 
     @Override
-    public ListingResponseDTO createListing(ListingRequestDTO request) {
+    public ListingResponseDTO createListing(ListingRequestDTO request, User seller) {
         // 1. Map DTO to entity (status defaults to DRAFT inside mapper)
-        Listing listing = listingMapper.toEntity(request);
+        Listing listing = listingMapper.toEntity(request, seller);
 
         // 2. Upload any provided media files to Supabase
-        String folder = "seller-" + request.getSellerId();
+        String folder = "seller-" + seller.getId();
         uploadMedia(listing, request, folder);
 
         // 3. Determine status from the "publish" button flag
         //    "Save Draft" -> DRAFT  |  "Publish Listing" -> PENDING_REVIEW
+//        if (request.isPublish()) {
+//            listing.setStatus(ListingStatus.PENDING_REVIEW);
+//        }
+
         if (request.isPublish()) {
-            listing.setStatus(ListingStatus.PENDING_REVIEW);
+            listing.setStatus(ListingStatus.PUBLISHED);
         }
 
         Listing saved = listingRepository.save(listing);
@@ -62,7 +66,11 @@ public class ListingServiceImpl implements ListingService {
     @Override
     @Transactional(readOnly = true)
     public ListingResponseDTO getListingById(Long id) {
-        return listingMapper.toResponseDTO(findOrThrow(id));
+        // Uses the JOIN FETCH query so seller (name/photo) is loaded in the
+        // same query — needed for the product detail page.
+        Listing listing = listingRepository.findByIdWithSeller(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Listing not found with id: " + id));
+        return listingMapper.toResponseDTO(listing);
     }
 
     @Override
@@ -77,7 +85,7 @@ public class ListingServiceImpl implements ListingService {
     @Transactional(readOnly = true)
     public List<ListingResponseDTO> getListingsBySeller(Long sellerId) {
         return listingRepository
-                .findBySellerIdOrderByCreatedAtDesc(sellerId)
+                .findBySeller_IdOrderByCreatedAtDesc(sellerId)
                 .stream()
                 .map(listingMapper::toResponseDTO)
                 .collect(Collectors.toList());
@@ -101,14 +109,17 @@ public class ListingServiceImpl implements ListingService {
         listingMapper.updateEntityFromDTO(request, existing);
 
         // Re-upload only the media files that were actually sent
-        String folder = "seller-" + existing.getSellerId();
+        String folder = "seller-" + existing.getSeller().getId();
         replaceMediaIfProvided(existing, request, folder);
 
         // Promote from DRAFT to PENDING_REVIEW if publish button was pressed
-        if (request.isPublish() && existing.getStatus() == ListingStatus.DRAFT) {
-            existing.setStatus(ListingStatus.PENDING_REVIEW);
-        }
+//        if (request.isPublish() && existing.getStatus() == ListingStatus.DRAFT) {
+//            existing.setStatus(ListingStatus.PENDING_REVIEW);
+//        }
 
+        if (request.isPublish() && existing.getStatus() == ListingStatus.DRAFT) {
+            existing.setStatus(ListingStatus.PUBLISHED);
+        }
         Listing updated = listingRepository.save(existing);
         log.info("Listing updated [id={}]", updated.getId());
 
@@ -138,12 +149,6 @@ public class ListingServiceImpl implements ListingService {
     // ──────────────────────────────────────────────────────────────────────
     // Private helpers
     // ──────────────────────────────────────────────────────────────────────
-
-//    private Listing findOrThrow(Long id) {
-//        return listingRepository.findById(id)
-//                .orElseThrow(() ->
-//                        new EntityNotFoundException("Listing not found with id: " + id));
-//    }
 
     private Listing findOrThrow(Long id) {
         return listingRepository.findById(id)

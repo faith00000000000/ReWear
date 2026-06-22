@@ -1,15 +1,15 @@
 package com.rewear.backend.security;
 
-import com.rewear.backend.dto.request.LoginRequestDto;
-import com.rewear.backend.dto.request.UserRequestDto;
-import com.rewear.backend.dto.response.AuthResponseDto;
+import com.rewear.backend.user.dto.request.LoginRequestDto;
+import com.rewear.backend.user.dto.request.UserRequestDto;
+import com.rewear.backend.user.dto.response.AuthResponseDto;
 import com.rewear.backend.exception.InvalidCredentialsException;
 import com.rewear.backend.exception.InvalidTokenException;
 import com.rewear.backend.exception.ResourceAlreadyExistsException;
 import com.rewear.backend.exception.ResourceNotFoundException;
-import com.rewear.backend.mapper.UserMapper;
-import com.rewear.backend.model.User;
-import com.rewear.backend.repository.UserRepository;
+import com.rewear.backend.user.mapper.UserMapper;
+import com.rewear.backend.user.model.User;
+import com.rewear.backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

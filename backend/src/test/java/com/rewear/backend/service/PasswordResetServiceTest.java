@@ -1,15 +1,18 @@
 package com.rewear.backend.service;
 
-import com.rewear.backend.dto.request.LoginRequestDto;
-import com.rewear.backend.dto.request.ResetPasswordRequestDto;
-import com.rewear.backend.dto.response.UserResponseDto;
+import com.rewear.backend.user.dto.request.LoginRequestDto;
+import com.rewear.backend.user.dto.request.ResetPasswordRequestDto;
+import com.rewear.backend.user.dto.response.UserResponseDto;
 import com.rewear.backend.exception.InvalidCredentialsException;
-import com.rewear.backend.mapper.UserMapper;
-import com.rewear.backend.model.PasswordResetOtp;
-import com.rewear.backend.model.User;
-import com.rewear.backend.repository.UserRepository;
+import com.rewear.backend.user.mapper.UserMapper;
+import com.rewear.backend.user.model.PasswordResetOtp;
+import com.rewear.backend.user.model.User;
+import com.rewear.backend.user.repository.UserRepository;
 import com.rewear.backend.security.AuthService;
 import com.rewear.backend.security.JwtService;
+import com.rewear.backend.user.service.EmailService;
+import com.rewear.backend.user.service.OtpService;
+import com.rewear.backend.user.service.PasswordResetService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

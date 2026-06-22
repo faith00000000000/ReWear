@@ -1,7 +1,7 @@
 package com.rewear.backend.security;
 
-import com.rewear.backend.model.User;
-import com.rewear.backend.repository.UserRepository;
+import com.rewear.backend.user.model.User;
+import com.rewear.backend.user.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;

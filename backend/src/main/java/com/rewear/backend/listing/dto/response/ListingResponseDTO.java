@@ -52,7 +52,7 @@ public class ListingResponseDTO {
 
     // Meta
     private ListingStatus status;
-    private Long sellerId;
+    private SellerSummaryDto seller;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
