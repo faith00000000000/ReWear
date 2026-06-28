@@ -11,6 +11,7 @@ import { AuthProvider } from "@/lib/AuthContext";
 import Navbar from "@/layout/Navbar";
 import Footer from "@/layout/Footer";
 import { CartProvider } from "@/lib/CartContext";
+import { Suspense } from "react";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -57,7 +58,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 {/* Sticky Navbar sits just below the fixed red top bar */}
                 {/* top-[6px] aligns it flush under the red line */}
                 <div className="sticky top-[4px] z-50">
-                    <Navbar />
+                    {/*<Navbar />*/}
+                    <Suspense fallback={null}>
+                        <Navbar />
+                    </Suspense>
                 </div>
 
                 {/* Page content */}

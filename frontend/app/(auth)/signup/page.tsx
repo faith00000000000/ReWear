@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Mail, User } from "lucide-react";
 import api from "@/lib/axios";
 import { saveTokens, saveUser, redirectToGoogle } from "@/lib/auth";
@@ -39,6 +39,8 @@ function Label({ children }: { children: React.ReactNode }) {
 
 export default function SignupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/";
 
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState<FormData>({
@@ -75,8 +77,10 @@ export default function SignupPage() {
         refreshToken: data.refreshToken,
       });
 
+      // saveUser(data.user);
+      // router.push("/login");
       saveUser(data.user);
-      router.push("/login");
+      router.push(`/login${redirectTo !== "/" ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`);
     } catch (err: any) {
       const messages: string[] = [];
 
@@ -253,9 +257,17 @@ export default function SignupPage() {
               <div className="h-[1px] flex-1 bg-[#E2D4C5] opacity-60" />
             </div>
 
+            {/*<button*/}
+            {/*    type="button"*/}
+            {/*    onClick={redirectToGoogle}*/}
+            {/*    className="flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-[#E2D4C5] bg-[#FFFFFF] text-[14px] font-bold text-[#211714] transition hover:bg-[#FAF6F0]"*/}
+            {/*>*/}
+            {/*  <GoogleIcon />*/}
+            {/*  Continue with Google*/}
+            {/*</button>*/}
             <button
                 type="button"
-                onClick={redirectToGoogle}
+                onClick={() => redirectToGoogle(redirectTo)}
                 className="flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-[#E2D4C5] bg-[#FFFFFF] text-[14px] font-bold text-[#211714] transition hover:bg-[#FAF6F0]"
             >
               <GoogleIcon />
@@ -265,7 +277,7 @@ export default function SignupPage() {
             <p className="mt-5 text-center text-[13.5px] font-medium text-[#5F5048]">
               Already have one?{" "}
               <Link
-                  href="/login"
+                  href={`/login${redirectTo !== "/" ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`}
                   className="font-bold text-[#A23A16] transition hover:text-[#211714]"
               >
                 Sign in

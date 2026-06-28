@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Base64;
 
 @Slf4j
 @Component
@@ -92,6 +93,29 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             log.info("OAuth2 tokens generated successfully for user: {}", normalizedEmail);
 
             // Build redirect URL with parameters
+//            String redirectUrl = UriComponentsBuilder
+//                    .fromUriString(frontendUrl + "/oauth2/callback")
+//                    .queryParam("accessToken", accessToken)
+//                    .queryParam("refreshToken", refreshToken)
+//                    .queryParam("userId", user.getId())
+//                    .queryParam("fullName", URLEncoder.encode(fullName != null ? fullName : "", StandardCharsets.UTF_8))
+//                    .queryParam("email", normalizedEmail)
+//                    .queryParam("picture", picture != null ? URLEncoder.encode(picture, StandardCharsets.UTF_8) : "")
+//                    .queryParam("expiresIn", expiresIn / 1000)
+//                    .build().toUriString();
+            // Decode the redirect path that was packed into the OAuth2 "state" param
+            // by CustomAuthorizationRequestResolver before the Google round trip.
+            String redirectTo = "/";
+            String state = request.getParameter("state");
+            if (state != null && !state.isBlank()) {
+                try {
+                    redirectTo = new String(Base64.getUrlDecoder().decode(state), StandardCharsets.UTF_8);
+                } catch (IllegalArgumentException e) {
+                    log.warn("Could not decode OAuth2 state param, defaulting redirect to '/'");
+                }
+            }
+
+            // Build redirect URL with parameters
             String redirectUrl = UriComponentsBuilder
                     .fromUriString(frontendUrl + "/oauth2/callback")
                     .queryParam("accessToken", accessToken)
@@ -101,6 +125,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                     .queryParam("email", normalizedEmail)
                     .queryParam("picture", picture != null ? URLEncoder.encode(picture, StandardCharsets.UTF_8) : "")
                     .queryParam("expiresIn", expiresIn / 1000)
+                    .queryParam("redirect", URLEncoder.encode(redirectTo, StandardCharsets.UTF_8))
                     .build().toUriString();
 
             log.debug("Redirecting OAuth2 user to: {}/oauth2/callback", frontendUrl);

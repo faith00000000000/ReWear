@@ -25,17 +25,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     useEffect(() => {
-        // ── Dev-only: auto-clear stale localStorage on each new dev session ──
-        if (process.env.NODE_ENV === "development") {
-            const buildId = process.env.NEXT_PUBLIC_BUILD_ID ?? "dev";
-            const storedBuildId = sessionStorage.getItem("buildId");
-
-            if (storedBuildId !== buildId) {
-                localStorage.clear();
-                sessionStorage.setItem("buildId", buildId);
-            }
-        }
-
         setIsMounted(true);
         refreshAuth();
     }, []);

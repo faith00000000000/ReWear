@@ -1,5 +1,6 @@
 package com.rewear.backend.config;
 
+import com.rewear.backend.security.CustomAuthorizationRequestResolver;
 import com.rewear.backend.security.JwtAuthFilter;
 import com.rewear.backend.security.OAuth2SuccessHandler;
 import lombok.RequiredArgsConstructor;
@@ -30,8 +31,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+//    private final JwtAuthFilter jwtAuthFilter;
+//    private final OAuth2SuccessHandler oAuth2SuccessHandler;
+//    private final UserDetailsService userDetailsService;
     private final JwtAuthFilter jwtAuthFilter;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final CustomAuthorizationRequestResolver customAuthorizationRequestResolver;
     private final UserDetailsService userDetailsService;
 
     @Value("${app.frontend-url}")
@@ -58,13 +63,6 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-//                                "/api/auth/signup",
-//                                "/api/auth/login",
-//                                "/api/auth/refresh",
-//                                "/login/oauth2/**",
-//                                "/oauth2/**",
-//                                "/health",
-//                                "/health/**"
                                 "/api/auth/signup",
                                 "/api/auth/login",
                                 "/api/auth/refresh",
@@ -74,11 +72,23 @@ public class SecurityConfig {
                                 "/login/oauth2/**",
                                 "/oauth2/**",
                                 "/health",
-                                "/health/**"
+                                "/health/**",
+                                "/api/listings",
+                                "/api/listings/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
+//                .oauth2Login(oauth2 -> oauth2
+//                        .successHandler(oAuth2SuccessHandler)
+//                        .failureHandler((request, response, exception) -> {
+//                            log.error("OAuth2 login failed", exception);
+//                            response.sendError(401, "OAuth2 authentication failed");
+//                        })
+//                )
                 .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(endpoint -> endpoint
+                                .authorizationRequestResolver(customAuthorizationRequestResolver)
+                        )
                         .successHandler(oAuth2SuccessHandler)
                         .failureHandler((request, response, exception) -> {
                             log.error("OAuth2 login failed", exception);

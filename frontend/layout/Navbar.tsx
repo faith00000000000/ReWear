@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   Search,
@@ -69,8 +69,15 @@ function SearchPill() {
 
 /* ─── main component ─────────────────────────────────────────── */
 export default function Navbar() {
+  // const pathname = usePathname();
+  // const router = useRouter();
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const currentFullPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+  const loginHref = `/login?redirect=${encodeURIComponent(currentFullPath)}`;
+  const signupHref = `/signup?redirect=${encodeURIComponent(currentFullPath)}`;
 
   const { authed, user, signOut } = useAuth();
   const { cartCount } = useCart();
@@ -91,10 +98,19 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+
+  const PUBLIC_PATHS = ["/", "/browse-finds", "/rent", "/donate"];
+
   function handleSignOut() {
     signOut();
     setDropOpen(false);
-    router.push("/");
+
+    // Public page ma matra firta basne; protected/dashboard page bata signout garda home ma jaane
+    const isCurrentPagePublic = PUBLIC_PATHS.some(
+        (path) => pathname === path || pathname.startsWith(`${path}/`)
+    );
+
+    router.push(isCurrentPagePublic ? currentFullPath : "/");
   }
 
   const links = authed ? AUTH_LINKS : GUEST_LINKS;
@@ -106,15 +122,15 @@ export default function Navbar() {
           {/* ── Logo ── */}
           <Link
               href="/"
-              className="flex items-center shrink-0 hover:opacity-90 transition"
+              className="flex items-center shrink-0 hover:opacity-90 transition -my-4"
           >
             <Image
                 src="/images/Rewear.png"
                 alt="RE:WEAR Logo"
                 width={160}
-                height={44}
+                height={50}
                 priority
-                className="h-[44px] w-auto object-contain"
+                className="h-[80px] w-auto object-contain"
             />
           </Link>
 
@@ -163,7 +179,6 @@ export default function Navbar() {
                     )}
                   </Link>
 
-                  {/* Shopping Cart Icon & Badge */}
                   {/* Shopping Cart Icon & Badge */}
                   <Link
                       href="/cart"
@@ -259,15 +274,29 @@ export default function Navbar() {
             ) : (
                 /* ── GUEST right side ── */
                 <>
+                  {/*<Link*/}
+                  {/*    href="/login"*/}
+                  {/*    className="flex items-center gap-2 rounded-full bg-white border border-[#d7cbbb] px-4 py-2 text-sm font-bold text-[#211714] transition hover:border-[#AC1B18] hover:text-[#AC1B18]"*/}
+                  {/*>*/}
+                  {/*  <LogIn size={15} />*/}
+                  {/*  Login*/}
+                  {/*</Link>*/}
                   <Link
-                      href="/login"
+                      href={loginHref}
                       className="flex items-center gap-2 rounded-full bg-white border border-[#d7cbbb] px-4 py-2 text-sm font-bold text-[#211714] transition hover:border-[#AC1B18] hover:text-[#AC1B18]"
                   >
                     <LogIn size={15} />
                     Login
                   </Link>
+                  {/*<Link*/}
+                  {/*    href="/signup"*/}
+                  {/*    className="flex items-center gap-2 rounded-full bg-[#AC1B18] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#8B1614]"*/}
+                  {/*>*/}
+                  {/*  <UserPlus size={15} />*/}
+                  {/*  Sign Up*/}
+                  {/*</Link>*/}
                   <Link
-                      href="/signup"
+                      href={signupHref}
                       className="flex items-center gap-2 rounded-full bg-[#AC1B18] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#8B1614]"
                   >
                     <UserPlus size={15} />

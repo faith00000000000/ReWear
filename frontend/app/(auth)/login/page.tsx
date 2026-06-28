@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter,useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Mail, AlertCircle, Loader2 } from "lucide-react";
 import api from "@/lib/axios";
-import {saveTokens, saveUser, isAuthenticated, saveSession} from "@/lib/auth";
+import {saveTokens, saveUser, isAuthenticated, saveSession, redirectToGoogle} from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
 
 const inputClass =
@@ -32,7 +32,11 @@ function Label({ children }: { children: React.ReactNode }) {
 }
 
 export default function LoginPage() {
+  // const router = useRouter();
+  // const { refreshAuth } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/";
   const { refreshAuth } = useAuth();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -45,9 +49,9 @@ export default function LoginPage() {
   // ── Guard: only redirect if token is valid AND not expired ────────────────
   useEffect(() => {
     if (isAuthenticated()) {
-      router.replace("/");
+      router.replace(redirectTo);
     }
-  }, [router]);
+  }, [router, redirectTo]);
 
   // ── OAuth error param ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -93,8 +97,10 @@ export default function LoginPage() {
         saveTokens({ accessToken, refreshToken, expiresIn });
       }
 
+      // refreshAuth();
+      // router.push("/");
       refreshAuth();
-      router.push("/");
+      router.push(redirectTo);
 
     } catch (err: any) {
       console.error("Login error:", err.response?.status, err.response?.data);
@@ -132,7 +138,8 @@ export default function LoginPage() {
           <div className="relative z-10 w-full max-w-[500px] rounded-[28px] bg-white px-8 py-10 shadow-[0_12px_60px_rgba(33,23,20,0.03)] border border-[#F2ECE4] sm:px-10 sm:py-10">
 
             <button
-                onClick={() => router.push("/browse-finds")}
+                // onClick={() => router.push("/browse-finds")}
+                onClick={() => router.push(redirectTo !== "/" ? redirectTo : "/browse-finds")}
                 className="group mb-5 flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.2em] text-[#8A8177] transition hover:text-[#A23A16]"
             >
               <span className="text-[14px] transition-transform group-hover:-translate-x-1">←</span> BACK
@@ -237,9 +244,18 @@ export default function LoginPage() {
               <div className="h-px flex-1 bg-[#E2D4C5] opacity-60" />
             </div>
 
+            {/*<button*/}
+            {/*    type="button"*/}
+            {/*    onClick={redirectToGoogle}*/}
+            {/*    className="flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-[#E2D4C5] bg-[#FFFFFF] text-[14px] font-bold text-[#211714] transition hover:bg-[#FAF6F0]"*/}
+            {/*>*/}
+            {/*  <GoogleIcon />*/}
+            {/*  Continue with Google*/}
+            {/*</button>*/}
             <button
                 type="button"
-                className="flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-[#E2D4C5] bg-white text-[14px] font-bold text-[#211714] transition hover:bg-[#FAF6F0]"
+                onClick={() => redirectToGoogle(redirectTo)}
+                className="flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-[#E2D4C5] bg-[#FFFFFF] text-[14px] font-bold text-[#211714] transition hover:bg-[#FAF6F0]"
             >
               <GoogleIcon />
               Continue with Google
@@ -247,7 +263,10 @@ export default function LoginPage() {
 
             <p className="mt-6 text-center text-[13.5px] font-medium text-[#5F5048]">
               New here?{" "}
-              <Link href="/signup" className="font-bold text-[#A23A16] transition hover:text-[#211714]">
+              <Link
+                  href={`/signup${redirectTo !== "/" ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`}
+                  className="font-bold text-[#A23A16] transition hover:text-[#211714]"
+              >
                 Create an account
               </Link>
             </p>

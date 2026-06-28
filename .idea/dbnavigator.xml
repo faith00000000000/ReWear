@@ -36,16 +36,16 @@ select * from rewear.listings;
 
 ALTER TABLE listings
   ADD CONSTRAINT fk_listings_seller
-  FOREIGN KEY (seller_id) REFERENCES users(id);]]></console>
+  FOREIGN KEY (seller_id) REFERENCES users(id);
+
+truncate table rewear.listings;]]></console>
     </connection>
   </component>
   <component name="DBNavigator.Project.DatabaseEditorStateManager">
     <last-used-providers />
   </component>
   <component name="DBNavigator.Project.DatabaseFileManager">
-    <open-files>
-      <object connection-id="35fc4cda-5e25-40cb-bd38-f5c89ef2c5a9" object-ref="consoles/Connection" />
-    </open-files>
+    <open-files />
   </component>
   <component name="DBNavigator.Project.DatabasePrerequisiteManager">
     <prerequisites />
