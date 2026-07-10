@@ -92,14 +92,75 @@ public class Listing {
     @Builder.Default
     private Availability availability = Availability.AVAILABLE;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "shipping_option", nullable = false)
-    private ShippingOptions shippingOption;
-
     @Column(name = "defect_flaws", columnDefinition = "TEXT")
     private String defectFlaws;
 
-    // ── Section 5: Pricing ────────────────────────────────────────────
+    // ── Section 5: Delivery Options ───────────────────────────────────
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_option", nullable = false)
+    private DeliveryOption deliveryOption;
+
+    // -- Shipping sub-block (populated when deliveryOption is SHIPPING or FLEX) --
+
+    @Column(name = "shipping_availability")
+    private String shippingAvailability;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "shipping_fee_type")
+    private ShippingFeeType shippingFeeType;
+
+    @Column(name = "fixed_shipping_fee", precision = 10, scale = 2)
+    private BigDecimal fixedShippingFee;
+
+    @Column(name = "rate_within_district", precision = 10, scale = 2)
+    private BigDecimal rateWithinDistrict;
+
+    @Column(name = "rate_within_province", precision = 10, scale = 2)
+    private BigDecimal rateWithinProvince;
+
+    @Column(name = "rate_nationwide", precision = 10, scale = 2)
+    private BigDecimal rateNationwide;
+
+    @Column(name = "dispatch_time")
+    private String dispatchTime;
+
+    // -- Pickup sub-block (populated when deliveryOption is PICKUP or FLEX) --
+
+    @Column(name = "pickup_area")
+    private String pickupArea;
+
+    @Column(name = "pickup_lat")
+    private Double pickupLat;
+
+    @Column(name = "pickup_lng")
+    private Double pickupLng;
+
+    @Column(name = "pickup_resolved_address", length = 1000)
+    private String pickupResolvedAddress;
+
+    @Column(name = "pickup_contact_number")
+    private String pickupContactNumber;
+
+    // Comma-separated day codes, e.g. "Mon,Tue,Wed,Thu,Fri"
+    @Column(name = "pickup_days", length = 100)
+    private String pickupDays;
+
+    // Stored as "HH:mm" strings — simplest representation for a fixed daily window
+    @Column(name = "pickup_time_from", length = 5)
+    private String pickupTimeFrom;
+
+    @Column(name = "pickup_time_to", length = 5)
+    private String pickupTimeTo;
+
+    @Column(name = "pickup_instructions", columnDefinition = "TEXT")
+    private String pickupInstructions;
+
+    @Column(name = "same_day_pickup")
+    @Builder.Default
+    private boolean sameDayPickup = false;
+
+    // ── Section 6: Pricing ────────────────────────────────────────────
 
     @Column(name = "thrift_price", precision = 10, scale = 2)
     private BigDecimal thriftPrice;
@@ -118,9 +179,6 @@ public class Listing {
     private ListingStatus status = ListingStatus.DRAFT;
 
     // ── Seller relationship ─────────────────────────────────────────────
-    // Replaces the old raw `sellerId` Long column.
-    // LAZY fetch — repository uses JOIN FETCH on the detail-page query so this
-    // stays cheap on list endpoints and complete on the single-listing endpoint.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "seller_id", nullable = false)
     private User seller;

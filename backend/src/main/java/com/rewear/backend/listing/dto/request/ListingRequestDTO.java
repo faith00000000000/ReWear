@@ -67,12 +67,49 @@ public class ListingRequestDTO {
 
     private Availability availability;
 
-    @NotNull(message = "Shipping option is required")
-    private ShippingOptions shippingOption;
-
     private String defectFlaws;
 
-    // ── Section 5 ────────────────────────────────────────────────────
+    // ── Section 5: Delivery Options ──────────────────────────────────
+    // Conditional-required fields (depending on deliveryOption) are
+    // validated manually in ListingServiceImpl#validateDeliveryDetails,
+    // not via annotations — mirrors the frontend's own conditional logic.
+
+    @NotNull(message = "Delivery option is required")
+    private DeliveryOption deliveryOption;
+
+    private String shippingAvailability;
+    private ShippingFeeType shippingFeeType;
+
+    @DecimalMin(value = "0.0", inclusive = false,
+            message = "Fixed shipping fee must be positive")
+    private BigDecimal fixedShippingFee;
+
+    @DecimalMin(value = "0.0", inclusive = false,
+            message = "Shipping rate must be positive")
+    private BigDecimal rateWithinDistrict;
+
+    @DecimalMin(value = "0.0", inclusive = false,
+            message = "Shipping rate must be positive")
+    private BigDecimal rateWithinProvince;
+
+    @DecimalMin(value = "0.0", inclusive = false,
+            message = "Shipping rate must be positive")
+    private BigDecimal rateNationwide;
+
+    private String dispatchTime;
+
+    private String pickupArea;
+    private Double pickupLat;
+    private Double pickupLng;
+    private String pickupResolvedAddress;
+    private String pickupContactNumber;
+    private String pickupDays;        // comma-separated: "Mon,Tue,Wed"
+    private String pickupTimeFrom;    // "HH:mm"
+    private String pickupTimeTo;      // "HH:mm"
+    private String pickupInstructions;
+    private boolean sameDayPickup;
+
+    // ── Section 6 ────────────────────────────────────────────────────
 
     @DecimalMin(value = "0.0", inclusive = false,
             message = "Thrift price must be positive")
@@ -88,7 +125,9 @@ public class ListingRequestDTO {
 
     // ── Meta ──────────────────────────────────────────────────────────
 
-    // true = "Publish Listing" button, false = "Save Draft" button
+    // Frontend now always sends true (Save Draft button removed), but the
+    // field stays so DRAFT-via-other-callers (admin tools, future re-add
+    // of drafts) keeps working without another DTO change.
     private boolean publish = false;
 
     // NOTE: sellerId removed. The seller is resolved server-side from the

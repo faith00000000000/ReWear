@@ -167,7 +167,7 @@ export default function Navbar() {
                 <>
                   {/* Notifications */}
                   <Link
-                      href="/dashboard/notifications"
+                      href="/notifications"
                       aria-label="Notifications"
                       className="relative flex h-9 w-9 items-center justify-center rounded-full text-[#5f5048] transition hover:bg-[#f5ede0] hover:text-[#AC1B18]"
                   >
@@ -274,13 +274,6 @@ export default function Navbar() {
             ) : (
                 /* ── GUEST right side ── */
                 <>
-                  {/*<Link*/}
-                  {/*    href="/login"*/}
-                  {/*    className="flex items-center gap-2 rounded-full bg-white border border-[#d7cbbb] px-4 py-2 text-sm font-bold text-[#211714] transition hover:border-[#AC1B18] hover:text-[#AC1B18]"*/}
-                  {/*>*/}
-                  {/*  <LogIn size={15} />*/}
-                  {/*  Login*/}
-                  {/*</Link>*/}
                   <Link
                       href={loginHref}
                       className="flex items-center gap-2 rounded-full bg-white border border-[#d7cbbb] px-4 py-2 text-sm font-bold text-[#211714] transition hover:border-[#AC1B18] hover:text-[#AC1B18]"
@@ -288,13 +281,6 @@ export default function Navbar() {
                     <LogIn size={15} />
                     Login
                   </Link>
-                  {/*<Link*/}
-                  {/*    href="/signup"*/}
-                  {/*    className="flex items-center gap-2 rounded-full bg-[#AC1B18] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#8B1614]"*/}
-                  {/*>*/}
-                  {/*  <UserPlus size={15} />*/}
-                  {/*  Sign Up*/}
-                  {/*</Link>*/}
                   <Link
                       href={signupHref}
                       className="flex items-center gap-2 rounded-full bg-[#AC1B18] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#8B1614]"

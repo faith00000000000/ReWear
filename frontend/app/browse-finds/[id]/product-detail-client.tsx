@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
     AlertTriangle,
     BadgeCheck,
@@ -19,6 +20,7 @@ import {
     Heart, Info,
     Leaf,
     Lock,
+    MapPin,
     Maximize2,
     Play,
     Recycle,
@@ -42,7 +44,28 @@ import {
 } from "lucide-react";
 import { Product, Status } from "@/lib/types/product";
 import { useAuth } from "@/lib/AuthContext";
-import {useCart} from "@/lib/CartContext";
+import { useCart } from "@/lib/CartContext";
+import {
+    DeliverableProduct,
+    calculateFlexDeliveryFee,
+    deliveryChannelsFor,
+    distanceKm,
+    formatPickupDays,
+    getDeliveryMode,
+    normalizeFulfillment,
+    resolveDistanceBucket,
+    toNumber,
+} from "@/lib/delivery";
+
+// Leaflet touches `window` at import time — client-only load
+const PickupLocationMap = dynamic(() => import("@/components/PickupLocationMap"), {
+    ssr: false,
+    loading: () => (
+        <div className="h-[200px] w-full rounded-xl bg-[#FDFAF6] border border-[#EBE3D5] flex items-center justify-center">
+            <p className="text-[12px] text-[#8C7E74]">Loading map…</p>
+        </div>
+    ),
+});
 
 /* ─── Feature gate ───────────────────────────────────────────
    No booking system exists yet, so "Currently on Rent" never
@@ -96,35 +119,69 @@ function getInitials(name: string) {
         .toUpperCase();
 }
 
-/* ─── Rent calendar helpers (placeholder availability logic) ─
-   Swap this out once real data exists, e.g. product.unavailableDates
-   and product.fewLeftDates arrays of "YYYY-MM-DD" strings. */
-type DayState = "available" | "few-left" | "unavailable" | "selected" | "out-of-month";
+/* ─── Date helpers (vanilla JS — no date-fns dependency) ───── */
+function startOfDay(date: Date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
 
-function getCalendarDays(year: number, month: number) {
+function isSameDay(a: Date, b: Date) {
+    return (
+        a.getFullYear() === b.getFullYear() &&
+        a.getMonth() === b.getMonth() &&
+        a.getDate() === b.getDate()
+    );
+}
+
+function isPastDate(date: Date) {
+    return startOfDay(date) < startOfDay(new Date());
+}
+
+function diffInDays(a: Date, b: Date) {
+    const ms = startOfDay(a).getTime() - startOfDay(b).getTime();
+    return Math.round(ms / 86400000);
+}
+
+function formatShortDate(date: Date) {
+    return date.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
+}
+
+/* ─── Calendar grid builder — returns real Date objects so past
+   dates, month rollovers, and range math all just work. ────── */
+function buildCalendarMatrix(year: number, month: number): Date[] {
     const firstDay = new Date(year, month, 1);
     const startWeekday = firstDay.getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const daysInPrevMonth = new Date(year, month, 0).getDate();
 
-    const cells: { day: number; inMonth: boolean }[] = [];
-    for (let i = startWeekday - 1; i >= 0; i--) {
-        cells.push({ day: daysInPrevMonth - i, inMonth: false });
+    const cells: Date[] = [];
+    for (let i = startWeekday; i > 0; i--) {
+        cells.push(new Date(year, month, 1 - i));
     }
     for (let d = 1; d <= daysInMonth; d++) {
-        cells.push({ day: d, inMonth: true });
+        cells.push(new Date(year, month, d));
     }
     while (cells.length % 7 !== 0) {
-        cells.push({ day: cells.length - (startWeekday + daysInMonth) + 1, inMonth: false });
+        const last = cells[cells.length - 1];
+        cells.push(new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1));
     }
     return cells;
 }
 
-function placeholderDayState(day: number, inMonth: boolean, selectedDay: number): DayState {
+/* ─── Day state resolver (placeholder booked/few-left pattern —
+   swap the modulo checks for product.unavailableDates once real
+   booking data exists). Past dates are ALWAYS blocked. ─────── */
+type DayState = "past" | "out-of-month" | "unavailable" | "few-left" | "available" | "range-start" | "range-end" | "in-range";
+
+function getDayState(date: Date, month: number, start: Date | null, end: Date | null): DayState {
+    const inMonth = date.getMonth() === month;
     if (!inMonth) return "out-of-month";
-    if (day === selectedDay) return "selected";
-    if (day % 7 === 0) return "unavailable";
-    if (day % 5 === 0) return "few-left";
+    if (isPastDate(date)) return "past";
+    if (start && isSameDay(date, start)) return "range-start";
+    if (end && isSameDay(date, end)) return "range-end";
+    if (start && end && date > start && date < end) return "in-range";
+    if (date.getDate() % 11 === 0) return "unavailable";
+    if (date.getDate() % 5 === 0) return "few-left";
     return "available";
 }
 
@@ -151,6 +208,66 @@ function getContextTag(status: Status, context: "thrift" | "rent") {
     return { label: "RENT", className: "bg-[#3D5C30] text-white" };
 }
 
+/* ─── Delivery option tag row — Shipping / Pickup / Free ─────
+   All branching now lives in one place: getDeliveryMode().
+   - SHIPPING_FREE     → "Shipping · Free"
+   - SHIPPING_FIXED    → "Shipping"
+   - SHIPPING_DYNAMIC  → "Shipping"
+   - PICKUP            → "Pickup"
+   - FLEX              → both tags together
+   "Free" is NEVER shown unless the resolved mode is explicitly
+   SHIPPING_FREE — no defaulting when data is missing. */
+function DeliveryOptionTags({ product }: { product: DeliverableProduct }) {
+    const mode = getDeliveryMode(product);
+
+    const pill =
+        "inline-flex items-center gap-1 rounded-full bg-[#9E2A1B] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white";
+
+    switch (mode) {
+        case "SHIPPING_FREE":
+            return (
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <span className={pill}>
+                        <Truck size={11} />
+                        Shipping · Free
+                    </span>
+                </div>
+            );
+        case "SHIPPING_FIXED":
+        case "SHIPPING_DYNAMIC":
+            return (
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <span className={pill}>
+                        <Truck size={11} />
+                        Shipping
+                    </span>
+                </div>
+            );
+        case "PICKUP":
+            return (
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <span className={pill}>
+                        <MapPin size={11} />
+                        Pickup
+                    </span>
+                </div>
+            );
+        case "FLEX":
+            return (
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <span className={pill}>
+                        <Truck size={11} />
+                        Shipping
+                    </span>
+                    <span className={pill}>
+                        <MapPin size={11} />
+                        Pickup
+                    </span>
+                </div>
+            );
+    }
+}
+
 /* ══════════════════════════════════════════════════════════
    ROOT COMPONENT
 ══════════════════════════════════════════════════════════ */
@@ -161,12 +278,11 @@ export default function ProductDetailClient({
     product: Product;
     recommendations: Product[];
 }) {
+
+    console.log("Delivery product:", product);
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    // ── Auth state now comes from AuthContext. `authed` is used for
-    // the synchronous requireAuth() gate below — context value is kept
-    // in sync the instant signOut()/login happens anywhere in the app. ──
     const { authed } = useAuth();
 
     const media = useMemo<MediaItem[]>(
@@ -189,10 +305,17 @@ export default function ProductDetailClient({
     const [thriftModalOpen, setThriftModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<DetailTab>("description");
 
+    /* ── Rent date-range calendar state ── */
     const today = useMemo(() => new Date(), []);
     const [calYear, setCalYear] = useState(today.getFullYear());
     const [calMonth, setCalMonth] = useState(today.getMonth());
-    const [selectedDay, setSelectedDay] = useState(today.getDate());
+    const [selectedStart, setSelectedStart] = useState<Date | null>(null);
+    const [selectedEnd, setSelectedEnd] = useState<Date | null>(null);
+    const [dateError, setDateError] = useState<string | null>(null);
+
+    /* ── Rent date-picker modal + Rent Now modal ── */
+    const [dateModalOpen, setDateModalOpen] = useState(false);
+    const [rentModalOpen, setRentModalOpen] = useState(false);
 
     const view = searchParams.get("view"); // "thrift" | "rent" | null
     const isHybridListing = product.status === "THRIFT + RENT";
@@ -233,20 +356,59 @@ export default function ProductDetailClient({
         setCalYear(y);
     }
 
+    /* Range-aware day click: 1st click sets start, 2nd click (later
+       date) sets end, clicking before start restarts the range. */
+    function handleDayClick(date: Date, state: DayState) {
+        if (state === "past" || state === "out-of-month" || state === "unavailable") return;
+        setDateError(null);
+
+        if (!selectedStart || (selectedStart && selectedEnd)) {
+            setSelectedStart(date);
+            setSelectedEnd(null);
+            return;
+        }
+        if (date <= selectedStart) {
+            setSelectedStart(date);
+            setSelectedEnd(null);
+            return;
+        }
+        setSelectedEnd(date);
+    }
+
+    /* Quick-duration picker (1/2/3/5/7 days) used inside the date
+       picker modal. Anchors on the current start date, or today if
+       nothing is picked yet. */
+    function applyQuickDuration(days: number) {
+        setDateError(null);
+        const base = selectedStart ?? startOfDay(new Date());
+        if (!selectedStart) setSelectedStart(base);
+        const end = new Date(base);
+        end.setDate(end.getDate() + days);
+        setSelectedEnd(end);
+    }
+
     const monthLabel = new Date(calYear, calMonth, 1).toLocaleString("en-US", {
         month: "long",
         year: "numeric",
     });
     const calendarCells = useMemo(
-        () => getCalendarDays(calYear, calMonth),
+        () => buildCalendarMatrix(calYear, calMonth),
         [calYear, calMonth],
     );
 
-    const rentalDays = 3; // placeholder — wire to actual date-range selection later
+    const rentalDays = selectedStart && selectedEnd ? Math.max(1, diffInDays(selectedEnd, selectedStart)) : null;
     const dailyRate = product.rentalPrice ?? "Rs. 200";
-    const dailyRateNumber = parseFloat(dailyRate.replace(/[^0-9.]/g, "")) || 200;
-    const securityDeposit = "Rs. 1,000";
-    const rentalTotal = `Rs. ${(dailyRateNumber * rentalDays).toLocaleString("en-IN")}`;
+
+    const dailyRateNumber = Number(
+        dailyRate
+            .replace("Rs.", "")
+            .replaceAll(",", "")
+            .trim()
+    );
+
+
+    const securityDeposit = product.securityDeposit ?? "Rs. 0";
+    const securityDepositNumber = product.securityDepositValue ?? 0;
 
     const detailPageTag = getContextTag(product.status, isRent ? "rent" : "thrift");
 
@@ -264,6 +426,15 @@ export default function ProductDetailClient({
                 .slice(0, 4),
         [recommendations],
     );
+
+    function handleRentNow() {
+        if (!selectedStart || !selectedEnd) {
+            setDateError("Pick a start and return date to continue.");
+            setDateModalOpen(true);
+            return;
+        }
+        requireAuth(() => setRentModalOpen(true));
+    }
 
     return (
         <div className="min-h-screen bg-[#FAF6F0] text-[#1A130E] antialiased">
@@ -520,7 +691,6 @@ export default function ProductDetailClient({
                                             { label: "Material", value: product.material },
                                             { label: "Original Price", value: product.oldPrice ?? product.price },
                                             { label: "Availability", value: product.availability, pill: true },
-                                            { label: "Shipping / Pickup", value: product.shippingOption },
                                             { label: "Visible Flaws / Notes", value: product.defectFlaws ?? "None noted" },
                                         ].map(({ label, value, pill }) => (
                                             <div key={label} className="flex items-center justify-between text-[12px]">
@@ -538,6 +708,12 @@ export default function ProductDetailClient({
                                                 )}
                                             </div>
                                         ))}
+
+                                        {/* Delivery Options — hybrid-aware tag row (Shipping / Pickup / Free) */}
+                                        <div className="flex items-center justify-between text-[12px]">
+                                            <span className="text-[#6E6053]">Delivery Options</span>
+                                            <DeliveryOptionTags product={product} />
+                                        </div>
                                     </div>
 
                                     <button
@@ -604,95 +780,104 @@ export default function ProductDetailClient({
                                         </div>
                                     )}
 
-                                    {/* Availability calendar card */}
-                                    <div className="rounded-xl border border-[#EBE3D5] bg-white p-4">
-                                        <p className="text-[13px] font-bold text-[#1A130E]">Check Availability</p>
-                                        <p className="text-[11px] text-[#8C7E74]">Select rental start date (delivery date)</p>
-
-                                        <div className="mt-3 flex items-center justify-between">
-                                            <button onClick={() => goToMonth(-1)} className="flex h-6 w-6 items-center justify-center rounded-full border border-[#EBE3D5] text-[#6E6053] hover:bg-[#FAF6F0] transition">
-                                                <ChevronLeft size={13} />
-                                            </button>
-                                            <span className="text-[13px] font-bold text-[#1A130E]">{monthLabel}</span>
-                                            <button onClick={() => goToMonth(1)} className="flex h-6 w-6 items-center justify-center rounded-full border border-[#EBE3D5] text-[#6E6053] hover:bg-[#FAF6F0] transition">
-                                                <ChevronRight size={13} />
-                                            </button>
-                                        </div>
-
-                                        <div className="mt-3 grid grid-cols-7 gap-1 text-center">
-                                            {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-                                                <span key={d} className="text-[10px] font-semibold text-[#A6998E]">{d}</span>
-                                            ))}
-                                            {calendarCells.map((cell, idx) => {
-                                                const state = placeholderDayState(cell.day, cell.inMonth, selectedDay);
-                                                const baseClasses = "flex h-7 w-7 items-center justify-center rounded-full text-[11px] mx-auto transition";
-                                                const stateClasses =
-                                                    state === "selected"
-                                                        ? "bg-[#9E2A1B] text-white font-bold"
-                                                        : state === "unavailable"
-                                                            ? "bg-[#F0EBE3] text-[#C4B8AE] cursor-not-allowed"
-                                                            : state === "few-left"
-                                                                ? "bg-[#FDF3D9] text-[#92740E] font-semibold cursor-pointer hover:bg-[#FBEAB8]"
-                                                                : state === "out-of-month"
-                                                                    ? "text-[#DCD3C4]"
-                                                                    : "bg-[#E8F5EE] text-[#2E7D52] font-semibold cursor-pointer hover:bg-[#D7EEE0]";
-                                                return (
-                                                    <button
-                                                        key={idx}
-                                                        disabled={state === "unavailable" || state === "out-of-month"}
-                                                        onClick={() => cell.inMonth && setSelectedDay(cell.day)}
-                                                        className={`${baseClasses} ${stateClasses}`}
-                                                    >
-                                                        {cell.day}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-
-                                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-[#6E6053]">
-                                            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#E8F5EE] border border-[#BFD0B3]" /> Available</span>
-                                            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#FDF3D9] border border-[#E9D896]" /> Few left</span>
-                                            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#F0EBE3] border border-[#DDD5C8]" /> Unavailable</span>
-                                        </div>
-
-                                        <p className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-[#9E2A1B]">
-                                            <Truck size={13} /> Delivery as early as Tue, 20 May
-                                        </p>
-                                    </div>
-
-                                    {/* Price / day card */}
-                                    <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-2.5">
+                                    {/* Price card — daily rate + security deposit + trust row (matches reference) */}
+                                    <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-3">
                                         <div className="flex items-baseline gap-1.5">
-                                            <p className="text-[22px] font-bold leading-none text-[#9E2A1B]">{dailyRate}</p>
+                                            <p className="text-[26px] font-bold leading-none text-[#9E2A1B]">{dailyRate}</p>
                                             <span className="text-[12px] text-[#8C7E74]">/ day</span>
                                         </div>
+                                        <p className="flex items-center gap-1.5 text-[12px] text-[#6E6053]">
+                                            Security Deposit:{" "}
+                                            <span className="font-semibold text-[#1A130E]">{securityDeposit} (Refundable)</span>
+                                            <Info size={12} className="shrink-0 text-[#A6998E]" />
+                                        </p>
+                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-[#EBE3D5] pt-3 text-[11px] text-[#6E6053]">
+                                            <span className="flex items-center gap-1.5"><ShieldCheck size={13} className="text-[#9E2A1B]" /> Quality Checked</span>
+                                            <span className="flex items-center gap-1.5"><Lock size={13} className="text-[#9E2A1B]" /> Secure Payment</span>
+                                            <span className="flex items-center gap-1.5"><RefreshCw size={13} className="text-[#9E2A1B]" /> Easy Returns</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Rental dates summary card — opens the date picker modal */}
+                                    <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-3">
+                                        <div className="flex items-center gap-1.5">
+                                            <CalendarDays size={14} className="text-[#9E2A1B]" />
+                                            <p className="text-[13px] font-bold text-[#1A130E]">Select Rental Dates</p>
+                                        </div>
+                                        <p className="text-[11px] text-[#8C7E74]">
+                                            Choose your start and return date for this rental.
+                                        </p>
+
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <div className="rounded-lg border border-[#EBE3D5] bg-[#FDFAF6] px-2.5 py-2.5">
+                                                <p className="text-[9px] font-bold uppercase tracking-wide text-[#8C7E74]">Start Date</p>
+                                                <p className="mt-0.5 text-[11px] font-semibold text-[#1A130E]">
+                                                    {selectedStart ? formatShortDate(selectedStart) : "Not selected"}
+                                                </p>
+                                            </div>
+                                            <div className="rounded-lg border border-[#EBE3D5] bg-[#FDFAF6] px-2.5 py-2.5">
+                                                <p className="text-[9px] font-bold uppercase tracking-wide text-[#8C7E74]">End Date</p>
+                                                <p className="mt-0.5 text-[11px] font-semibold text-[#1A130E]">
+                                                    {selectedEnd ? formatShortDate(selectedEnd) : "Not selected"}
+                                                </p>
+                                            </div>
+                                            <div className="rounded-lg border border-[#EBE3D5] bg-[#FDFAF6] px-2.5 py-2.5">
+                                                <p className="text-[9px] font-bold uppercase tracking-wide text-[#8C7E74]">Return Date</p>
+                                                <p className="mt-0.5 text-[11px] font-semibold text-[#1A130E]">
+                                                    {selectedEnd ? formatShortDate(selectedEnd) : "Not selected"}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {rentalDays && (
+                                            <div className="flex items-center justify-between rounded-lg bg-[#FAF0E6] px-3 py-2 text-[12px]">
+                                                <span className="text-[#6E6053]">Total Rental Days</span>
+                                                <span className="font-bold text-[#9E2A1B]">{rentalDays} day{rentalDays > 1 ? "s" : ""}</span>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            onClick={() => { setDateError(null); setDateModalOpen(true); }}
+                                            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#9E2A1B] bg-[#9E2A1B]/6 py-2.5 text-[12px] font-bold text-[#9E2A1B] transition hover:bg-[#9E2A1B]/10"
+                                        >
+                                            <CalendarDays size={13} />
+                                            {selectedStart && selectedEnd ? "Change Dates" : "Select Dates"}
+                                        </button>
+
+                                        {dateError && (
+                                            <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#9E2A1B]">
+                                                <AlertTriangle size={12} /> {dateError}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Details card — Thrift-style, adapted for Rent */}
+                                    <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-2.5">
+                                        {[
+                                            { label: "Size", value: product.size },
+                                            { label: "Condition", value: product.condition },
+                                            { label: "Color", value: product.color },
+                                            { label: "Material", value: product.material },
+                                        ].map(({ label, value }) => (
+                                            <div key={label} className="flex items-center justify-between text-[12px]">
+                                                <span className="text-[#6E6053]">{label}</span>
+                                                <span className="text-right font-semibold text-[#1A130E]">{value}</span>
+                                            </div>
+                                        ))}
+
                                         <div className="flex items-center justify-between text-[12px]">
-                                            <span className="text-[#6E6053]">Minimum Rental</span>
-                                            <span className="font-semibold text-[#1A130E]">{rentalDays} days</span>
+                                            <span className="text-[#6E6053]">Delivery Options</span>
+                                            <DeliveryOptionTags product={product} />
                                         </div>
+
                                         <div className="flex items-center justify-between text-[12px]">
-                                            <span className="text-[#6E6053]">Security Deposit (Refundable)</span>
-                                            <span className="font-semibold text-[#1A130E]">
-                        {product.seller ? securityDeposit : securityDeposit}
-                      </span>
-                                        </div>
-                                        <div className="flex items-center justify-between rounded-lg bg-[#FAF0E6] px-3 py-2 text-[13px]">
-                                            <span className="font-semibold text-[#1A130E]">Total ({rentalDays} days)</span>
-                                            <span className="font-bold text-[#9E2A1B]">{rentalTotal}</span>
-                                        </div>
-                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[#8C7E74]">
-                                            <span>Free cleaning</span>
-                                            <span className="text-[#DCD3C4]">•</span>
-                                            <span>On-time return</span>
-                                            <span className="text-[#DCD3C4]">•</span>
-                                            <span>Late fees may apply</span>
+                                            <span className="text-[#6E6053]">Visible Flaws / Notes</span>
+                                            <span className="text-right font-semibold text-[#1A130E]">{product.defectFlaws ?? "None noted"}</span>
                                         </div>
                                     </div>
 
                                     <button
-                                        onClick={() => requireAuth(() => {
-                                            // TODO: rent confirmation flow goes here
-                                        })}
+                                        onClick={handleRentNow}
                                         className="w-full rounded-lg bg-[#1A130E] py-3.5 text-[13px] font-bold text-white transition hover:bg-[#332620]">
                                         Rent Now
                                     </button>
@@ -709,22 +894,45 @@ export default function ProductDetailClient({
                                         </button>
                                     </div>
 
-                                    {/* Rental Info card */}
+                                    {/* Return Process card — makes the return workflow explicit */}
                                     <div className="rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-4 space-y-2.5">
-                                        <p className="text-[13px] font-bold text-[#1A130E]">Rental Info</p>
-                                        {[
-                                            { icon: Sparkles, text: "Cleaned before every rental" },
-                                            { icon: RotateCcw, text: "Return by end of rental period" },
-                                            { icon: AlertTriangle, text: "Damage fees may apply" },
-                                            { icon: Info, text: "Please read rental policy" },
-                                        ].map(({ icon: Icon, text }) => (
-                                            <div key={text} className="flex items-center gap-2.5">
-                                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
-                                                    <Icon size={13} className="text-[#9E2A1B]" />
-                                                </div>
-                                                <span className="text-[12px] font-medium text-[#4F4338]">{text}</span>
+                                        <p className="text-[13px] font-bold text-[#1A130E]">Return Process</p>
+                                        <div className="flex items-start gap-2.5">
+                                            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
+                                                <RotateCcw size={13} className="text-[#9E2A1B]" />
                                             </div>
-                                        ))}
+                                            <div>
+                                                <p className="text-[12px] font-semibold text-[#1A130E]">
+                                                    {selectedEnd ? `Return by ${formatShortDate(selectedEnd)}` : "Select dates to see your return date"}
+                                                </p>
+                                                <p className="mt-0.5 text-[11px] text-[#8C7E74]">
+                                                    Return method follows whatever you choose at checkout — courier
+                                                    pickup for shipping, or drop-off with {sellerName} for pickup orders.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-start gap-2.5">
+                                            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
+                                                <ShieldCheck size={13} className="text-[#9E2A1B]" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[12px] font-semibold text-[#1A130E]">Deposit refund</p>
+                                                <p className="mt-0.5 text-[11px] text-[#8C7E74]">
+                                                    {securityDeposit} refunded within 3 business days after condition inspection.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-start gap-2.5">
+                                            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
+                                                <AlertTriangle size={13} className="text-[#9E2A1B]" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[12px] font-semibold text-[#1A130E]">Late or damaged returns</p>
+                                                <p className="mt-0.5 text-[11px] text-[#8C7E74]">
+                                                    Late fees apply per extra day; damage may be deducted from the deposit.
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </>
                             )}
@@ -841,9 +1049,60 @@ export default function ProductDetailClient({
                 {tryOnOpen && (
                     <TryOnModal product={product} onClose={() => setTryOnOpen(false)} />
                 )}
-
+                {/* Buy Now — Thrift */}
                 {thriftModalOpen && (
-                    <ThriftPurchaseModal product={product} onClose={() => setThriftModalOpen(false)} />
+                    <BuyNowModal
+                        product={product}
+                        onClose={() => setThriftModalOpen(false)}
+                    />
+                )}
+                {/* Rent date-picker modal */}
+                {/*<RentDatePickerModal*/}
+                {/*    initialStart={selectedStart}*/}
+                {/*    initialEnd={selectedEnd}*/}
+                {/*    dailyRateNumber={dailyRateNumber}*/}
+                {/*    securityDepositNumber={securityDepositNumber}*/}
+                {/*    onConfirm={(start, end) => {*/}
+                {/*        setSelectedStart(start);*/}
+                {/*        setSelectedEnd(end);*/}
+
+                {/*        const days =*/}
+                {/*            diffInDays(end, start) + 1;*/}
+
+                {/*        setRentalDays(days);*/}
+                {/*        setDateModalOpen(false);*/}
+                {/*    }}*/}
+                {/*    onClose={() => setDateModalOpen(false)}*/}
+                {/*/>*/}
+
+                {dateModalOpen && (
+                    <RentDatePickerModal
+                        initialStart={selectedStart}
+                        initialEnd={selectedEnd}
+                        dailyRateNumber={dailyRateNumber}
+                        securityDepositNumber={securityDepositNumber}
+                        onConfirm={(start, end) => {
+                            setSelectedStart(start);
+                            setSelectedEnd(end);
+                            setDateModalOpen(false);
+                        }}
+                        onClose={() => setDateModalOpen(false)}
+                    />
+                )}
+
+                {/* Rent Now — delivery/pickup/flex modal (mirrors BuyNowModal) */}
+                {rentModalOpen && selectedStart && selectedEnd && (
+                    <RentNowModal
+                        product={product}
+                        rentInfo={{
+                            days: rentalDays ?? 1,
+                            startDate: selectedStart,
+                            endDate: selectedEnd,
+                            dailyRateNumber,
+                            securityDepositNumber,
+                        }}
+                        onClose={() => setRentModalOpen(false)}
+                    />
                 )}
             </div>
         </div>
@@ -939,38 +1198,6 @@ function TryOnModal({
     const [resultImageUrl, setResultImageUrl] = useState<string | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    // async function handleGenerate() {
-    //     if (!uploadedFile) return;
-    //     setStep("processing");
-    //     setErrorMessage(null);
-    //
-    //     try {
-    //         const formData = new FormData();
-    //         formData.append("personImage", uploadedFile);
-    //         formData.append("garmentImageUrl", product.image);
-    //         formData.append("garmentDescription", product.name);
-    //
-    //         const response = await fetch(
-    //             `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/vton/image`,
-    //             {
-    //                 method: "POST",
-    //                 body: formData,
-    //                 credentials: "include",
-    //             }
-    //         );
-    //
-    //         if (!response.ok) throw new Error(`Server error: ${response.status}`);
-    //
-    //         const data = await response.json();
-    //         setResultImageUrl(data.imageUrl);
-    //         setStep("result");
-    //     } catch (err) {
-    //         console.error("Try-on failed:", err);
-    //         setErrorMessage("Couldn't generate your try-on. Please try again.");
-    //         setStep("upload");
-    //     }
-    // }
-
     async function handleGenerate() {
         if (!uploadedFile) return;
         setStep("processing");
@@ -982,7 +1209,6 @@ function TryOnModal({
             formData.append("garmentImageUrl", product.image);
             formData.append("garmentDescription", product.name);
 
-            // Token localStorage bata liyene — tapaiko auth pattern anusar
             const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
 
             const response = await fetch(
@@ -1340,34 +1566,408 @@ function TryOnModal({
     );
 }
 
-/* ══════════════════════════════════════════════════════════
-   THRIFT PURCHASE MODAL — unchanged from original
-══════════════════════════════════════════════════════════ */
-function ThriftPurchaseModal({
-                                 product,
+
+function RentDatePickerModal({
+                                 initialStart,
+                                 initialEnd,
+                                 dailyRateNumber,
+                                 securityDepositNumber,
+                                 onConfirm,
                                  onClose,
                              }: {
-    product: Product;
+    initialStart: Date | null;
+    initialEnd: Date | null;
+    dailyRateNumber: number;
+    securityDepositNumber: number;
+    onConfirm: (start: Date, end: Date) => void;
     onClose: () => void;
 }) {
-    // const [added, setAdded] = useState(false);
+    const today = useMemo(() => startOfDay(new Date()), []);
+    const anchor = initialStart ?? today;
 
-    const { addToCart,subtotal, cartItems  } = useCart();
-    const [added, setAdded] = useState(false);
+    const [calYear, setCalYear] = useState(anchor.getFullYear());
+    const [calMonth, setCalMonth] = useState(anchor.getMonth());
+    const [draftStart, setDraftStart] = useState<Date | null>(initialStart);
+    const [draftEnd, setDraftEnd] = useState<Date | null>(initialEnd);
 
-    // const rawPrice = product.price.replace(/[^0-9.]/g, "");
-    // const basePrice = parseFloat(rawPrice) || 0;
-    const rawPrice = product.price.replace(/[^0-9]/g, "");
-    const basePrice = parseFloat(rawPrice) || 0;
-    const serviceFee = Math.round(basePrice * 0.059 * 100) / 100;
-    const estimatedTax = Math.round(basePrice * 0.075 * 100) / 100;
-    const total = basePrice + serviceFee + estimatedTax;
+    function goToMonth(delta: number) {
+        let m = calMonth + delta;
+        let y = calYear;
+        if (m < 0) { m = 11; y -= 1; }
+        if (m > 11) { m = 0; y += 1; }
+        setCalMonth(m);
+        setCalYear(y);
+    }
 
-    console.log("RAW PRICE STRING:", product.price);
-    console.log("PARSED:", parseFloat(product.price.replace(/[^0-9.,]/g, "").replace(/,/g, "")));
+    const calendarCells = useMemo(
+        () => buildCalendarMatrix(calYear, calMonth),
+        [calYear, calMonth],
+    );
 
-    const fmt = (n: number) =>
-        `Rs. ${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    function inclusiveDays(start: Date, end: Date) {
+        return diffInDays(end, start) + 1;
+    }
+
+    const draftDays = draftStart && draftEnd ? inclusiveDays(draftStart, draftEnd) : null;
+
+    function handleDayClick(date: Date, state: DayState) {
+        if (state === "past" || state === "out-of-month" || state === "unavailable") return;
+
+        if (!draftStart || (draftStart && draftEnd)) {
+            setDraftStart(date);
+            setDraftEnd(null);
+            return;
+        }
+        if (date < draftStart) {
+            setDraftStart(date);
+            setDraftEnd(null);
+            return;
+        }
+        setDraftEnd(date);
+    }
+
+    const durationOptions = [1, 2, 3, 4, 5, 6, 7];
+
+    function applyQuickDuration(days: number) {
+        const base = draftStart ?? today;
+        if (!draftStart) setDraftStart(base);
+        const end = new Date(base);
+        end.setDate(end.getDate() + (days - 1));
+        setDraftEnd(end);
+    }
+
+    const fmt = (n: number) => `Rs. ${n.toLocaleString("en-IN")}`;
+    const rentalPriceTotal = draftDays ? dailyRateNumber * draftDays : 0;
+    const payable = rentalPriceTotal + securityDepositNumber;
+    const canConfirm = Boolean(draftStart && draftEnd);
+
+    function handleConfirm() {
+        if (!draftStart || !draftEnd) return;
+        onConfirm(draftStart, draftEnd);
+    }
+
+    const monthLabel = new Date(calYear, calMonth, 1).toLocaleString("en-US", {
+        month: "long",
+        year: "numeric",
+    });
+
+    return (
+        <div
+            className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <div
+                className="relative w-full max-w-[640px] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between border-b border-[#EBE3D5] px-6 py-4">
+                    <h2 className="font-serif text-[18px] font-normal tracking-wide text-[#1A130E]">
+                        Select Rental Dates
+                    </h2>
+                    <button
+                        onClick={onClose}
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+
+                <div className="grid gap-5 p-6 pb-0 sm:grid-cols-[1fr_220px]">
+                    {/* Calendar column */}
+                    <div>
+                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">Select Dates</p>
+                        <div className="rounded-xl border border-[#EBE3D5] bg-white p-3.5">
+                            <div className="flex items-center justify-between">
+                                <button onClick={() => goToMonth(-1)} className="flex h-6 w-6 items-center justify-center rounded-full border border-[#EBE3D5] text-[#6E6053] hover:bg-[#FAF6F0] transition">
+                                    <ChevronLeft size={13} />
+                                </button>
+                                <span className="text-[13px] font-bold text-[#1A130E]">{monthLabel}</span>
+                                <button onClick={() => goToMonth(1)} className="flex h-6 w-6 items-center justify-center rounded-full border border-[#EBE3D5] text-[#6E6053] hover:bg-[#FAF6F0] transition">
+                                    <ChevronRight size={13} />
+                                </button>
+                            </div>
+
+                            <div className="mt-3 grid grid-cols-7 gap-1 text-center">
+                                {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                                    <span key={d} className="text-[10px] font-semibold text-[#A6998E]">{d}</span>
+                                ))}
+                                {calendarCells.map((date, idx) => {
+                                    const state = getDayState(date, calMonth, draftStart, draftEnd);
+                                    const baseClasses = "flex h-7 w-7 items-center justify-center rounded-full text-[11px] mx-auto transition";
+                                    const stateClasses =
+                                        state === "range-start" || state === "range-end"
+                                            ? "bg-[#9E2A1B] text-white font-bold"
+                                            : state === "in-range"
+                                                ? "bg-[#9E2A1B]/12 text-[#9E2A1B] font-semibold"
+                                                : state === "past"
+                                                    ? "text-[#DCD3C4] cursor-not-allowed"
+                                                    : state === "unavailable"
+                                                        ? "bg-[#F0EBE3] text-[#C4B8AE] cursor-not-allowed"
+                                                        : state === "few-left"
+                                                            ? "bg-[#FDF3D9] text-[#92740E] font-semibold cursor-pointer hover:bg-[#FBEAB8]"
+                                                            : state === "out-of-month"
+                                                                ? "text-[#DCD3C4]"
+                                                                : "bg-[#E8F5EE] text-[#2E7D52] font-semibold cursor-pointer hover:bg-[#D7EEE0]";
+                                    return (
+                                        <button
+                                            key={idx}
+                                            disabled={state === "past" || state === "unavailable" || state === "out-of-month"}
+                                            onClick={() => handleDayClick(date, state)}
+                                            className={`${baseClasses} ${stateClasses}`}
+                                        >
+                                            {date.getDate()}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[#6E6053]">
+                                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#E8F5EE] border border-[#BFD0B3]" /> Available</span>
+                                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#F0EBE3] border border-[#DDD5C8]" /> Unavailable</span>
+                                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#FDF3D9] border border-[#E9D896]" /> Few left</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right column — quick duration only now */}
+                    <div>
+                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">Rental Duration</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                            {durationOptions.map((d) => {
+                                const active = draftDays === d;
+                                return (
+                                    <button
+                                        key={d}
+                                        onClick={() => applyQuickDuration(d)}
+                                        className={`rounded-lg border py-2 text-[11px] font-semibold transition ${
+                                            active
+                                                ? "border-[#9E2A1B] bg-[#9E2A1B]/8 text-[#9E2A1B]"
+                                                : "border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]"
+                                        }`}
+                                    >
+                                        {d} Day{d > 1 ? "s" : ""}
+                                    </button>
+                                );
+                            })}
+                            <button
+                                className={`col-span-2 rounded-lg border py-2 text-[11px] font-semibold transition ${
+                                    draftDays && !durationOptions.includes(draftDays)
+                                        ? "border-[#9E2A1B] bg-[#9E2A1B]/8 text-[#9E2A1B]"
+                                        : "border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]"
+                                }`}
+                            >
+                                Custom (tap calendar)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── FIX: Start Date / End Date / Total Days — now full-width,
+                    sitting below BOTH the calendar and duration columns ── */}
+                <div className="grid grid-cols-3 gap-3 px-6 pt-4">
+                    <div>
+                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">Start Date</p>
+                        <div className="rounded-lg border border-[#DDD5C8] bg-white px-3 py-2.5 text-center text-[12px] font-semibold text-[#1A130E]">
+                            {draftStart ? formatShortDate(draftStart) : "—"}
+                        </div>
+                    </div>
+
+                    <div>
+                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">End Date</p>
+                        <div className="rounded-lg border border-[#DDD5C8] bg-white px-3 py-2.5 text-center text-[12px] font-semibold text-[#1A130E]">
+                            {draftEnd ? formatShortDate(draftEnd) : "—"}
+                        </div>
+                    </div>
+
+                    <div>
+                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">Total Days</p>
+                        <div className="rounded-lg bg-[#FAF0E6] px-3 py-2.5 text-center">
+                            <span className="text-[14px] font-bold text-[#9E2A1B]">
+                                {draftDays ? `${draftDays} Day${draftDays > 1 ? "s" : ""}` : "—"}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mx-6 mt-5 rounded-xl border border-[#EBE3D5] bg-white p-4">
+                    <p className="mb-2 text-[12px] font-bold text-[#1A130E]">Price Summary</p>
+                    <div className="flex items-center justify-between text-[12px] text-[#6E6053]">
+                        <span>Rental Price ({fmt(dailyRateNumber)} × {draftDays ?? 0} days)</span>
+                        <span className="font-semibold text-[#1A130E]">{fmt(rentalPriceTotal)}</span>
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
+                        <span>Security Deposit (Refundable)</span>
+                        <span className="font-semibold text-[#1A130E]">{fmt(securityDepositNumber)}</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between border-t border-[#EBE3D5] pt-2">
+                        <span className="text-[13px] font-bold text-[#1A130E]">Total Payable (Excl. delivery/pickup)</span>
+                        <span className="text-[15px] font-bold text-[#9E2A1B]">{fmt(payable)}</span>
+                    </div>
+                </div>
+
+                <div className="p-6 pt-4">
+                    <button
+                        onClick={handleConfirm}
+                        disabled={!canConfirm}
+                        className={`w-full rounded-xl py-3.5 text-[14px] font-bold transition ${
+                            canConfirm
+                                ? "bg-[#9E2A1B] text-white hover:bg-[#832215]"
+                                : "cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]"
+                        }`}
+                    >
+                        Confirm Dates
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+/* ══════════════════════════════════════════════════════════
+   BUY NOW MODAL — delivery method selection + add to cart
+   (Thrift flow, unchanged)
+══════════════════════════════════════════════════════════ */
+type BuyNowStep = "delivery" | "added";
+
+function BuyNowModal({
+                         product,
+                         onClose,
+                     }: {
+    product: DeliverableProduct;
+    onClose: () => void;
+}) {
+    const { addToCart, subtotal: cartSubtotal } = useCart();
+
+    const { hasShipping, hasPickup } = deliveryChannelsFor(product);
+
+    const [step, setStep] = useState<BuyNowStep>("delivery");
+    const [channel, setChannel] = useState<"shipping" | "pickup">(hasShipping ? "shipping" : "pickup");
+
+    const [fullName, setFullName] = useState("");
+    const [contactNumber, setContactNumber] = useState("");
+    const [notes, setNotes] = useState("");
+
+    const [addressLat, setAddressLat] = useState<number | null>(null);
+    const [addressLng, setAddressLng] = useState<number | null>(null);
+    const [resolvedAddress, setResolvedAddress] = useState("");
+
+    const reverseGeocode = async (lat: number, lng: number) => {
+        try {
+            const res = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+                { headers: { Accept: "application/json" } }
+            );
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data?.display_name) setResolvedAddress(data.display_name as string);
+        } catch {
+            // Silent — nice-to-have only.
+        }
+    };
+
+    const handleAddressPin = (lat: number, lng: number) => {
+        setAddressLat(lat);
+        setAddressLng(lng);
+        reverseGeocode(lat, lng);
+    };
+
+    const handleUseCurrentLocation = () => {
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition((pos) => {
+            handleAddressPin(pos.coords.latitude, pos.coords.longitude);
+        });
+    };
+
+    // TODO: wire these to the real logged-in user's profile data
+    const handleUseProfileName = () => setFullName("");
+    const handleUseProfileNumber = () => setContactNumber("");
+
+    const basePrice = product.priceValue;
+
+    const sellerPickupLat = product.pickupLat ? toNumber(product.pickupLat) : null;
+    const sellerPickupLng = product.pickupLng ? toNumber(product.pickupLng) : null;
+    const hasSellerOrigin = sellerPickupLat !== null && sellerPickupLng !== null;
+
+    const isDynamic =
+        normalizeFulfillment(product.deliveryOption) !== "pickup" &&
+        (product.shippingFeeType ?? "").toUpperCase().replace(/[\s_]/g, "").includes("DYNAMIC");
+
+    const deliveryFee = useMemo(() => {
+        if (channel === "pickup") return 0;
+        if (!isDynamic) return calculateFlexDeliveryFee(product, "shipping", null);
+        if (!addressLat || !addressLng || !hasSellerOrigin) return null;
+        const km = distanceKm(sellerPickupLat as number, sellerPickupLng as number, addressLat, addressLng);
+        const bucket = resolveDistanceBucket(km);
+        return calculateFlexDeliveryFee(product, "shipping", bucket);
+    }, [channel, isDynamic, addressLat, addressLng, hasSellerOrigin, sellerPickupLat, sellerPickupLng, product]);
+
+    const dynamicFeePending = channel === "shipping" && isDynamic && deliveryFee === null;
+    const resolvedFee = deliveryFee ?? 0;
+    const total = basePrice + (channel === "shipping" ? resolvedFee : 0);
+
+    const fmt = (n: number) => `Rs. ${n.toLocaleString("en-IN")}`;
+
+    const pickupMapUrl =
+        sellerPickupLat && sellerPickupLng
+            ? `https://www.google.com/maps?q=${sellerPickupLat},${sellerPickupLng}`
+            : null;
+
+    const canSubmit =
+        fullName.trim() &&
+        contactNumber.trim() &&
+        (channel === "pickup" || (addressLat && addressLng)) &&
+        !(channel === "shipping" && dynamicFeePending);
+
+    const handleSaveAndAddToCart = () => {
+        if (!canSubmit) return;
+        // addToCart({
+        //     id: product.id,
+        //     brand: product.brand ?? "",
+        //     name: product.name,
+        //     price: product.price,
+        //     size: product.size ?? "",
+        //     condition: product.condition ?? "",
+        //     color: product.color ?? "",
+        //     category: "Thrift",
+        //     image: product.image,
+        //     status: "THRIFT",
+        //     note:
+        //         channel === "shipping"
+        //             ? `Ship to: ${resolvedAddress || "Pinned address"} · ${fullName} · ${contactNumber}`
+        //             : `Pickup by: ${fullName} · ${contactNumber}`,
+        // });
+        // Inside BuyNowModal.handleSaveAndAddToCart():
+        addToCart({
+            id: product.id,
+            brand: product.brand ?? "",
+            name: product.name,
+            price: product.price,
+            size: product.size ?? "",
+            condition: product.condition ?? "",
+            color: product.color ?? "",
+            category: "Thrift",
+            image: product.image,
+            status: "THRIFT",
+            fulfillment: channel,
+            deliveryFee: resolvedFee,
+            pickupArea: channel === "pickup" ? (product.pickupResolvedAddress ?? product.pickupArea ?? undefined) : undefined,
+            pickupHours: channel === "pickup"
+                ? `${product.pickupTimeFrom ?? "10:00 AM"} – ${product.pickupTimeTo ?? "6:00 PM"}${
+                    product.pickupDays ? ` (${formatPickupDays(product.pickupDays)})` : ""
+                }`
+                : undefined,
+            note:
+                channel === "shipping"
+                    ? `Ship to: ${resolvedAddress || "Pinned address"} · ${fullName} · ${contactNumber}`
+                    : `Pickup by: ${fullName} · ${contactNumber}`,
+        });
+        setStep("added");
+    };
+
+    const subtitle = hasShipping && hasPickup
+        ? "This item is available with both shipping and pickup."
+        : hasShipping
+            ? "This item is available with shipping."
+            : "This item is available with pickup.";
 
     return (
         <div
@@ -1375,27 +1975,27 @@ function ThriftPurchaseModal({
             onClick={onClose}
         >
             <div
-                className="relative w-full max-w-[560px] rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
+                className="relative w-full max-w-[620px] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 <button
                     onClick={onClose}
-                    className="absolute right-3.5 top-3.5 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+                    className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
                 >
-                    <X size={15} />
+                    <X size={16} />
                 </button>
 
-                {added ? (
-                    <div className="flex flex-col items-center px-8 py-10 text-center">
+                {step === "added" ? (
+                    <div className="flex flex-col items-center px-8 py-8 text-center">
                         <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#4A6B3A] bg-[#F0F6ED]">
                             <Check size={30} strokeWidth={2.2} className="text-[#4A6B3A]" />
                         </div>
                         <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
                             Added to Cart!
                         </h2>
-                        <p className="mt-2 max-w-[340px] text-[13px] leading-relaxed text-[#6E6053]">
+                        <p className="mt-2 max-w-[360px] text-[13px] leading-relaxed text-[#6E6053]">
                             <span className="font-semibold text-[#1A130E]">{product.name}</span> has been
-                            successfully added to your cart.
+                            added to your cart with {channel === "shipping" ? "shipping" : "pickup"} selected.
                         </p>
 
                         <div className="mt-5 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
@@ -1405,13 +2005,76 @@ function ThriftPurchaseModal({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="truncate text-[13px] font-semibold text-[#1A130E]">{product.name}</p>
-                                    <p className="text-[11px] text-[#6E6053]">{product.brand} · Size {product.size}</p>
-                                    <p className="mt-1 text-[11px] text-[#8C7E74]">Total incl. fees & tax</p>
+                                    <p className="text-[11px] text-[#6E6053]">
+                                        {product.brand} {product.size ? `· Size ${product.size}` : ""}
+                                    </p>
+                                    <p className="mt-0.5 text-[11px] text-[#8C7E74]">
+                                        {channel === "shipping" ? "Ships to your address" : "Pickup from seller"}
+                                    </p>
                                 </div>
-                                {/*<p className="shrink-0 text-[15px] font-bold text-[#9E2A1B]">{fmt(total)}</p>*/}
-                                <p className="shrink-0 text-[15px] font-bold text-[#9E2A1B]">
-                                    {`Rs. ${subtotal.toLocaleString("en-IN")}`}
-                                </p>
+                                <p className="shrink-0 text-[15px] font-bold text-[#9E2A1B]">{fmt(basePrice)}</p>
+                            </div>
+                        </div>
+
+                        <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] px-5 py-4 text-left overflow-hidden">
+                            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                {channel === "shipping" ? <Truck size={12} /> : <MapPin size={12} />}
+                                {channel === "shipping" ? "Shipping Details" : "Pickup Details"}
+                            </p>
+
+                            {channel === "shipping" ? (
+                                <div className="mt-2 space-y-1.5">
+                                    <div className="flex items-start gap-1.5">
+                                        <MapPin size={13} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
+                                        <p className="text-[12px] text-[#4F4338]">
+                                            {resolvedAddress || "Pinned address"}
+                                        </p>
+                                    </div>
+                                    <p className="text-[12px] text-[#4F4338]">
+                                        <span className="font-semibold">{fullName}</span> · {contactNumber}
+                                    </p>
+                                    {notes && (
+                                        <p className="text-[11px] italic text-[#8C7E74]">"{notes}"</p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="mt-2 space-y-1.5">
+                                    <div className="flex items-start gap-1.5">
+                                        <MapPin size={13} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
+                                        <p className="text-[12px] text-[#4F4338]">
+                                            {product.pickupResolvedAddress ?? product.pickupArea ?? "Shared after booking"}
+                                        </p>
+                                    </div>
+                                    <p className="text-[12px] text-[#4F4338]">
+                                        <span className="font-semibold">{fullName}</span> · {contactNumber}
+                                    </p>
+                                    <p className="text-[11px] text-[#8C7E74]">
+                                        Pickup hours: {product.pickupTimeFrom && product.pickupTimeTo
+                                        ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
+                                        : "10:00 AM – 6:00 PM"}
+                                        {product.pickupContactNumber ? ` · Seller: ${product.pickupContactNumber}` : ""}
+                                    </p>
+                                    {notes && (
+                                        <p className="text-[11px] italic text-[#8C7E74]">"{notes}"</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
+                            <div className="flex items-center justify-between text-[12px] text-[#6E6053]">
+                                <span>Item Price</span>
+                                <span className="font-semibold text-[#1A130E]">{fmt(basePrice)}</span>
+                            </div>
+                            <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
+                                <span>{channel === "shipping" ? "Delivery Fee" : "Pickup Fee"}</span>
+                                <span className={`font-semibold ${resolvedFee === 0 ? "text-[#4A6B3A]" : "text-[#1A130E]"}`}>
+                                    {resolvedFee === 0 ? "Free" : fmt(resolvedFee)}
+                                </span>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between border-t border-[#EBE3D5] pt-2">
+                                <span className="text-[13px] font-bold text-[#1A130E]">Total Paid</span>
+                                <span className="text-[16px] font-bold text-[#9E2A1B]">{fmt(total)}</span>
                             </div>
                         </div>
 
@@ -1437,123 +2100,885 @@ function ThriftPurchaseModal({
                         </p>
                     </div>
                 ) : (
-                    <>
-                        <div className="flex flex-col items-center px-8 pt-7 pb-5 text-center">
-                            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#9E2A1B]">
-                                <ShoppingBag size={20} strokeWidth={1.6} />
-                            </div>
+                    <div className="px-6 pt-7 pb-6">
+                        <div className="text-center">
                             <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
-                                Confirm Thrift Purchase
+                                Choose Delivery Method
                             </h2>
-                            <p className="mt-1 text-[13px] text-[#6E6053]">
-                                Add this item to your cart to continue to checkout.
-                            </p>
+                            <p className="mt-1 text-[13px] text-[#6E6053]">{subtitle}</p>
                         </div>
 
-                        <div className="mx-6 border-t border-[#EBE3D5]" />
-
-                        {/* Product row */}
-                        <div className="mx-6 mt-5 flex gap-4">
-                            <div className="relative h-[100px] w-[80px] shrink-0 overflow-hidden rounded-xl border border-[#EBE3D5] bg-[#F5F0E8]">
-                                <Image src={product.image} alt={product.name} fill className="object-cover" />
+                        {hasShipping && hasPickup && (
+                            <div className="mt-5 grid grid-cols-2 gap-2.5">
+                                <button
+                                    onClick={() => setChannel("shipping")}
+                                    className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
+                                        channel === "shipping"
+                                            ? "border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]"
+                                            : "border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]"
+                                    }`}
+                                >
+                                    <Truck size={15} /> Shipping
+                                </button>
+                                <button
+                                    onClick={() => setChannel("pickup")}
+                                    className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
+                                        channel === "pickup"
+                                            ? "border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]"
+                                            : "border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]"
+                                    }`}
+                                >
+                                    <MapPin size={15} /> Pickup
+                                </button>
                             </div>
-                            <div className="flex flex-1 flex-col justify-center">
-                                <h3 className="font-serif text-[15px] font-medium leading-snug text-[#1A130E]">
-                                    {product.name}
-                                </h3>
-                                <p className="mt-0.5 text-[12px] text-[#6E6053]">{product.brand}</p>
-                                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px]">
-                  <span className="text-[#6E6053]">
-                    Condition:{" "}
-                      <span className="font-semibold text-[#9E2A1B]">{product.condition}</span>
-                  </span>
-                                    <span className="text-[#6E6053]">
-                    Size:{" "}
-                                        <span className="font-semibold text-[#1A130E]">{product.size}</span>
-                  </span>
-                                </div>
-                            </div>
-                            <div className="shrink-0 self-center text-right">
-                                <p className="text-[11px] text-[#8C7E74]">Item price</p>
-                                <p className="text-[17px] font-bold text-[#1A130E]">{product.price}</p>
-                            </div>
-                        </div>
+                        )}
 
-                        <div className="mx-6 mt-5 border-t border-[#EBE3D5]" />
-
-                        {/* Price breakdown */}
-                        <div className="mx-6 mt-4 space-y-2.5">
-                            {[
-                                { label: "Item Price",    value: fmt(basePrice),    info: false },
-                                { label: "Service Fee (5.9%)",   value: fmt(serviceFee),   info: true  },
-                                { label: "Estimated Tax (7.5%)", value: fmt(estimatedTax), info: true  },
-                            ].map(({ label, value, info }) => (
-                                <div key={label} className="flex items-center justify-between text-[13px]">
-                                    <div className="flex items-center gap-1 text-[#4F4338]">
-                                        {label}
-                                        {info && (
-                                            <button className="text-[#A89E94] transition hover:text-[#6E6053]">
-                                                <Info size={13} strokeWidth={1.8} />
-                                            </button>
-                                        )}
+                        {channel === "shipping" && (
+                            <div className="mt-5 space-y-4">
+                                <div className="flex items-center rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] divide-x divide-[#EBE3D5]">
+                                    <div className="flex flex-1 items-center gap-3 px-4 py-3.5">
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white text-[#9E2A1B]">
+                                            <Truck size={15} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Shipping Availability</p>
+                                            <p className="text-[13px] font-bold text-[#1A130E]">
+                                                {product.shippingAvailability ?? "Nationwide"}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <span className="font-medium text-[#4F4338]">{value}</span>
+                                    <div className="flex-1 px-4 py-3.5 text-right">
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Delivery Fee</p>
+                                        <p className="text-[15px] font-bold text-[#9E2A1B]">
+                                            {dynamicFeePending
+                                                ? "Pin address"
+                                                : resolvedFee === 0
+                                                    ? "Free"
+                                                    : fmt(resolvedFee)}
+                                        </p>
+                                    </div>
                                 </div>
-                            ))}
-                            <div className="flex items-center justify-between rounded-lg bg-[#FAF0E6] px-3 py-2.5 border-t border-[#EBE3D5]">
-                                <span className="text-[14px] font-bold text-[#1A130E]">Total</span>
-                                <span className="text-[18px] font-bold text-[#9E2A1B]">{fmt(total)}</span>
-                            </div>
-                        </div>
 
-                        {/* Trust badge */}
-                        <div className="mx-6 mt-4 flex items-start gap-3 rounded-xl border border-[#EBE3D5] bg-[#FAF8F5] px-4 py-3">
-                            <ShieldCheck size={17} strokeWidth={1.8} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
+                                {isDynamic && (
+                                    <div className="flex items-start gap-2 rounded-xl border border-[#D9E2F1] bg-[#F0F4FC] px-3.5 py-2.5 text-[11px] text-[#3A537D]">
+                                        <Info size={13} className="mt-0.5 shrink-0" />
+                                        Dynamic shipping uses the distance between your location and the
+                                        seller's delivery location to calculate the delivery fee.
+                                    </div>
+                                )}
+
+                                <div>
+                                    <p className="text-[13px] font-bold text-[#1A130E] mb-2">Delivery Address</p>
+                                    <div className="relative rounded-xl overflow-hidden border border-[#EBE3D5]">
+                                        <PickupLocationMap
+                                            lat={addressLat}
+                                            lng={addressLng}
+                                            onLocationSelect={handleAddressPin}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleUseCurrentLocation}
+                                            className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 rounded-lg bg-white/95 border border-[#DDD5C8] px-3 py-2 text-[12px] font-semibold text-[#9E2A1B] shadow-sm hover:bg-white transition"
+                                        >
+                                            <MapPin size={13} /> Use current location
+                                        </button>
+                                    </div>
+                                    {addressLat && addressLng && (
+                                        <div className="mt-2 flex items-start gap-2 rounded-xl border border-[#BFD0B3] bg-[#F0F6ED] px-3 py-2.5">
+                                            <Check size={13} className="mt-0.5 shrink-0 text-[#4A6B3A]" />
+                                            <div>
+                                                <p className="text-[11px] font-bold text-[#2E7D52]">Location pinned successfully</p>
+                                                {resolvedAddress && (
+                                                    <p className="mt-0.5 text-[11px] leading-relaxed text-[#4F4338]">{resolvedAddress}</p>
+                                                )}
+                                                <p className="mt-0.5 text-[10px] text-[#8C7E74]">(Tap on map to change location)</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[12px] font-semibold text-[#3D2B1F]">Full Name *</label>
+                                            <button onClick={handleUseProfileName} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">
+                                                Use profile name
+                                            </button>
+                                        </div>
+                                        <input
+                                            value={fullName}
+                                            onChange={(e) => setFullName(e.target.value)}
+                                            placeholder="Your full name"
+                                            className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[12px] font-semibold text-[#3D2B1F]">Contact Number *</label>
+                                            <button onClick={handleUseProfileNumber} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">
+                                                Use profile number
+                                            </button>
+                                        </div>
+                                        <input
+                                            value={contactNumber}
+                                            onChange={(e) => setContactNumber(e.target.value)}
+                                            placeholder="+977 98XXXXXXXX"
+                                            className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-[12px] font-semibold text-[#3D2B1F]">Delivery Notes (Optional)</label>
+                                    <textarea
+                                        value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                        placeholder="E.g. Please ring the bell. Gate code 1234."
+                                        maxLength={200}
+                                        rows={2}
+                                        className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                    />
+                                    <span className="self-end text-[10px] text-[#A6998E]">{notes.length} / 200</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {channel === "pickup" && (
+                            <div className="mt-5 space-y-4">
+                                <div className="rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] p-4">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex items-start gap-2.5">
+                                            <MapPin size={15} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
+                                            <div>
+                                                <p className="text-[11px] font-bold text-[#1A130E]">
+                                                    Pickup Details <span className="font-normal text-[#8C7E74]">(Provided by Seller)</span>
+                                                </p>
+                                                <p className="mt-0.5 text-[13px] font-semibold text-[#1A130E]">
+                                                    {product.pickupResolvedAddress ?? product.pickupArea ?? "Shared after booking"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {pickupMapUrl && (
+                                            <a
+                                            href={pickupMapUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="shrink-0 text-[12px] font-bold text-[#9E2A1B] hover:underline"
+                                            >
+                                            View on Map
+                                            </a>
+                                            )}
+                                    </div>
+
+                                    <div className="mt-3.5 grid grid-cols-3 gap-3 border-t border-[#EBE3D5] pt-3.5">
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Pickup Hours</p>
+                                            <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
+                                                {product.pickupTimeFrom && product.pickupTimeTo
+                                                    ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
+                                                    : "10:00 AM – 6:00 PM"}
+                                            </p>
+                                            <p className="text-[10px] text-[#8C7E74]">
+                                                ({formatPickupDays(product.pickupDays)}
+                                                {product.sameDayPickup ? " · Same-day OK" : ""})
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Instructions</p>
+                                            <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E] line-clamp-2">
+                                                {product.pickupInstructions ?? "Call before arriving."}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Contact Number</p>
+                                            <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
+                                                {product.pickupContactNumber ?? "Shared after booking"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p className="text-[13px] font-bold text-[#1A130E]">Your Pickup Information</p>
+                                    <p className="text-[11px] text-[#8C7E74]">This information will be shared with the seller to coordinate pickup.</p>
+                                </div>
+
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[12px] font-semibold text-[#3D2B1F]">Full Name *</label>
+                                        <button onClick={handleUseProfileName} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">
+                                            Use profile name
+                                        </button>
+                                    </div>
+                                    <input
+                                        value={fullName}
+                                        onChange={(e) => setFullName(e.target.value)}
+                                        placeholder="Your full name"
+                                        className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                    />
+                                </div>
+
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[12px] font-semibold text-[#3D2B1F]">Contact Number *</label>
+                                        <button onClick={handleUseProfileNumber} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">
+                                            Use profile number
+                                        </button>
+                                    </div>
+                                    <input
+                                        value={contactNumber}
+                                        onChange={(e) => setContactNumber(e.target.value)}
+                                        placeholder="+977 98XXXXXXXX"
+                                        className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                    />
+                                </div>
+
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-[12px] font-semibold text-[#3D2B1F]">Pickup Notes (Optional)</label>
+                                    <textarea
+                                        value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                        placeholder="E.g. I will come with a friend."
+                                        maxLength={200}
+                                        rows={2}
+                                        className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                    />
+                                    <span className="self-end text-[10px] text-[#A6998E]">{notes.length} / 200</span>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="mt-5 flex items-center justify-between rounded-xl bg-white border border-[#EBE3D5] px-4 py-3.5">
                             <div>
-                                <p className="text-[12px] font-bold text-[#1A130E]">Authenticated & quality-checked</p>
-                                <p className="mt-0.5 text-[11px] leading-snug text-[#6E6053]">
-                                    Every item is carefully inspected for quality and authenticity.
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Item Price</p>
+                                <p className="text-[14px] font-bold text-[#1A130E]">{fmt(basePrice)}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                    {channel === "shipping" ? "Delivery Fee" : "Pickup Fee"}
+                                </p>
+                                <p className={`text-[14px] font-bold ${
+                                    channel === "shipping" && dynamicFeePending
+                                        ? "text-[#8C7E74]"
+                                        : resolvedFee === 0
+                                            ? "text-[#4A6B3A]"
+                                            : "text-[#1A130E]"
+                                }`}>
+                                    {channel === "shipping" && dynamicFeePending
+                                        ? "—"
+                                        : resolvedFee === 0
+                                            ? "Free"
+                                            : fmt(resolvedFee)}
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Total Amount</p>
+                                <p className="text-[16px] font-bold text-[#9E2A1B]">
+                                    {channel === "shipping" && dynamicFeePending ? "—" : fmt(total)}
                                 </p>
                             </div>
                         </div>
 
-                        {/* Buttons — side by side */}
-                        <div className="mx-6 mt-4 grid grid-cols-2 gap-2.5 pb-5">
-                            <button
-                                onClick={() => {
-                                    addToCart({
-                                        id: product.id,
-                                        brand: product.brand ?? "",
-                                        name: product.name,
-                                        price: product.price,
-                                        size: product.size ?? "",
-                                        condition: product.condition ?? "",
-                                        color: product.color ?? "",
-                                        category: "Thrift",
-                                        image: product.image,
-                                        status: "THRIFT",
-                                        note: "Pre-loved item with history and character.",
-                                    });
-                                    setAdded(true);
-                                }}
+                        <button
+                            onClick={handleSaveAndAddToCart}
+                            disabled={!canSubmit}
+                            className={`mt-4 w-full rounded-xl py-3.5 text-[14px] font-bold transition ${
+                                canSubmit
+                                    ? "bg-[#9E2A1B] text-white hover:bg-[#832215]"
+                                    : "cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]"
+                            }`}
+                        >
+                            Save & Add to Cart
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/* ══════════════════════════════════════════════════════════
+   RENT NOW MODAL — mirrors BuyNowModal's Shipping / Pickup /
+   Flex flow, but priced for a rental: Rental Price (rate × days)
+   + Security Deposit + Delivery/Pickup Fee. Success screen shows
+   "Rented for X days" info instead of a plain add-to-cart line.
+══════════════════════════════════════════════════════════ */
+type RentNowStep = "delivery" | "added";
+
+function RentNowModal({
+                          product,
+                          rentInfo,
+                          onClose,
+                      }: {
+    product: DeliverableProduct;
+    rentInfo: {
+        days: number;
+        startDate: Date;
+        endDate: Date;
+        dailyRateNumber: number;
+        securityDepositNumber: number;
+    };
+    onClose: () => void;
+}) {
+    const { addToCart } = useCart();
+    const { hasShipping, hasPickup } = deliveryChannelsFor(product);
+
+    const [step, setStep] = useState<RentNowStep>("delivery");
+    const [channel, setChannel] = useState<"shipping" | "pickup">(hasShipping ? "shipping" : "pickup");
+
+    const [fullName, setFullName] = useState("");
+    const [contactNumber, setContactNumber] = useState("");
+    const [notes, setNotes] = useState("");
+
+    const [addressLat, setAddressLat] = useState<number | null>(null);
+    const [addressLng, setAddressLng] = useState<number | null>(null);
+    const [resolvedAddress, setResolvedAddress] = useState("");
+
+    const reverseGeocode = async (lat: number, lng: number) => {
+        try {
+            const res = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+                { headers: { Accept: "application/json" } }
+            );
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data?.display_name) setResolvedAddress(data.display_name as string);
+        } catch {
+            // Silent — nice-to-have only.
+        }
+    };
+
+    const handleAddressPin = (lat: number, lng: number) => {
+        setAddressLat(lat);
+        setAddressLng(lng);
+        reverseGeocode(lat, lng);
+    };
+
+    const handleUseCurrentLocation = () => {
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition((pos) => {
+            handleAddressPin(pos.coords.latitude, pos.coords.longitude);
+        });
+    };
+
+    const handleUseProfileName = () => setFullName("");
+    const handleUseProfileNumber = () => setContactNumber("");
+
+    const rentalPrice = rentInfo.dailyRateNumber * rentInfo.days;
+    const securityDeposit = rentInfo.securityDepositNumber;
+
+    const sellerPickupLat = product.pickupLat ? toNumber(product.pickupLat) : null;
+    const sellerPickupLng = product.pickupLng ? toNumber(product.pickupLng) : null;
+    const hasSellerOrigin = sellerPickupLat !== null && sellerPickupLng !== null;
+
+    const isDynamic =
+        normalizeFulfillment(product.deliveryOption) !== "pickup" &&
+        (product.shippingFeeType ?? "").toUpperCase().replace(/[\s_]/g, "").includes("DYNAMIC");
+
+    const deliveryFee = useMemo(() => {
+        if (channel === "pickup") return 0;
+        if (!isDynamic) return calculateFlexDeliveryFee(product, "shipping", null);
+        if (!addressLat || !addressLng || !hasSellerOrigin) return null;
+        const km = distanceKm(sellerPickupLat as number, sellerPickupLng as number, addressLat, addressLng);
+        const bucket = resolveDistanceBucket(km);
+        return calculateFlexDeliveryFee(product, "shipping", bucket);
+    }, [channel, isDynamic, addressLat, addressLng, hasSellerOrigin, sellerPickupLat, sellerPickupLng, product]);
+
+    const dynamicFeePending = channel === "shipping" && isDynamic && deliveryFee === null;
+    const resolvedFee = deliveryFee ?? 0;
+    const total = rentalPrice + securityDeposit + (channel === "shipping" ? resolvedFee : 0);
+
+    const fmt = (n: number) => `Rs. ${n.toLocaleString("en-IN")}`;
+
+    const pickupMapUrl =
+        sellerPickupLat && sellerPickupLng
+            ? `https://www.google.com/maps?q=${sellerPickupLat},${sellerPickupLng}`
+            : null;
+
+    const canSubmit =
+        fullName.trim() &&
+        contactNumber.trim() &&
+        (channel === "pickup" || (addressLat && addressLng)) &&
+        !(channel === "shipping" && dynamicFeePending);
+
+    const handleSaveAndAddToCart = () => {
+        if (!canSubmit) return;
+        // addToCart({
+        //     id: product.id,
+        //     brand: product.brand ?? "",
+        //     name: product.name,
+        //     price: `${fmt(rentInfo.dailyRateNumber)} / day`,
+        //     size: product.size ?? "",
+        //     condition: product.condition ?? "",
+        //     color: product.color ?? "",
+        //     category: "Rent",
+        //     image: product.image,
+        //     status: "RENT",
+        //     note:
+        //         `Rent for ${rentInfo.days} day${rentInfo.days > 1 ? "s" : ""} · ` +
+        //         `${formatShortDate(rentInfo.startDate)} → ${formatShortDate(rentInfo.endDate)} · ` +
+        //         (channel === "shipping"
+        //             ? `Ship to: ${resolvedAddress || "Pinned address"} · ${fullName} · ${contactNumber}`
+        //             : `Pickup by: ${fullName} · ${contactNumber}`),
+        // });
+
+        // Inside RentNowModal.handleSaveAndAddToCart():
+        addToCart({
+            id: product.id,
+            brand: product.brand ?? "",
+            name: product.name,
+            price: `${fmt(rentInfo.dailyRateNumber)} / day`,
+            size: product.size ?? "",
+            condition: product.condition ?? "",
+            color: product.color ?? "",
+            category: "Rent",
+            image: product.image,
+            status: "RENT",
+            fulfillment: channel,
+            deliveryFee: resolvedFee,
+            pickupArea: channel === "pickup" ? (product.pickupResolvedAddress ?? product.pickupArea ?? undefined) : undefined,
+            pickupHours: channel === "pickup"
+                ? `${product.pickupTimeFrom ?? "10:00 AM"} – ${product.pickupTimeTo ?? "6:00 PM"}${
+                    product.pickupDays ? ` (${formatPickupDays(product.pickupDays)})` : ""
+                }`
+                : undefined,
+            rentalDays: rentInfo.days,
+            rentalStart: formatShortDate(rentInfo.startDate),
+            rentalEnd: formatShortDate(rentInfo.endDate),
+            returnDeadline: `${rentInfo.endDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} (by 6:00 PM)`,
+            note:
+                channel === "shipping"
+                    ? `Ship to: ${resolvedAddress || "Pinned address"} · ${fullName} · ${contactNumber}`
+                    : `Pickup by: ${fullName} · ${contactNumber}`,
+        });
+        setStep("added");
+    };
+
+    const subtitle = hasShipping && hasPickup
+        ? "This item is available with both shipping and pickup."
+        : hasShipping
+            ? "This item is available with shipping."
+            : "This item is available with pickup.";
+
+    return (
+        <div
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <div
+                className="relative w-full max-w-[620px] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <button
+                    onClick={onClose}
+                    className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+                >
+                    <X size={16} />
+                </button>
+
+                {step === "added" ? (
+                    <div className="flex flex-col items-center px-8 py-8 text-center">
+                        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#4A6B3A] bg-[#F0F6ED]">
+                            <Check size={30} strokeWidth={2.2} className="text-[#4A6B3A]" />
+                        </div>
+                        <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
+                            Added to Cart!
+                        </h2>
+                        <p className="mt-2 max-w-[380px] text-[13px] leading-relaxed text-[#6E6053]">
+                            <span className="font-semibold text-[#1A130E]">{product.name}</span> has been added to
+                            your cart — rented for{" "}
+                            <span className="font-semibold text-[#1A130E]">
+                                {rentInfo.days} day{rentInfo.days > 1 ? "s" : ""}
+                            </span>{" "}
+                            ({formatShortDate(rentInfo.startDate)} → {formatShortDate(rentInfo.endDate)}) with{" "}
+                            {channel === "shipping" ? "shipping" : "pickup"} selected.
+                        </p>
+
+                        <div className="mt-5 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
+                            <div className="flex items-center gap-4">
+                                <div className="relative h-[64px] w-[52px] shrink-0 overflow-hidden rounded-lg border border-[#EBE3D5] bg-[#F5F0E8]">
+                                    <Image src={product.image} alt={product.name} fill className="object-cover" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="truncate text-[13px] font-semibold text-[#1A130E]">{product.name}</p>
+                                    <p className="text-[11px] text-[#6E6053]">
+                                        {product.brand} {product.size ? `· Size ${product.size}` : ""}
+                                    </p>
+                                    <p className="mt-0.5 text-[11px] text-[#8C7E74]">
+                                        {formatShortDate(rentInfo.startDate)} → {formatShortDate(rentInfo.endDate)}
+                                    </p>
+                                </div>
+                                <p className="shrink-0 text-[15px] font-bold text-[#9E2A1B]">
+                                    {fmt(rentInfo.dailyRateNumber)}/day
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] px-5 py-4 text-left overflow-hidden">
+                            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                {channel === "shipping" ? <Truck size={12} /> : <MapPin size={12} />}
+                                {channel === "shipping" ? "Shipping Details" : "Pickup Details"}
+                            </p>
+
+                            {channel === "shipping" ? (
+                                <div className="mt-2 space-y-1.5">
+                                    <div className="flex items-start gap-1.5">
+                                        <MapPin size={13} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
+                                        <p className="text-[12px] text-[#4F4338]">{resolvedAddress || "Pinned address"}</p>
+                                    </div>
+                                    <p className="text-[12px] text-[#4F4338]">
+                                        <span className="font-semibold">{fullName}</span> · {contactNumber}
+                                    </p>
+                                    {notes && <p className="text-[11px] italic text-[#8C7E74]">"{notes}"</p>}
+                                </div>
+                            ) : (
+                                <div className="mt-2 space-y-1.5">
+                                    <div className="flex items-start gap-1.5">
+                                        <MapPin size={13} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
+                                        <p className="text-[12px] text-[#4F4338]">
+                                            {product.pickupResolvedAddress ?? product.pickupArea ?? "Shared after booking"}
+                                        </p>
+                                    </div>
+                                    <p className="text-[12px] text-[#4F4338]">
+                                        <span className="font-semibold">{fullName}</span> · {contactNumber}
+                                    </p>
+                                    <p className="text-[11px] text-[#8C7E74]">
+                                        Pickup hours: {product.pickupTimeFrom && product.pickupTimeTo
+                                        ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
+                                        : "10:00 AM – 6:00 PM"}
+                                        {product.pickupContactNumber ? ` · Seller: ${product.pickupContactNumber}` : ""}
+                                    </p>
+                                    {notes && <p className="text-[11px] italic text-[#8C7E74]">"{notes}"</p>}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
+                            <div className="flex items-center justify-between text-[12px] text-[#6E6053]">
+                                <span>Rental Price ({fmt(rentInfo.dailyRateNumber)} × {rentInfo.days} days)</span>
+                                <span className="font-semibold text-[#1A130E]">{fmt(rentalPrice)}</span>
+                            </div>
+                            <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
+                                <span>Security Deposit (Refundable)</span>
+                                <span className="font-semibold text-[#1A130E]">{fmt(securityDeposit)}</span>
+                            </div>
+                            <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
+                                <span>{channel === "shipping" ? "Delivery Fee" : "Pickup Fee"}</span>
+                                <span className={`font-semibold ${resolvedFee === 0 ? "text-[#4A6B3A]" : "text-[#1A130E]"}`}>
+                                    {resolvedFee === 0 ? "Free" : fmt(resolvedFee)}
+                                </span>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between border-t border-[#EBE3D5] pt-2">
+                                <span className="text-[13px] font-bold text-[#1A130E]">Total Payable</span>
+                                <span className="text-[16px] font-bold text-[#9E2A1B]">{fmt(total)}</span>
+                            </div>
+                        </div>
+
+                        <div className="mt-5 w-full grid grid-cols-2 gap-2.5">
+                            <Link
+                                href="/cart"
                                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#9E2A1B] py-3.5 text-[14px] font-bold text-white transition hover:bg-[#832215]"
                             >
                                 <ShoppingBag size={15} />
-                                Add to Cart
-                            </button>
+                                Go to Cart
+                            </Link>
                             <button
                                 onClick={onClose}
                                 className="w-full rounded-xl border border-[#DDD5C8] bg-white py-3.5 text-[14px] font-semibold text-[#9E2A1B] transition hover:bg-[#FAF6F0]"
                             >
-                                Keep Browsing
+                                Continue Browsing
                             </button>
                         </div>
 
-                        <div className="flex items-center justify-center gap-1.5 pb-4 text-[11px] text-[#8C7E74]">
+                        <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#8C7E74]">
                             <ShieldCheck size={12} strokeWidth={1.6} className="text-[#A89E94]" />
                             Secure checkout. Your payment information is safe with us.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="px-6 pt-7 pb-6">
+                        <div className="text-center">
+                            <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
+                                Choose Delivery Method
+                            </h2>
+                            <p className="mt-1 text-[13px] text-[#6E6053]">{subtitle}</p>
+                            <p className="mt-1 text-[11px] font-semibold text-[#9E2A1B]">
+                                Renting for {rentInfo.days} day{rentInfo.days > 1 ? "s" : ""} ·{" "}
+                                {formatShortDate(rentInfo.startDate)} → {formatShortDate(rentInfo.endDate)}
+                            </p>
                         </div>
-                    </>
+
+                        {hasShipping && hasPickup && (
+                            <div className="mt-5 grid grid-cols-2 gap-2.5">
+                                <button
+                                    onClick={() => setChannel("shipping")}
+                                    className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
+                                        channel === "shipping"
+                                            ? "border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]"
+                                            : "border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]"
+                                    }`}
+                                >
+                                    <Truck size={15} /> Shipping
+                                </button>
+                                <button
+                                    onClick={() => setChannel("pickup")}
+                                    className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
+                                        channel === "pickup"
+                                            ? "border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]"
+                                            : "border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]"
+                                    }`}
+                                >
+                                    <MapPin size={15} /> Pickup
+                                </button>
+                            </div>
+                        )}
+
+                        {channel === "shipping" && (
+                            <div className="mt-5 space-y-4">
+                                <div className="flex items-center rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] divide-x divide-[#EBE3D5]">
+                                    <div className="flex flex-1 items-center gap-3 px-4 py-3.5">
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white text-[#9E2A1B]">
+                                            <Truck size={15} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Shipping Availability</p>
+                                            <p className="text-[13px] font-bold text-[#1A130E]">
+                                                {product.shippingAvailability ?? "Nationwide"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 px-4 py-3.5 text-right">
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Delivery Fee</p>
+                                        <p className="text-[15px] font-bold text-[#9E2A1B]">
+                                            {dynamicFeePending ? "Pin address" : resolvedFee === 0 ? "Free" : fmt(resolvedFee)}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {isDynamic && (
+                                    <div className="flex items-start gap-2 rounded-xl border border-[#D9E2F1] bg-[#F0F4FC] px-3.5 py-2.5 text-[11px] text-[#3A537D]">
+                                        <Info size={13} className="mt-0.5 shrink-0" />
+                                        Dynamic shipping uses the distance between your location and the
+                                        seller's delivery location to calculate the delivery fee.
+                                    </div>
+                                )}
+
+                                <div>
+                                    <p className="text-[13px] font-bold text-[#1A130E] mb-2">Delivery Address</p>
+                                    <div className="relative rounded-xl overflow-hidden border border-[#EBE3D5]">
+                                        <PickupLocationMap
+                                            lat={addressLat}
+                                            lng={addressLng}
+                                            onLocationSelect={handleAddressPin}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleUseCurrentLocation}
+                                            className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 rounded-lg bg-white/95 border border-[#DDD5C8] px-3 py-2 text-[12px] font-semibold text-[#9E2A1B] shadow-sm hover:bg-white transition"
+                                        >
+                                            <MapPin size={13} /> Use current location
+                                        </button>
+                                    </div>
+                                    {addressLat && addressLng && (
+                                        <div className="mt-2 flex items-start gap-2 rounded-xl border border-[#BFD0B3] bg-[#F0F6ED] px-3 py-2.5">
+                                            <Check size={13} className="mt-0.5 shrink-0 text-[#4A6B3A]" />
+                                            <div>
+                                                <p className="text-[11px] font-bold text-[#2E7D52]">Location pinned successfully</p>
+                                                {resolvedAddress && (
+                                                    <p className="mt-0.5 text-[11px] leading-relaxed text-[#4F4338]">{resolvedAddress}</p>
+                                                )}
+                                                <p className="mt-0.5 text-[10px] text-[#8C7E74]">(Tap on map to change location)</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[12px] font-semibold text-[#3D2B1F]">Full Name *</label>
+                                            <button onClick={handleUseProfileName} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">
+                                                Use profile name
+                                            </button>
+                                        </div>
+                                        <input
+                                            value={fullName}
+                                            onChange={(e) => setFullName(e.target.value)}
+                                            placeholder="Your full name"
+                                            className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[12px] font-semibold text-[#3D2B1F]">Contact Number *</label>
+                                            <button onClick={handleUseProfileNumber} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">
+                                                Use profile number
+                                            </button>
+                                        </div>
+                                        <input
+                                            value={contactNumber}
+                                            onChange={(e) => setContactNumber(e.target.value)}
+                                            placeholder="+977 98XXXXXXXX"
+                                            className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-[12px] font-semibold text-[#3D2B1F]">Delivery Notes (Optional)</label>
+                                    <textarea
+                                        value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                        placeholder="E.g. Please ring the bell. Gate code 1234."
+                                        maxLength={200}
+                                        rows={2}
+                                        className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                    />
+                                    <span className="self-end text-[10px] text-[#A6998E]">{notes.length} / 200</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {channel === "pickup" && (
+                            <div className="mt-5 space-y-4">
+                                <div className="rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] p-4">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex items-start gap-2.5">
+                                            <MapPin size={15} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
+                                            <div>
+                                                <p className="text-[11px] font-bold text-[#1A130E]">
+                                                    Pickup Details <span className="font-normal text-[#8C7E74]">(Provided by Seller)</span>
+                                                </p>
+                                                <p className="mt-0.5 text-[13px] font-semibold text-[#1A130E]">
+                                                    {product.pickupResolvedAddress ?? product.pickupArea ?? "Shared after booking"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {pickupMapUrl && (
+                                            <a
+                                            href={pickupMapUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="shrink-0 text-[12px] font-bold text-[#9E2A1B] hover:underline"
+                                            >
+                                            View on Map
+                                            </a>
+                                            )}
+                                    </div>
+
+                                    <div className="mt-3.5 grid grid-cols-3 gap-3 border-t border-[#EBE3D5] pt-3.5">
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Pickup Hours</p>
+                                            <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
+                                                {product.pickupTimeFrom && product.pickupTimeTo
+                                                    ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
+                                                    : "10:00 AM – 6:00 PM"}
+                                            </p>
+                                            <p className="text-[10px] text-[#8C7E74]">
+                                                ({formatPickupDays(product.pickupDays)}
+                                                {product.sameDayPickup ? " · Same-day OK" : ""})
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Instructions</p>
+                                            <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E] line-clamp-2">
+                                                {product.pickupInstructions ?? "Call before arriving."}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Contact Number</p>
+                                            <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
+                                                {product.pickupContactNumber ?? "Shared after booking"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p className="text-[13px] font-bold text-[#1A130E]">Your Pickup Information</p>
+                                    <p className="text-[11px] text-[#8C7E74]">This information will be shared with the seller to coordinate pickup.</p>
+                                </div>
+
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[12px] font-semibold text-[#3D2B1F]">Full Name *</label>
+                                        <button onClick={handleUseProfileName} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">
+                                            Use profile name
+                                        </button>
+                                    </div>
+                                    <input
+                                        value={fullName}
+                                        onChange={(e) => setFullName(e.target.value)}
+                                        placeholder="Your full name"
+                                        className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                    />
+                                </div>
+
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[12px] font-semibold text-[#3D2B1F]">Contact Number *</label>
+                                        <button onClick={handleUseProfileNumber} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">
+                                            Use profile number
+                                        </button>
+                                    </div>
+                                    <input
+                                        value={contactNumber}
+                                        onChange={(e) => setContactNumber(e.target.value)}
+                                        placeholder="+977 98XXXXXXXX"
+                                        className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                    />
+                                </div>
+
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-[12px] font-semibold text-[#3D2B1F]">Pickup Notes (Optional)</label>
+                                    <textarea
+                                        value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                        placeholder="E.g. I will come with a friend."
+                                        maxLength={200}
+                                        rows={2}
+                                        className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                    />
+                                    <span className="self-end text-[10px] text-[#A6998E]">{notes.length} / 200</span>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="mt-5 rounded-xl bg-white border border-[#EBE3D5] px-4 py-3.5 space-y-1.5">
+                            <div className="flex items-center justify-between text-[12px]">
+                                <span className="text-[#6E6053]">Rental Price ({fmt(rentInfo.dailyRateNumber)} × {rentInfo.days} days)</span>
+                                <span className="font-bold text-[#1A130E]">{fmt(rentalPrice)}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[12px]">
+                                <span className="text-[#6E6053]">Security Deposit (Refundable)</span>
+                                <span className="font-bold text-[#1A130E]">{fmt(securityDeposit)}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[12px]">
+                                <span className="text-[#6E6053]">{channel === "shipping" ? "Delivery Fee" : "Pickup Fee"}</span>
+                                <span className={`font-bold ${channel === "shipping" && dynamicFeePending ? "text-[#8C7E74]" : resolvedFee === 0 ? "text-[#4A6B3A]" : "text-[#1A130E]"}`}>
+                                    {channel === "shipping" && dynamicFeePending ? "—" : resolvedFee === 0 ? "Free" : fmt(resolvedFee)}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between border-t border-[#EBE3D5] pt-1.5">
+                                <span className="text-[13px] font-bold text-[#1A130E]">Total Payable</span>
+                                <span className="text-[16px] font-bold text-[#9E2A1B]">
+                                    {channel === "shipping" && dynamicFeePending ? "—" : fmt(total)}
+                                </span>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={handleSaveAndAddToCart}
+                            disabled={!canSubmit}
+                            className={`mt-4 w-full rounded-xl py-3.5 text-[14px] font-bold transition ${
+                                canSubmit
+                                    ? "bg-[#9E2A1B] text-white hover:bg-[#832215]"
+                                    : "cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]"
+                            }`}
+                        >
+                            Save & Add to Cart
+                        </button>
+                    </div>
                 )}
             </div>
         </div>

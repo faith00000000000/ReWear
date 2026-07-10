@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import axios from "axios";
+import { toast } from "react-toastify";
 import api from "@/lib/axios";
 import { isAuthenticated } from "@/lib/auth";
 import {
@@ -23,10 +25,46 @@ import {
     AlertCircle,
     Info,
     Shield,
+    Navigation, Phone,
 } from "lucide-react";
 
+// Leaflet touches `window` at import time, so it must be loaded client-only.
+const PickupLocationMap = dynamic(() => import("@/components/PickupLocationMap"), {
+    ssr: false,
+    loading: () => (
+        <div className="h-[220px] w-full rounded-xl bg-[#FDFAF6] border border-[#DDD0C4] flex items-center justify-center">
+            <p className="text-[12px] text-[#8A7060]">Loading map…</p>
+        </div>
+    ),
+});
+
 type ListingMode = "Thrift" | "Rent" | "Thrift + Rent";
-type ShippingOption = "Shipping" | "Pickup" | "Flex (Both)";
+type DeliveryOption = "Shipping" | "Pickup" | "Flex (Both)";
+type ShippingFeeType = "Free Shipping" | "Fixed Fee" | "Dynamic Shipping";
+type PickupDay = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
+
+const PICKUP_DAYS: PickupDay[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function formatDayRange(days: PickupDay[]): string {
+    if (days.length === 0) return "";
+    const sorted = [...days].sort(
+        (a, b) => PICKUP_DAYS.indexOf(a) - PICKUP_DAYS.indexOf(b)
+    );
+    const indices = sorted.map((d) => PICKUP_DAYS.indexOf(d));
+    const isContiguous = indices.every((v, i) => i === 0 || v === indices[i - 1] + 1);
+    if (isContiguous && sorted.length > 1) {
+        return `${sorted[0]}-${sorted[sorted.length - 1]}`;
+    }
+    return sorted.join(", ");
+}
+
+function formatTime12h(time: string): string {
+    if (!time) return "";
+    const [h, m] = time.split(":").map(Number);
+    const period = h >= 12 ? "PM" : "AM";
+    const hour12 = h % 12 === 0 ? 12 : h % 12;
+    return `${hour12}:${m.toString().padStart(2, "0")} ${period}`;
+}
 
 interface FormState {
     productTitle: string;
@@ -43,7 +81,6 @@ interface FormState {
     material: string;
     originalPrice: string;
     availability: string;
-    shippingOption: ShippingOption;
     defectFlaws: string;
     thriftPrice: string;
     rentPerDay: string;
@@ -51,6 +88,29 @@ interface FormState {
     photos: (string | null)[];
     video: string | null;
     pricingMode: ListingMode;
+
+    // ── Delivery Options ──
+    deliveryOption: DeliveryOption;
+    shippingAvailability: string;
+    shippingFeeType: ShippingFeeType;
+    fixedShippingFee: string;
+    rateWithinDistrict: string;
+    rateWithinProvince: string;
+    rateNationwide: string;
+    dispatchTime: string;
+
+    pickupArea: string;
+    pickupLat: string;
+    pickupLng: string;
+    pickupResolvedAddress: string;
+    pickupLocationConfirmed: boolean;
+    pickupContactNumber: string;
+    useDifferentPickupNumber: boolean;
+    pickupDays: PickupDay[];
+    pickupTimeFrom: string;
+    pickupTimeTo: string;
+    pickupInstructions: string;
+    sameDayPickup: boolean;
 }
 
 function SelectField({
@@ -303,6 +363,91 @@ function VideoUploadSlot({
     );
 }
 
+// ─── DeliveryOptionCard — big 3-way selector (Shipping / Pickup / Flex) ─────
+
+function DeliveryOptionCard({
+                                icon,
+                                title,
+                                active,
+                                onClick,
+                            }: {
+    icon: React.ReactNode;
+    title: string;
+    active: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`flex items-center justify-center gap-2.5 px-4 py-3.5 rounded-xl border-2 text-[14px] font-semibold transition-all ${
+                active
+                    ? "border-[#A33214] bg-[#FDF6EC] text-[#A33214]"
+                    : "border-[#DDD0C4] bg-white text-[#3D2B1F] hover:border-[#A33214]/40 hover:bg-[#FDF6EC]/50"
+            }`}
+        >
+            <span className={active ? "text-[#A33214]" : "text-[#8A7060]"}>{icon}</span>
+            {title}
+        </button>
+    );
+}
+
+// ─── FeeTypeCard — Free / Fixed / Dynamic shipping fee selector ────────────
+
+function FeeTypeCard({
+                         title,
+                         desc,
+                         active,
+                         onClick,
+                     }: {
+    title: string;
+    desc: string;
+    active: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <div
+            onClick={onClick}
+            className={`rounded-xl border-2 px-4 py-3 cursor-pointer transition-all ${
+                active
+                    ? "border-[#A33214] bg-[#FDF6EC]"
+                    : "border-[#E0D4C8] bg-white hover:border-[#A33214]/40"
+            }`}
+        >
+            <p className={`text-[13px] font-semibold ${active ? "text-[#A33214]" : "text-[#2A1F1A]"}`}>
+                {title}
+            </p>
+            <p className="text-[11px] text-[#8A7060] mt-0.5">{desc}</p>
+        </div>
+    );
+}
+
+// ─── DayToggle — Mon..Sun pill button for pickup availability ──────────────
+
+function DayToggle({
+                       day,
+                       active,
+                       onClick,
+                   }: {
+    day: string;
+    active: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`px-3 py-2 rounded-lg text-[12px] font-semibold border transition-all ${
+                active
+                    ? "border-[#A33214] bg-[#A33214] text-white"
+                    : "border-[#DDD0C4] bg-white text-[#3D2B1F] hover:border-[#A33214]/40"
+            }`}
+        >
+            {day}
+        </button>
+    );
+}
+
 export default function ListItemPage() {
     const router = useRouter();
 
@@ -321,7 +466,6 @@ export default function ListItemPage() {
         material: "Cotton",
         originalPrice: "",
         availability: "Available",
-        shippingOption: "Shipping",
         defectFlaws: "",
         thriftPrice: "",
         rentPerDay: "",
@@ -329,6 +473,28 @@ export default function ListItemPage() {
         photos: [null, null, null, null],
         video: null,
         pricingMode: "Thrift",
+
+        deliveryOption: "Shipping",
+        shippingAvailability: "Nationwide (All Districts)",
+        shippingFeeType: "Free Shipping",
+        fixedShippingFee: "",
+        rateWithinDistrict: "",
+        rateWithinProvince: "",
+        rateNationwide: "",
+        dispatchTime: "Within 1 Day",
+
+        pickupArea: "",
+        pickupLat: "",
+        pickupLng: "",
+        pickupResolvedAddress: "",
+        pickupLocationConfirmed: false,
+        pickupContactNumber: "",
+        useDifferentPickupNumber: false,
+        pickupDays: [],
+        pickupTimeFrom: "10:00",
+        pickupTimeTo: "18:00",
+        pickupInstructions: "",
+        sameDayPickup: false,
     });
 
     // ── Real File objects for upload, kept separate from blob preview URLs ──
@@ -342,8 +508,6 @@ export default function ListItemPage() {
 
     // ── Submission state ─────────────────────────────────────────────────
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [submitError, setSubmitError] = useState<string | null>(null);
-    const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
     const [selectedMedia, setSelectedMedia] = useState<{
         type: "image" | "video";
@@ -357,10 +521,64 @@ export default function ListItemPage() {
         setForm((prev) => ({ ...prev, [key]: value }));
 
     // ── Shared mode setter: keeps Listing Mode (Section 1) and
-    // Pricing Mode (Section 5) always in sync — changing either one
+    // Pricing Mode (Section 6) always in sync — changing either one
     // updates both at once.
     const setMode = (mode: ListingMode) =>
         setForm((prev) => ({ ...prev, listingMode: mode, pricingMode: mode }));
+
+    const togglePickupDay = (day: PickupDay) => {
+        setForm((prev) => ({
+            ...prev,
+            pickupDays: prev.pickupDays.includes(day)
+                ? prev.pickupDays.filter((d) => d !== day)
+                : [...prev.pickupDays, day],
+        }));
+    };
+
+    // Best-effort reverse geocoding via Nominatim (OpenStreetMap) — purely
+    // cosmetic, so failures are swallowed rather than surfaced to the user.
+    const reverseGeocode = async (lat: number, lng: number) => {
+        try {
+            const res = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+                { headers: { Accept: "application/json" } }
+            );
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data?.display_name) {
+                update("pickupResolvedAddress", data.display_name as string);
+                update("pickupArea", data.display_name as string);
+            }
+        } catch {
+            // Silent — this is a nice-to-have, not a blocker.
+        }
+    };
+
+    const handlePickupLocationChange = (lat: number, lng: number) => {
+        setForm((prev) => ({
+            ...prev,
+            pickupLat: lat.toFixed(6),
+            pickupLng: lng.toFixed(6),
+            pickupLocationConfirmed: true,
+        }));
+        reverseGeocode(lat, lng);
+    };
+
+    const handleUseMyLocation = () => {
+        if (!navigator.geolocation) {
+            toast.error("Geolocation is not supported by your browser.");
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                handlePickupLocationChange(pos.coords.latitude, pos.coords.longitude);
+                toast.success("Pickup location captured!");
+            },
+            () => {
+                toast.error("Couldn't fetch your location. Please allow location access.");
+            }
+        );
+    };
 
     // ── Object URL bookkeeping so we revoke blobs we created, avoiding
     // memory leaks from never-released object URLs ─────────────────────
@@ -426,11 +644,16 @@ export default function ListItemPage() {
         "Thrift + Rent": "bg-[#A33214] text-white",
     };
 
-    const shippingOptions: ShippingOption[] = ["Shipping", "Pickup", "Flex (Both)"];
-    const shippingIcons: Record<ShippingOption, React.ReactNode> = {
-        Shipping: <Truck size={14} />,
-        Pickup: <MapPin size={14} />,
-        "Flex (Both)": <ShoppingBag size={14} />,
+    const handleUseProfileNumber = () => {
+        // TODO: wire this to your actual logged-in user's phone number
+        // e.g. from an auth context, a /api/me call, or localStorage
+        const profileNumber = ""; // <-- replace with real source
+
+        if (!profileNumber) {
+            toast.error("Couldn't find a phone number on your profile.");
+            return;
+        }
+        update("pickupContactNumber", profileNumber);
     };
 
     // ── Validation matching backend ListingRequestDTO constraints ───────
@@ -442,7 +665,29 @@ export default function ListItemPage() {
         if (!form.condition) return "Condition is required.";
         if (!form.color.trim()) return "Color is required.";
         if (!form.material) return "Material is required.";
-        if (!form.shippingOption) return "Shipping option is required.";
+
+        if (form.deliveryOption === "Shipping" || form.deliveryOption === "Flex (Both)") {
+            if (!form.shippingAvailability) return "Shipping availability is required.";
+            if (!form.shippingFeeType) return "Shipping fee type is required.";
+            if (form.shippingFeeType === "Fixed Fee" && !form.fixedShippingFee.trim())
+                return "Please enter a fixed shipping fee.";
+            if (
+                form.shippingFeeType === "Dynamic Shipping" &&
+                (!form.rateWithinDistrict.trim() ||
+                    !form.rateWithinProvince.trim() ||
+                    !form.rateNationwide.trim())
+            )
+                return "Please fill in all dynamic shipping rates.";
+            if (!form.dispatchTime) return "Dispatch time is required.";
+        }
+
+        if (form.deliveryOption === "Pickup" || form.deliveryOption === "Flex (Both)") {
+            if (!form.pickupArea.trim()) return "Pickup area is required.";
+            if (!form.pickupLocationConfirmed) return "Please pin your exact pickup location.";
+            if (!form.pickupContactNumber.trim()) return "Pickup contact number is required.";
+            if (form.pickupDays.length === 0) return "Select at least one pickup availability day.";
+            if (!form.pickupTimeFrom || !form.pickupTimeTo) return "Pickup time range is required.";
+        }
 
         if (form.listingMode === "Thrift" && !form.thriftPrice.trim()) {
             return "Selling price is required for Thrift listings.";
@@ -469,7 +714,7 @@ export default function ListItemPage() {
     // backend's BigDecimal parsing doesn't choke on formatted numbers.
     const stripCommas = (v: string) => v.replace(/,/g, "");
 
-    const buildFormData = (publish: boolean) => {
+    const buildFormData = () => {
         const fd = new FormData();
 
         fd.append("productTitle", form.productTitle.trim());
@@ -495,8 +740,38 @@ export default function ListItemPage() {
         if (form.originalPrice.trim())
             fd.append("originalPrice", stripCommas(form.originalPrice));
         if (form.availability) fd.append("availability", form.availability);
-        fd.append("shippingOption", form.shippingOption);
         if (form.defectFlaws.trim()) fd.append("defectFlaws", form.defectFlaws.trim());
+
+        // ── Delivery Options ──
+        fd.append("deliveryOption", form.deliveryOption);
+
+        if (form.deliveryOption === "Shipping" || form.deliveryOption === "Flex (Both)") {
+            fd.append("shippingAvailability", form.shippingAvailability);
+            fd.append("shippingFeeType", form.shippingFeeType);
+            if (form.shippingFeeType === "Fixed Fee")
+                fd.append("fixedShippingFee", stripCommas(form.fixedShippingFee));
+            if (form.shippingFeeType === "Dynamic Shipping") {
+                fd.append("rateWithinDistrict", stripCommas(form.rateWithinDistrict));
+                fd.append("rateWithinProvince", stripCommas(form.rateWithinProvince));
+                fd.append("rateNationwide", stripCommas(form.rateNationwide));
+            }
+            fd.append("dispatchTime", form.dispatchTime);
+        }
+
+        if (form.deliveryOption === "Pickup" || form.deliveryOption === "Flex (Both)") {
+            fd.append("pickupArea", form.pickupArea.trim());
+            fd.append("pickupLat", form.pickupLat);
+            fd.append("pickupLng", form.pickupLng);
+            if (form.pickupResolvedAddress)
+                fd.append("pickupResolvedAddress", form.pickupResolvedAddress);
+            fd.append("pickupContactNumber", form.pickupContactNumber.trim());
+            fd.append("pickupDays", form.pickupDays.join(","));
+            fd.append("pickupTimeFrom", form.pickupTimeFrom);
+            fd.append("pickupTimeTo", form.pickupTimeTo);
+            if (form.pickupInstructions.trim())
+                fd.append("pickupInstructions", form.pickupInstructions.trim());
+            fd.append("sameDayPickup", String(form.sameDayPickup));
+        }
 
         if (form.thriftPrice.trim())
             fd.append("thriftPrice", stripCommas(form.thriftPrice));
@@ -505,46 +780,39 @@ export default function ListItemPage() {
         if (form.securityDeposit.trim())
             fd.append("securityDeposit", stripCommas(form.securityDeposit));
 
-        fd.append("publish", String(publish));
+        // Backend still auto-publishes on its side; we always send true now
+        // since Save Draft has been removed.
+        fd.append("publish", "true");
 
         return fd;
     };
 
-    const handleSubmit = async (publish: boolean) => {
-        setSubmitError(null);
-        setSubmitSuccess(null);
-
+    const handleSubmit = async () => {
         const validationError = validate();
         if (validationError) {
-            setSubmitError(validationError);
+            toast.error(validationError);
             return;
         }
 
         setIsSubmitting(true);
         try {
-            const formData = buildFormData(publish);
+            const formData = buildFormData();
 
             const { data } = await api.post("/api/listings", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
             });
 
-            // publish=true -> backend sets status to PENDING_REVIEW (awaiting
-            // moderation before it goes PUBLISHED), publish=false -> DRAFT
-            setSubmitSuccess(
-                publish
-                    ? "Listing submitted for review!"
-                    : "Draft saved successfully."
-            );
-
+            toast.success("Listing published successfully!");
             console.log("Created listing:", data);
+            router.push("/browse-finds");
         } catch (err) {
             if (axios.isAxiosError(err)) {
-                setSubmitError(
+                toast.error(
                     err.response?.data?.message ??
                     "Something went wrong while saving your listing."
                 );
             } else {
-                setSubmitError("Something went wrong while saving your listing.");
+                toast.error("Something went wrong while saving your listing.");
             }
         } finally {
             setIsSubmitting(false);
@@ -850,44 +1118,6 @@ export default function ListItemPage() {
                                 />
                             </div>
 
-                            {/* Shipping / Pickup */}
-                            <div>
-                                <label className="text-[13px] font-medium text-[#3D2B1F] block mb-2.5">
-                                    Shipping / Pickup <span className="text-[#A33214]">*</span>
-                                </label>
-                                <div className="grid grid-cols-3 gap-3">
-                                    {shippingOptions.map((opt) => (
-                                        <button
-                                            key={opt}
-                                            onClick={() => update("shippingOption", opt)}
-                                            className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 text-[13px] font-medium transition-all ${
-                                                form.shippingOption === opt
-                                                    ? "border-[#A33214] bg-[#FDF6EC] text-[#A33214]"
-                                                    : "border-[#DDD0C4] bg-white text-[#3D2B1F] hover:border-[#A33214]/40 hover:bg-[#FDF6EC]/50"
-                                            }`}
-                                        >
-                                              <span className={form.shippingOption === opt ? "text-[#A33214]" : "text-[#8A7060]"}>
-                                                {shippingIcons[opt]}
-                                              </span>
-                                            {opt}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="mt-2 flex gap-5 text-[11px] text-[#8A7060]">
-                                   <span>
-                                      <strong className="text-[#3D2B1F]">Shipping</strong> — Courier delivery across Nepal
-                                    </span>
-
-                                    <span>
-                                      <strong className="text-[#3D2B1F]">Pickup</strong> — Buyer collects in person
-                                    </span>
-
-                                    <span>
-                                      <strong className="text-[#3D2B1F]">Flex</strong> — Offer both options
-                                    </span>
-                                </div>
-                            </div>
-
                             {/* Defect / Flaws */}
                             <div className="flex flex-col gap-1.5">
                                 <label className="text-[13px] font-medium text-[#3D2B1F] flex items-center gap-1.5">
@@ -908,11 +1138,344 @@ export default function ListItemPage() {
                         </div>
                     </div>
 
-                    {/* ━━ 5. Pricing ━━ */}
+                    {/* ━━ 5. Delivery Options ━━ */}
                     <div className="bg-white rounded-xl border border-[#E8DDD0] overflow-hidden">
                         <div className="flex items-center gap-3 px-7 py-5 border-b border-[#F0E6DA]">
                           <span className="w-7 h-7 rounded-full bg-[#A33214] text-white text-[13px] font-bold flex items-center justify-center flex-shrink-0">
                             5
+                          </span>
+                            <div>
+                                <h2 className="text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
+                                    Delivery Options
+                                </h2>
+                                <p className="text-[13px] text-[#8A7060] mt-0.5">
+                                    Choose how buyers can receive this item. You can offer one or both options.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="px-7 py-6 flex flex-col gap-6">
+                            {/* Option selector */}
+                            <div className="grid grid-cols-3 gap-3">
+                                <DeliveryOptionCard
+                                    icon={<Truck size={16} />}
+                                    title="Shipping"
+                                    active={form.deliveryOption === "Shipping"}
+                                    onClick={() => update("deliveryOption", "Shipping")}
+                                />
+                                <DeliveryOptionCard
+                                    icon={<MapPin size={16} />}
+                                    title="Pickup"
+                                    active={form.deliveryOption === "Pickup"}
+                                    onClick={() => update("deliveryOption", "Pickup")}
+                                />
+                                <DeliveryOptionCard
+                                    icon={<ShoppingBag size={16} />}
+                                    title="Flex (Both)"
+                                    active={form.deliveryOption === "Flex (Both)"}
+                                    onClick={() => update("deliveryOption", "Flex (Both)")}
+                                />
+                            </div>
+
+                            {form.deliveryOption === "Flex (Both)" && (
+                                <div className="flex items-center gap-2 bg-[#F2FAF0] border border-[#D8E8D0] rounded-xl px-4 py-2.5 text-[12px] text-[#3D5C30]">
+                                    <CheckCircle size={14} className="flex-shrink-0" />
+                                    Great choice! Buyers can choose the option that works best for them.
+                                </div>
+                            )}
+
+                            {/* Shipping Details */}
+                            {(form.deliveryOption === "Shipping" || form.deliveryOption === "Flex (Both)") && (
+                                <div className="border-t border-[#F0E6DA] pt-5 flex flex-col gap-5">
+                                    <div className="flex items-center gap-2">
+                                        <Truck size={15} className="text-[#A33214]" />
+                                        <h3 className="text-[13px] font-bold text-[#A33214] uppercase tracking-wide">
+                                            Shipping Details
+                                        </h3>
+                                    </div>
+
+                                    <SelectField
+                                        label="Shipping Availability"
+                                        required
+                                        value={form.shippingAvailability}
+                                        onChange={(v) => update("shippingAvailability", v)}
+                                        options={["Nationwide (All Districts)", "Kathmandu Valley Only", "Within Districts"]}
+                                    />
+                                    <p className="text-[11px] text-[#8A7060] -mt-3">
+                                        You ship to all districts across Nepal.
+                                    </p>
+
+                                    <div>
+                                        <label className="text-[13px] font-medium text-[#3D2B1F] block mb-2.5">
+                                            Shipping Fee Type <span className="text-[#A33214]">*</span>
+                                        </label>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <FeeTypeCard
+                                                title="Free Shipping"
+                                                desc="You'll cover the shipping cost"
+                                                active={form.shippingFeeType === "Free Shipping"}
+                                                onClick={() => update("shippingFeeType", "Free Shipping")}
+                                            />
+                                            <FeeTypeCard
+                                                title="Fixed Fee"
+                                                desc="Set a fixed shipping fee for all buyers"
+                                                active={form.shippingFeeType === "Fixed Fee"}
+                                                onClick={() => update("shippingFeeType", "Fixed Fee")}
+                                            />
+                                            <FeeTypeCard
+                                                title="Dynamic Shipping"
+                                                desc="Fee is calculated from your location to buyer's"
+                                                active={form.shippingFeeType === "Dynamic Shipping"}
+                                                onClick={() => update("shippingFeeType", "Dynamic Shipping")}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {form.shippingFeeType === "Fixed Fee" && (
+                                        <InputField
+                                            label="Shipping Fee"
+                                            required
+                                            value={form.fixedShippingFee}
+                                            onChange={(v) => update("fixedShippingFee", v)}
+                                            placeholder="150"
+                                            prefix="Rs"
+                                            inputClassName="pl-10"
+                                        />
+                                    )}
+
+                                    {form.shippingFeeType === "Dynamic Shipping" && (
+                                        <div>
+                                            <div className="flex items-center gap-1.5 bg-[#FDF6EC] border border-[#EBE0D4] rounded-xl px-3.5 py-2.5 mb-3">
+                                                <Info size={12} className="text-[#8A7060] flex-shrink-0" />
+                                                <p className="text-[11px] text-[#6F6258]">
+                                                    Dynamic shipping fee is calculated from the distance between your delivery location and the buyer's.
+                                                </p>
+                                            </div>
+                                            <p className="text-[12px] font-medium text-[#3D2B1F] mb-2">
+                                                Shipping Rate Structure
+                                            </p>
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <InputField
+                                                    label="Within District"
+                                                    required
+                                                    value={form.rateWithinDistrict}
+                                                    onChange={(v) => update("rateWithinDistrict", v)}
+                                                    placeholder="100"
+                                                    prefix="Rs"
+                                                    inputClassName="pl-10"
+                                                />
+                                                <InputField
+                                                    label="Within Province"
+                                                    required
+                                                    value={form.rateWithinProvince}
+                                                    onChange={(v) => update("rateWithinProvince", v)}
+                                                    placeholder="150"
+                                                    prefix="Rs"
+                                                    inputClassName="pl-10"
+                                                />
+                                                <InputField
+                                                    label="Nationwide"
+                                                    required
+                                                    value={form.rateNationwide}
+                                                    onChange={(v) => update("rateNationwide", v)}
+                                                    placeholder="250"
+                                                    prefix="Rs"
+                                                    inputClassName="pl-10"
+                                                />
+                                            </div>
+                                            <p className="text-[11px] text-[#8A7060] mt-2">
+                                                These rates will be shown to buyers based on their delivery location.
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    <SelectField
+                                        label="Ready to Dispatch In"
+                                        required
+                                        value={form.dispatchTime}
+                                        onChange={(v) => update("dispatchTime", v)}
+                                        options={["Same Day", "Within 1 Day", "Within 2-3 Days", "Within 1 Week"]}
+                                    />
+                                    <p className="text-[11px] text-[#8A7060] -mt-3">
+                                        This is the time you need to prepare the item before it's picked up by the courier.
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Pickup Details */}
+                            {(form.deliveryOption === "Pickup" || form.deliveryOption === "Flex (Both)") && (
+                                <div className="border-t border-[#F0E6DA] pt-5 flex flex-col gap-5">
+                                    <div className="flex items-center gap-2">
+                                        <MapPin size={15} className="text-[#A33214]" />
+                                        <h3 className="text-[13px] font-bold text-[#A33214] uppercase tracking-wide">
+                                            Pickup Details
+                                        </h3>
+                                    </div>
+
+                                    <InputField
+                                        label="Pickup Area"
+                                        required
+                                        value={form.pickupArea}
+                                        onChange={(v) => update("pickupArea", v)}
+                                        placeholder="e.g. New Baneshwor, Kathmandu"
+                                    />
+                                    <p className="text-[11px] text-[#8A7060] -mt-3">
+                                        This area will be visible to buyers before they place an order.
+                                    </p>
+
+                                    <div>
+                                        <label className="text-[13px] font-medium text-[#3D2B1F] block mb-1">
+                                            Exact Pickup Location <span className="text-[#A33214]">*</span>
+                                        </label>
+                                        <p className="text-[12px] text-[#8A7060] mb-2.5">
+                                            Pin your exact pickup location on the map — click or drag the pin to fine-tune.
+                                        </p>
+
+                                        <div className="relative rounded-xl overflow-hidden border border-[#DDD0C4]">
+                                            <PickupLocationMap
+                                                lat={form.pickupLat ? parseFloat(form.pickupLat) : null}
+                                                lng={form.pickupLng ? parseFloat(form.pickupLng) : null}
+                                                onLocationSelect={handlePickupLocationChange}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleUseMyLocation}
+                                                className="absolute top-3 right-3 z-[1000] px-3 py-2 rounded-lg bg-white/95 border border-[#DDD0C4] text-[#A33214] text-[12px] font-semibold shadow-sm hover:bg-white transition-colors flex items-center gap-1.5"
+                                            >
+                                                <Navigation size={13} />
+                                                {form.pickupLocationConfirmed ? "Update Pin" : "Select My Location"}
+                                            </button>
+                                        </div>
+
+                                        {form.pickupResolvedAddress && (
+                                            <div className="mt-2 flex items-start gap-1.5 bg-[#FDFAF6] border border-[#EBE0D4] rounded-xl px-3 py-2">
+                                                <MapPin size={12} className="text-[#8A7060] mt-0.5 flex-shrink-0" />
+                                                <p className="text-[11px] text-[#6F6258] leading-relaxed">
+                                                    {form.pickupResolvedAddress}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {form.pickupLocationConfirmed ? (
+                                            <div className="mt-2 flex items-center justify-between gap-2 bg-[#F2FAF0] border border-[#D8E8D0] rounded-xl px-3.5 py-2.5">
+                                                <div className="flex items-center gap-1.5 text-[12px] text-[#3D5C30] font-medium">
+                                                    <CheckCircle size={13} />
+                                                    Location entered successfully
+                                                </div>
+                                                <span className="text-[10px] text-[#6F9060] tabular-nums">
+                        {form.pickupLat}, {form.pickupLng}
+                    </span>
+                                            </div>
+                                        ) : (
+                                            <p className="text-[11px] text-[#8A7060] mt-2">
+                                                No pin set yet — click on the map or use &quot;Select My Location&quot;.
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Pickup Contact Number + Pickup Instructions — side by side */}
+                                    <div className="grid grid-cols-2 gap-4 items-stretch">
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[13px] font-medium text-[#3D2B1F]">
+                                                    Pickup Contact Number <span className="text-[#A33214]">*</span>
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleUseProfileNumber}
+                                                    className="flex items-center gap-1.5 text-[12px] text-[#A33214] font-medium hover:underline"
+                                                >
+                                                    <Phone size={13} />
+                                                    Use profile number
+                                                </button>
+                                            </div>
+                                            <div className="relative">
+                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[14px] text-[#8A7060] font-medium">
+                                                    +977
+                                                </span>
+                                                <input
+                                                    type="tel"
+                                                    value={form.pickupContactNumber}
+                                                    onChange={(e) => update("pickupContactNumber", e.target.value)}
+                                                    placeholder="98XXXXXXXX"
+                                                    className="w-full bg-white border border-[#DDD0C4] rounded-xl pl-14 pr-4 py-2.5 text-[14px] text-[#1A130E] placeholder-[#BBA898] focus:outline-none focus:border-[#A33214] focus:ring-2 focus:ring-[#A33214]/10 transition-colors"
+                                                />
+                                            </div>
+                                            <p className="text-[11px] text-[#8A7060]">
+                                                Buyers will use this number to contact you for pickup.
+                                            </p>
+                                        </div>
+
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-[13px] font-medium text-[#3D2B1F]">
+                                                Pickup Instructions (Optional)
+                                            </label>
+                                            <textarea
+                                                value={form.pickupInstructions}
+                                                onChange={(e) => update("pickupInstructions", e.target.value)}
+                                                placeholder="e.g. Call before coming, ring the doorbell, gate code 1234"
+                                                className="w-full h-[45px] bg-white border border-[#DDD0C4] rounded-xl px-4 py-2 text-[14px] text-[#1A130E] placeholder-[#BBA898] focus:outline-none focus:border-[#A33214] focus:ring-2 focus:ring-[#A33214]/10 resize-none transition-colors"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[13px] font-medium text-[#3D2B1F] block mb-2">
+                                            Pickup Availability (Hours) <span className="text-[#A33214]">*</span>
+                                        </label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {PICKUP_DAYS.map((day) => (
+                                                <DayToggle
+                                                    key={day}
+                                                    day={day}
+                                                    active={form.pickupDays.includes(day)}
+                                                    onClick={() => togglePickupDay(day)}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-[13px] font-medium text-[#3D2B1F]">From</label>
+                                            <input
+                                                type="time"
+                                                value={form.pickupTimeFrom}
+                                                onChange={(e) => update("pickupTimeFrom", e.target.value)}
+                                                className="w-full bg-white border border-[#DDD0C4] rounded-xl px-4 py-2.5 text-[14px] text-[#1A130E] focus:outline-none focus:border-[#A33214] focus:ring-2 focus:ring-[#A33214]/10 transition-colors"
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-[13px] font-medium text-[#3D2B1F]">To</label>
+                                            <input
+                                                type="time"
+                                                value={form.pickupTimeTo}
+                                                onChange={(e) => update("pickupTimeTo", e.target.value)}
+                                                className="w-full bg-white border border-[#DDD0C4] rounded-xl px-4 py-2.5 text-[14px] text-[#1A130E] focus:outline-none focus:border-[#A33214] focus:ring-2 focus:ring-[#A33214]/10 transition-colors"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-[#8A7060] -mt-3">All times are in Nepal time (NPT).</p>
+
+                                    <label className="flex items-center gap-2 text-[13px] font-medium text-[#3D2B1F] cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={form.sameDayPickup}
+                                            onChange={(e) => update("sameDayPickup", e.target.checked)}
+                                            className="accent-[#A33214]"
+                                        />
+                                        Yes, same-day pickup is available
+                                    </label>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* ━━ 6. Pricing ━━ */}
+                    <div className="bg-white rounded-xl border border-[#E8DDD0] overflow-hidden">
+                        <div className="flex items-center gap-3 px-7 py-5 border-b border-[#F0E6DA]">
+                          <span className="w-7 h-7 rounded-full bg-[#A33214] text-white text-[13px] font-bold flex items-center justify-center flex-shrink-0">
+                            6
                           </span>
                             <div>
                                 <h2 className="text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
@@ -1061,43 +1624,20 @@ export default function ListItemPage() {
                         </div>
                     </div>
 
-                    {/* ━━ Submission feedback ━━ */}
-                    {(submitError || submitSuccess) && (
-                        <div
-                            className={`rounded-xl border px-5 py-3 text-[13px] font-medium ${
-                                submitError
-                                    ? "border-[#F0D8D0] bg-[#FFF8F6] text-[#A33214]"
-                                    : "border-[#D8E8D0] bg-[#F2FAF0] text-[#3D5C30]"
-                            }`}
-                        >
-                            {submitError ?? submitSuccess}
-                        </div>
-                    )}
-
                     {/* ━━ Action Buttons ━━ */}
                     <div className="bg-white rounded-xl border border-[#E8DDD0] px-7 py-5 flex items-center justify-between">
                         <div className="flex items-center gap-2 text-[12px] text-[#8A7060]">
                             <Shield size={15} className="text-[#8A7060]" />
-                            <span>All listings are reviewed before going live to ensure quality and platform trust.</span>
+                            <span>Your listing goes live immediately after publishing.</span>
                         </div>
-                        <div className="flex gap-3">
-                            <button
-                                type="button"
-                                disabled={isSubmitting}
-                                onClick={() => handleSubmit(false)}
-                                className="px-4 py-2.5 rounded-xl border border-[#DDD0C4] text-[14px] font-semibold text-[#A33214] hover:bg-[#FDF6EC] hover:border-[#A33214]/40 transition-all bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isSubmitting ? "Saving..." : "Save Draft"}
-                            </button>
-                            <button
-                                type="button"
-                                disabled={isSubmitting}
-                                onClick={() => handleSubmit(true)}
-                                className="px-4 py-2.5 rounded-xl bg-[#A33214] text-white text-[14px] font-bold hover:bg-[#8B2910] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isSubmitting ? "Publishing..." : "Publish Listing"}
-                            </button>
-                        </div>
+                        <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => handleSubmit()}
+                            className="px-5 py-2.5 rounded-xl bg-[#A33214] text-white text-[14px] font-bold hover:bg-[#8B2910] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isSubmitting ? "Publishing..." : "Publish Listing"}
+                        </button>
                     </div>
                 </div>
 
@@ -1305,15 +1845,9 @@ export default function ListItemPage() {
                                     </div>
                                 )}
 
-                                {/* Shipping + Availability */}
-                                <div className="flex items-center justify-between">
-                                    {form.shippingOption && (
-                                        <div className="flex items-center gap-1.5 text-[11px] text-[#6F6258]">
-                                            {shippingIcons[form.shippingOption]}
-                                            <span>{form.shippingOption}</span>
-                                        </div>
-                                    )}
-                                    {form.availability && (
+                                {/* Availability */}
+                                {form.availability && (
+                                    <div className="flex justify-end">
                                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                                             form.availability === "Available"
                                                 ? "bg-[#EAF2E8] text-[#3D5C30]"
@@ -1321,8 +1855,67 @@ export default function ListItemPage() {
                                                     ? "bg-[#FFF4E0] text-[#8A6020]"
                                                     : "bg-[#F5E8E8] text-[#A33214]"
                                         }`}>
-              {form.availability}
-            </span>
+                                            {form.availability}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* Delivery Options */}
+                                <div className="flex flex-col gap-2">
+                                    <p className="text-[11px] font-bold text-[#2A1F1A]">Delivery Options</p>
+
+                                    {(form.deliveryOption === "Shipping" || form.deliveryOption === "Flex (Both)") && (
+                                        <div className="flex items-start gap-2 bg-[#F5EFE6] border border-[#E8DDD0] rounded-xl px-3 py-2.5">
+                                            <Truck size={13} className="text-[#A33214] mt-0.5 flex-shrink-0" />
+                                            <div>
+                                                <p className="text-[11px] font-semibold text-[#2A1F1A]">Shipping Available</p>
+                                                <p className="text-[10px] text-[#6F6258] mt-0.5">
+                                                    {form.shippingAvailability}
+                                                    {form.shippingFeeType === "Free Shipping" && " · Free shipping"}
+                                                    {form.shippingFeeType === "Fixed Fee" && form.fixedShippingFee &&
+                                                        ` · Rs ${form.fixedShippingFee}`}
+                                                    {form.shippingFeeType === "Dynamic Shipping" && form.rateWithinDistrict &&
+                                                        ` · From Rs ${form.rateWithinDistrict}`}
+                                                </p>
+                                                {form.dispatchTime && (
+                                                    <p className="text-[10px] text-[#8A7060] mt-0.5">
+                                                        Ready to dispatch {form.dispatchTime.toLowerCase()}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {(form.deliveryOption === "Pickup" || form.deliveryOption === "Flex (Both)") && (
+                                        <div className="flex items-start gap-2 bg-[#F5EFE6] border border-[#E8DDD0] rounded-xl px-3 py-2.5">
+                                            <MapPin size={13} className="text-[#A33214] mt-0.5 flex-shrink-0" />
+                                            <div>
+                                                <p className="text-[11px] font-semibold text-[#2A1F1A]">Pickup Available</p>
+                                                {form.pickupArea && (
+                                                    <p className="text-[10px] text-[#6F6258] mt-0.5">{form.pickupArea}</p>
+                                                )}
+                                                {form.pickupDays.length > 0 && form.pickupTimeFrom && form.pickupTimeTo && (
+                                                    <p className="text-[10px] text-[#8A7060] mt-0.5">
+                                                        {formatTime12h(form.pickupTimeFrom)} - {formatTime12h(form.pickupTimeTo)}
+                                                        {" "}({formatDayRange(form.pickupDays)})
+                                                    </p>
+                                                )}
+                                                {form.sameDayPickup && (
+                                                    <p className="text-[10px] text-[#3D5C30] font-medium mt-0.5">
+                                                        Same-day pickup available
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {(form.deliveryOption === "Pickup" || form.deliveryOption === "Flex (Both)") && (
+                                        <div className="flex items-start gap-1.5 text-[10px] text-[#8A7060] px-1">
+                                            <Info size={11} className="mt-0.5 flex-shrink-0" />
+                                            <span>
+                                                Exact location, contact number, and instructions will be shared after your order is confirmed.
+                                            </span>
+                                        </div>
                                     )}
                                 </div>
 
@@ -1356,7 +1949,19 @@ export default function ListItemPage() {
                                         { label: "Accurate details & measurements", met: !!(form.size && form.material) },
                                         { label: "Honest condition & notes", met: !!form.condition },
                                         { label: "Fair pricing", met: !!(form.thriftPrice || form.rentPerDay) },
-                                        { label: "Shipping details", met: !!form.shippingOption },
+                                        {
+                                            label: "Delivery details",
+                                            met:
+                                                form.deliveryOption === "Shipping"
+                                                    ? !!form.shippingAvailability
+                                                    : form.deliveryOption === "Pickup"
+                                                        ? !!(form.pickupArea && form.pickupLocationConfirmed)
+                                                        : !!(
+                                                            form.shippingAvailability &&
+                                                            form.pickupArea &&
+                                                            form.pickupLocationConfirmed
+                                                        ),
+                                        },
                                     ].map((item) => (
                                         <div key={item.label} className="flex items-start gap-1.5 mb-1 last:mb-0">
                                             <CheckCircle

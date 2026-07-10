@@ -21,6 +21,17 @@ export type CartItem = {
     status: "THRIFT" | "RENT" | "THRIFT + RENT";
     rentalPeriod?: string;
     note?: string;
+
+
+    // ── NEW: structured fulfillment + rental fields ──
+    fulfillment: "shipping" | "pickup";
+    deliveryFee: number;           // 0 = free
+    pickupArea?: string;           // seller's pickup location (pickup only)
+    pickupHours?: string;          // e.g. "10:00 AM – 6:00 PM (All Days)"
+    rentalDays?: number;           // rent only
+    rentalStart?: string;          // formatted, e.g. "May 20"
+    rentalEnd?: string;            // formatted, e.g. "May 23"
+    returnDeadline?: string;       // formatted, e.g. "May 23, 2025 (by 6:00 PM)"
 };
 
 interface CartContextValue {

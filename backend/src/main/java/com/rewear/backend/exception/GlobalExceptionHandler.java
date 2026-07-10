@@ -163,4 +163,9 @@ public class GlobalExceptionHandler {
         log.error("Media upload failed for path: {}", request.getRequestURI(), ex);
         return buildErrorResponse(HttpStatus.BAD_GATEWAY, ex.getMessage(), request.getRequestURI(), null);
     }
+
+    @ExceptionHandler(InvalidListingDataException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidListingData(InvalidListingDataException ex) {
+        return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+    }
 }

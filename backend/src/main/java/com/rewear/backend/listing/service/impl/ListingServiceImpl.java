@@ -1,12 +1,15 @@
 // listing/service/impl/ListingServiceImpl.java
 package com.rewear.backend.listing.service.impl;
 
+import com.rewear.backend.exception.InvalidListingDataException;
 import com.rewear.backend.exception.MediaUploadException;
 import com.rewear.backend.exception.ResourceNotFoundException;
 import com.rewear.backend.listing.dto.request.ListingRequestDTO;
 import com.rewear.backend.listing.dto.response.ListingResponseDTO;
 import com.rewear.backend.listing.entity.Listing;
+import com.rewear.backend.listing.enums.DeliveryOption;
 import com.rewear.backend.listing.enums.ListingStatus;
+import com.rewear.backend.listing.enums.ShippingFeeType;
 import com.rewear.backend.listing.mapper.ListingMapper;
 import com.rewear.backend.listing.repository.ListingRepository;
 import com.rewear.backend.listing.service.ListingService;
@@ -38,6 +41,8 @@ public class ListingServiceImpl implements ListingService {
 
     @Override
     public ListingResponseDTO createListing(ListingRequestDTO request, User seller) {
+        validateDeliveryDetails(request);
+
         // 1. Map DTO to entity (status defaults to DRAFT inside mapper)
         Listing listing = listingMapper.toEntity(request, seller);
 
@@ -45,12 +50,7 @@ public class ListingServiceImpl implements ListingService {
         String folder = "seller-" + seller.getId();
         uploadMedia(listing, request, folder);
 
-        // 3. Determine status from the "publish" button flag
-        //    "Save Draft" -> DRAFT  |  "Publish Listing" -> PENDING_REVIEW
-//        if (request.isPublish()) {
-//            listing.setStatus(ListingStatus.PENDING_REVIEW);
-//        }
-
+        // 3. System auto-publishes — no admin moderation step.
         if (request.isPublish()) {
             listing.setStatus(ListingStatus.PUBLISHED);
         }
@@ -66,8 +66,6 @@ public class ListingServiceImpl implements ListingService {
     @Override
     @Transactional(readOnly = true)
     public ListingResponseDTO getListingById(Long id) {
-        // Uses the JOIN FETCH query so seller (name/photo) is loaded in the
-        // same query — needed for the product detail page.
         Listing listing = listingRepository.findByIdWithSeller(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Listing not found with id: " + id));
         return listingMapper.toResponseDTO(listing);
@@ -105,17 +103,18 @@ public class ListingServiceImpl implements ListingService {
     public ListingResponseDTO updateListing(Long id, ListingRequestDTO request) {
         Listing existing = findOrThrow(id);
 
-        // Apply changed text fields (nulls are skipped by the mapper)
+        // Only validate delivery details if the caller is actually touching
+        // delivery fields on this partial update (deliveryOption present).
+        if (request.getDeliveryOption() != null) {
+            validateDeliveryDetails(request);
+        }
+
+        // Apply changed fields (nulls are skipped by the mapper)
         listingMapper.updateEntityFromDTO(request, existing);
 
         // Re-upload only the media files that were actually sent
         String folder = "seller-" + existing.getSeller().getId();
         replaceMediaIfProvided(existing, request, folder);
-
-        // Promote from DRAFT to PENDING_REVIEW if publish button was pressed
-//        if (request.isPublish() && existing.getStatus() == ListingStatus.DRAFT) {
-//            existing.setStatus(ListingStatus.PENDING_REVIEW);
-//        }
 
         if (request.isPublish() && existing.getStatus() == ListingStatus.DRAFT) {
             existing.setStatus(ListingStatus.PUBLISHED);
@@ -138,10 +137,7 @@ public class ListingServiceImpl implements ListingService {
     @Override
     public void deleteListing(Long id) {
         Listing listing = findOrThrow(id);
-
-        // Remove all Supabase files before deleting the DB record
         deleteAllSupabaseMedia(listing);
-
         listingRepository.delete(listing);
         log.info("Listing deleted [id={}]", id);
     }
@@ -154,6 +150,55 @@ public class ListingServiceImpl implements ListingService {
         return listingRepository.findById(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Listing not found with id: " + id));
+    }
+
+    /**
+     * Mirrors the frontend's own conditional validate() logic — required
+     * fields differ depending on whether the seller chose Shipping, Pickup,
+     * or Flex (Both).
+     */
+    private void validateDeliveryDetails(ListingRequestDTO dto) {
+        DeliveryOption option = dto.getDeliveryOption();
+        if (option == null) {
+            throw new InvalidListingDataException("Delivery option is required.");
+        }
+
+        boolean needsShipping = option == DeliveryOption.SHIPPING || option == DeliveryOption.FLEX;
+        boolean needsPickup   = option == DeliveryOption.PICKUP   || option == DeliveryOption.FLEX;
+
+        if (needsShipping) {
+            if (isBlank(dto.getShippingAvailability()))
+                throw new InvalidListingDataException("Shipping availability is required.");
+            if (dto.getShippingFeeType() == null)
+                throw new InvalidListingDataException("Shipping fee type is required.");
+            if (dto.getShippingFeeType() == ShippingFeeType.FIXED_FEE
+                    && dto.getFixedShippingFee() == null)
+                throw new InvalidListingDataException("Fixed shipping fee is required.");
+            if (dto.getShippingFeeType() == ShippingFeeType.DYNAMIC_SHIPPING
+                    && (dto.getRateWithinDistrict() == null
+                    || dto.getRateWithinProvince() == null
+                    || dto.getRateNationwide() == null))
+                throw new InvalidListingDataException("All dynamic shipping rates are required.");
+            if (isBlank(dto.getDispatchTime()))
+                throw new InvalidListingDataException("Dispatch time is required.");
+        }
+
+        if (needsPickup) {
+            if (isBlank(dto.getPickupArea()))
+                throw new InvalidListingDataException("Pickup area is required.");
+            if (dto.getPickupLat() == null || dto.getPickupLng() == null)
+                throw new InvalidListingDataException("Pickup location must be pinned.");
+            if (isBlank(dto.getPickupContactNumber()))
+                throw new InvalidListingDataException("Pickup contact number is required.");
+            if (isBlank(dto.getPickupDays()))
+                throw new InvalidListingDataException("Pickup availability days are required.");
+            if (isBlank(dto.getPickupTimeFrom()) || isBlank(dto.getPickupTimeTo()))
+                throw new InvalidListingDataException("Pickup time range is required.");
+        }
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     /** Upload all provided files for a brand-new listing. */

@@ -1,6 +1,4 @@
 // lib/types/product.ts
-// Mirrors the original Product shape from products.ts, sourced from
-// ListingResponseDTO now instead of a static array.
 
 export type Status = "THRIFT" | "RENT" | "THRIFT + RENT";
 
@@ -13,24 +11,65 @@ export interface ProductSeller {
 
 export interface Product {
     id: number;
-    name: string;          // ← productTitle
-    status: Status;        // ← listingMode, converted to display string
-    image: string;          // ← photoFrontUrl (primary)
+    name: string;
+    status: Status;
+
+    image: string;
     videoUrl?: string;
-    gallery: string[];       // ← all photo*Url fields, non-null only
-    price: string;          // ← thriftPrice, formatted "Rs. X"
-    oldPrice?: string;       // ← originalPrice, formatted (only if present)
-    rentalPrice?: string;     // ← rentPerDay, formatted "Rs. X" (only if present)
+    gallery: string[];
+
+    price: string;
+    priceValue: number;
+    oldPrice?: string;
+    rentalPrice?: string;
+    rentPerDay?: number;
+
+    securityDeposit?: string;
+    securityDepositValue?: number;
+
     brand?: string;
     size: string;
     condition: string;
     color: string;
     material: string;
     description?: string;
-    care: string[];          // static constant, NOT from backend — see CARE_INSTRUCTIONS
-    availability: "Available" | "Reserved" | "Sold Out"; // ← availability enum, display string
-    shippingOption: "Shipping" | "Pickup" | "Flex (Both)"; // ← shippingOption enum, display string
-    defectFlaws?: string;     // ← defectFlaws (replaces old hardcoded note)
-    rentDuration?: string;    // no backend source yet — always undefined, kept for future booking feature
+    care: string[];
+
+    availability: "Available" | "Reserved" | "Sold Out";
+
+    // ==========================
+    // Delivery Fields
+    // ==========================
+    deliveryOption?: "SHIPPING" | "PICKUP" | "FLEX";
+
+    shippingAvailability?: string;
+    shippingFeeType?:
+        | "FREE_SHIPPING"
+        | "FIXED_FEE"
+        | "DYNAMIC_SHIPPING";
+
+    fixedShippingFee?: number;
+    rateWithinDistrict?: number;
+    rateWithinProvince?: number;
+    rateNationwide?: number;
+    dispatchTime?: string;
+
+    pickupArea?: string;
+    pickupLat?: number;
+    pickupLng?: number;
+    pickupResolvedAddress?: string;
+    pickupContactNumber?: string;
+    pickupDays?: string[];
+    pickupTimeFrom?: string;
+    pickupTimeTo?: string;
+    pickupInstructions?: string;
+    sameDayPickup?: boolean;
+
+    // ==========================
+    // Misc
+    // ==========================
+    defectFlaws?: string;
+    rentDuration?: string;
+
     seller: ProductSeller;
 }

@@ -28,7 +28,7 @@ public class ListingController {
     private final ListingService listingService;
     private final UserRepository userRepository;
 
-    // ── POST /api/v1/listings ─────────────────────────────────────────────
+    // ── POST /api/listings ────────────────────────────────────────────────
     // multipart/form-data because request carries file uploads
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -60,10 +60,29 @@ public class ListingController {
             @RequestParam("material")                            String material,
             @RequestParam(value = "originalPrice",   required = false) BigDecimal originalPrice,
             @RequestParam(value = "availability",    required = false) String availability,
-            @RequestParam("shippingOption")                      String shippingOption,
             @RequestParam(value = "defectFlaws",     required = false) String defectFlaws,
 
-            // Section 5
+            // Section 5 — Delivery Options
+            @RequestParam("deliveryOption")                                    String deliveryOption,
+            @RequestParam(value = "shippingAvailability", required = false)    String shippingAvailability,
+            @RequestParam(value = "shippingFeeType",      required = false)    String shippingFeeType,
+            @RequestParam(value = "fixedShippingFee",     required = false)    BigDecimal fixedShippingFee,
+            @RequestParam(value = "rateWithinDistrict",   required = false)    BigDecimal rateWithinDistrict,
+            @RequestParam(value = "rateWithinProvince",   required = false)    BigDecimal rateWithinProvince,
+            @RequestParam(value = "rateNationwide",       required = false)    BigDecimal rateNationwide,
+            @RequestParam(value = "dispatchTime",         required = false)    String dispatchTime,
+            @RequestParam(value = "pickupArea",           required = false)    String pickupArea,
+            @RequestParam(value = "pickupLat",            required = false)    Double pickupLat,
+            @RequestParam(value = "pickupLng",            required = false)    Double pickupLng,
+            @RequestParam(value = "pickupResolvedAddress",required = false)    String pickupResolvedAddress,
+            @RequestParam(value = "pickupContactNumber",  required = false)    String pickupContactNumber,
+            @RequestParam(value = "pickupDays",           required = false)    String pickupDays,
+            @RequestParam(value = "pickupTimeFrom",       required = false)    String pickupTimeFrom,
+            @RequestParam(value = "pickupTimeTo",         required = false)    String pickupTimeTo,
+            @RequestParam(value = "pickupInstructions",   required = false)    String pickupInstructions,
+            @RequestParam(value = "sameDayPickup", defaultValue = "false")     boolean sameDayPickup,
+
+            // Section 6
             @RequestParam(value = "thriftPrice",     required = false) BigDecimal thriftPrice,
             @RequestParam(value = "rentPerDay",      required = false) BigDecimal rentPerDay,
             @RequestParam(value = "securityDeposit", required = false) BigDecimal securityDeposit,
@@ -79,9 +98,13 @@ public class ListingController {
                 productTitle, listingMode, clothingType, gender, brand,
                 styleOccasion, tags, photoFront, photoBack, photoLabel,
                 photoDetail, video, description, size, condition, color,
-                material, originalPrice, availability, shippingOption,
-                defectFlaws, thriftPrice, rentPerDay, securityDeposit,
-                publish
+                material, originalPrice, availability, defectFlaws,
+                deliveryOption, shippingAvailability, shippingFeeType,
+                fixedShippingFee, rateWithinDistrict, rateWithinProvince,
+                rateNationwide, dispatchTime, pickupArea, pickupLat, pickupLng,
+                pickupResolvedAddress, pickupContactNumber, pickupDays,
+                pickupTimeFrom, pickupTimeTo, pickupInstructions, sameDayPickup,
+                thriftPrice, rentPerDay, securityDeposit, publish
         );
 
         return ResponseEntity
@@ -89,14 +112,14 @@ public class ListingController {
                 .body(listingService.createListing(request, seller));
     }
 
-    // ── GET /api/v1/listings/{id} ─────────────────────────────────────────
+    // ── GET /api/listings/{id} ─────────────────────────────────────────────
 
     @GetMapping("/{id}")
     public ResponseEntity<ListingResponseDTO> getListing(@PathVariable Long id) {
         return ResponseEntity.ok(listingService.getListingById(id));
     }
 
-    // ── GET /api/v1/listings ──────────────────────────────────────────────
+    // ── GET /api/listings ──────────────────────────────────────────────────
 
     @GetMapping
     public ResponseEntity<Page<ListingResponseDTO>> getAllListings(
@@ -113,7 +136,7 @@ public class ListingController {
                 listingService.getAllListings(PageRequest.of(page, size, sort)));
     }
 
-    // ── GET /api/v1/listings/seller/{sellerId} ────────────────────────────
+    // ── GET /api/listings/seller/{sellerId} ────────────────────────────────
 
     @GetMapping("/seller/{sellerId}")
     public ResponseEntity<List<ListingResponseDTO>> getBySeller(
@@ -122,7 +145,7 @@ public class ListingController {
         return ResponseEntity.ok(listingService.getListingsBySeller(sellerId));
     }
 
-    // ── GET /api/v1/listings/search?keyword=... ───────────────────────────
+    // ── GET /api/listings/search?keyword=... ───────────────────────────────
 
     @GetMapping("/search")
     public ResponseEntity<Page<ListingResponseDTO>> search(
@@ -134,7 +157,7 @@ public class ListingController {
                 listingService.searchListings(keyword, PageRequest.of(page, size)));
     }
 
-    // ── PUT /api/v1/listings/{id} ─────────────────────────────────────────
+    // ── PUT /api/listings/{id} ─────────────────────────────────────────────
 
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ListingResponseDTO> updateListing(
@@ -159,8 +182,27 @@ public class ListingController {
             @RequestParam(value = "material",        required = false) String material,
             @RequestParam(value = "originalPrice",   required = false) BigDecimal originalPrice,
             @RequestParam(value = "availability",    required = false) String availability,
-            @RequestParam(value = "shippingOption",  required = false) String shippingOption,
             @RequestParam(value = "defectFlaws",     required = false) String defectFlaws,
+
+            @RequestParam(value = "deliveryOption",         required = false) String deliveryOption,
+            @RequestParam(value = "shippingAvailability",   required = false) String shippingAvailability,
+            @RequestParam(value = "shippingFeeType",        required = false) String shippingFeeType,
+            @RequestParam(value = "fixedShippingFee",       required = false) BigDecimal fixedShippingFee,
+            @RequestParam(value = "rateWithinDistrict",     required = false) BigDecimal rateWithinDistrict,
+            @RequestParam(value = "rateWithinProvince",     required = false) BigDecimal rateWithinProvince,
+            @RequestParam(value = "rateNationwide",         required = false) BigDecimal rateNationwide,
+            @RequestParam(value = "dispatchTime",           required = false) String dispatchTime,
+            @RequestParam(value = "pickupArea",             required = false) String pickupArea,
+            @RequestParam(value = "pickupLat",              required = false) Double pickupLat,
+            @RequestParam(value = "pickupLng",              required = false) Double pickupLng,
+            @RequestParam(value = "pickupResolvedAddress",  required = false) String pickupResolvedAddress,
+            @RequestParam(value = "pickupContactNumber",    required = false) String pickupContactNumber,
+            @RequestParam(value = "pickupDays",             required = false) String pickupDays,
+            @RequestParam(value = "pickupTimeFrom",         required = false) String pickupTimeFrom,
+            @RequestParam(value = "pickupTimeTo",           required = false) String pickupTimeTo,
+            @RequestParam(value = "pickupInstructions",     required = false) String pickupInstructions,
+            @RequestParam(value = "sameDayPickup", defaultValue = "false")    boolean sameDayPickup,
+
             @RequestParam(value = "thriftPrice",     required = false) BigDecimal thriftPrice,
             @RequestParam(value = "rentPerDay",      required = false) BigDecimal rentPerDay,
             @RequestParam(value = "securityDeposit", required = false) BigDecimal securityDeposit,
@@ -176,15 +218,19 @@ public class ListingController {
                 productTitle, listingMode, clothingType, gender, brand,
                 styleOccasion, tags, photoFront, photoBack, photoLabel,
                 photoDetail, video, description, size, condition, color,
-                material, originalPrice, availability, shippingOption,
-                defectFlaws, thriftPrice, rentPerDay, securityDeposit,
-                publish
+                material, originalPrice, availability, defectFlaws,
+                deliveryOption, shippingAvailability, shippingFeeType,
+                fixedShippingFee, rateWithinDistrict, rateWithinProvince,
+                rateNationwide, dispatchTime, pickupArea, pickupLat, pickupLng,
+                pickupResolvedAddress, pickupContactNumber, pickupDays,
+                pickupTimeFrom, pickupTimeTo, pickupInstructions, sameDayPickup,
+                thriftPrice, rentPerDay, securityDeposit, publish
         );
 
         return ResponseEntity.ok(listingService.updateListing(id, request));
     }
 
-    // ── PATCH /api/v1/listings/{id}/status ───────────────────────────────
+    // ── PATCH /api/listings/{id}/status ────────────────────────────────────
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<ListingResponseDTO> updateStatus(
@@ -194,7 +240,7 @@ public class ListingController {
         return ResponseEntity.ok(listingService.updateListingStatus(id, status));
     }
 
-    // ── DELETE /api/v1/listings/{id} ──────────────────────────────────────
+    // ── DELETE /api/listings/{id} ───────────────────────────────────────────
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteListing(@PathVariable Long id) {
@@ -214,7 +260,14 @@ public class ListingController {
             MultipartFile photoLabel, MultipartFile photoDetail, MultipartFile video,
             String description, String size, String condition, String color,
             String material, BigDecimal originalPrice, String availability,
-            String shippingOption, String defectFlaws,
+            String defectFlaws,
+            String deliveryOption, String shippingAvailability, String shippingFeeType,
+            BigDecimal fixedShippingFee, BigDecimal rateWithinDistrict,
+            BigDecimal rateWithinProvince, BigDecimal rateNationwide, String dispatchTime,
+            String pickupArea, Double pickupLat, Double pickupLng,
+            String pickupResolvedAddress, String pickupContactNumber, String pickupDays,
+            String pickupTimeFrom, String pickupTimeTo, String pickupInstructions,
+            boolean sameDayPickup,
             BigDecimal thriftPrice, BigDecimal rentPerDay, BigDecimal securityDeposit,
             boolean publish
     ) {
@@ -238,8 +291,27 @@ public class ListingController {
                 .material(material)
                 .originalPrice(originalPrice)
                 .availability(parseAvailability(availability))
-                .shippingOption(parseShippingOption(shippingOption))
                 .defectFlaws(defectFlaws)
+
+                .deliveryOption(parseDeliveryOption(deliveryOption))
+                .shippingAvailability(shippingAvailability)
+                .shippingFeeType(parseShippingFeeType(shippingFeeType))
+                .fixedShippingFee(fixedShippingFee)
+                .rateWithinDistrict(rateWithinDistrict)
+                .rateWithinProvince(rateWithinProvince)
+                .rateNationwide(rateNationwide)
+                .dispatchTime(dispatchTime)
+                .pickupArea(pickupArea)
+                .pickupLat(pickupLat)
+                .pickupLng(pickupLng)
+                .pickupResolvedAddress(pickupResolvedAddress)
+                .pickupContactNumber(pickupContactNumber)
+                .pickupDays(pickupDays)
+                .pickupTimeFrom(pickupTimeFrom)
+                .pickupTimeTo(pickupTimeTo)
+                .pickupInstructions(pickupInstructions)
+                .sameDayPickup(sameDayPickup)
+
                 .thriftPrice(thriftPrice)
                 .rentPerDay(rentPerDay)
                 .securityDeposit(securityDeposit)
@@ -259,18 +331,6 @@ public class ListingController {
         };
     }
 
-    // Frontend sends "Shipping", "Pickup", "Flex (Both)"
-    private ShippingOptions parseShippingOption(String value) {
-        if (value == null) return null;
-        return switch (value.trim().toUpperCase()) {
-            case "SHIPPING"     -> ShippingOptions.SHIPPING;
-            case "PICKUP"       -> ShippingOptions.PICKUP;
-            case "FLEX (BOTH)",
-                 "FLEX"         -> ShippingOptions.FLEX;
-            default -> ShippingOptions.valueOf(value.trim().toUpperCase());
-        };
-    }
-
     // Frontend sends "Available", "Reserved", "Sold Out"
     private Availability parseAvailability(String value) {
         if (value == null) return null;
@@ -283,12 +343,33 @@ public class ListingController {
         };
     }
 
+    // Frontend sends "Shipping", "Pickup", "Flex (Both)"
+    private DeliveryOption parseDeliveryOption(String value) {
+        if (value == null) return null;
+        return switch (value.trim().toUpperCase()) {
+            case "SHIPPING"     -> DeliveryOption.SHIPPING;
+            case "PICKUP"       -> DeliveryOption.PICKUP;
+            case "FLEX (BOTH)",
+                 "FLEX"         -> DeliveryOption.FLEX;
+            default -> DeliveryOption.valueOf(value.trim().toUpperCase());
+        };
+    }
+
+    // Frontend sends "Free Shipping", "Fixed Fee", "Dynamic Shipping"
+    private ShippingFeeType parseShippingFeeType(String value) {
+        if (value == null) return null;
+        return switch (value.trim().toUpperCase()) {
+            case "FREE SHIPPING"    -> ShippingFeeType.FREE_SHIPPING;
+            case "FIXED FEE"        -> ShippingFeeType.FIXED_FEE;
+            case "DYNAMIC SHIPPING" -> ShippingFeeType.DYNAMIC_SHIPPING;
+            default -> ShippingFeeType.valueOf(value.trim().toUpperCase().replace(" ", "_"));
+        };
+    }
+
     /**
      * Resolves the authenticated User entity from the JWT principal.
      * Assumes UserDetails#getUsername() returns the user's email —
      * matches your JwtAuthFilter / UserDetailsService convention.
-     * If your JwtAuthFilter wires a custom UserPrincipal carrying the
-     * User id directly, swap this for a simpler cast instead of a DB hit.
      */
     private User resolveSellerFromPrincipal(UserDetails userDetails) {
         if (userDetails == null) {

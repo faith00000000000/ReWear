@@ -42,10 +42,31 @@ public class ListingResponseDTO {
     private String material;
     private BigDecimal originalPrice;
     private Availability availability;
-    private ShippingOptions shippingOption;
     private String defectFlaws;
 
-    // Section 5
+    // Section 5: Delivery Options
+    private DeliveryOption deliveryOption;
+
+    private String shippingAvailability;
+    private ShippingFeeType shippingFeeType;
+    private BigDecimal fixedShippingFee;
+    private BigDecimal rateWithinDistrict;
+    private BigDecimal rateWithinProvince;
+    private BigDecimal rateNationwide;
+    private String dispatchTime;
+
+    private String pickupArea;
+    private Double pickupLat;
+    private Double pickupLng;
+    private String pickupResolvedAddress;
+    private String pickupContactNumber;
+    private String pickupDays;
+    private String pickupTimeFrom;
+    private String pickupTimeTo;
+    private String pickupInstructions;
+    private boolean sameDayPickup;
+
+    // Section 6
     private BigDecimal thriftPrice;
     private BigDecimal rentPerDay;
     private BigDecimal securityDeposit;

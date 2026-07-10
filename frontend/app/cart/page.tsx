@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -15,7 +15,9 @@ import {
     CreditCard,
     Package,
     CalendarDays,
-    Scissors,
+    MapPin,
+    Truck,
+    Clock,
     Info,
 } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
@@ -26,9 +28,68 @@ const STATUS_PILL: Record<string, string> = {
     "THRIFT + RENT": "bg-[#9E2A1B] text-white",
 };
 
+/* ─── Reservation window ──────────────────────────────────────
+   2 hours from the moment the FIRST item lands in the cart.
+   Persisted in localStorage so it survives refreshes/navigation,
+   and auto-clears the cart the instant it hits zero. ────────── */
+const RESERVATION_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
+const RESERVATION_STORAGE_KEY = "cartReservationStartedAt";
+
+function formatCountdown(ms: number) {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
 export default function CartPage() {
     const { cartItems: items, removeFromCart: removeItem, subtotal } = useCart();
     const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+    const [remainingMs, setRemainingMs] = useState<number | null>(null);
+    const hadItemsBefore = useRef(false);
+
+    /* ── Start / clear the reservation timestamp based on cart contents ── */
+    useEffect(() => {
+        if (items.length > 0) {
+            const existing = localStorage.getItem(RESERVATION_STORAGE_KEY);
+            if (!existing) {
+                localStorage.setItem(RESERVATION_STORAGE_KEY, Date.now().toString());
+            }
+            hadItemsBefore.current = true;
+        } else if (hadItemsBefore.current) {
+            // Cart just became empty (checkout, manual removal, or auto-expiry) — reset window.
+            localStorage.removeItem(RESERVATION_STORAGE_KEY);
+            hadItemsBefore.current = false;
+        }
+    }, [items.length]);
+
+    /* ── Tick every second; auto-clear the cart when the window expires ── */
+    useEffect(() => {
+        if (items.length === 0) {
+            setRemainingMs(null);
+            return;
+        }
+
+        const tick = () => {
+            const startedAt = Number(localStorage.getItem(RESERVATION_STORAGE_KEY) ?? Date.now());
+            const elapsed = Date.now() - startedAt;
+            const remaining = RESERVATION_WINDOW_MS - elapsed;
+            setRemainingMs(remaining);
+
+            if (remaining <= 0) {
+                // Reservation window expired — release all held items.
+                items.forEach((item) => removeItem(item.id));
+                localStorage.removeItem(RESERVATION_STORAGE_KEY);
+            }
+        };
+
+        tick();
+        const interval = setInterval(tick, 1000);
+        return () => clearInterval(interval);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [items.length]);
 
     const shipping = subtotal > 0 ? 595 : 0;
     const rentalDeposit =
@@ -37,8 +98,12 @@ export default function CartPage() {
             : 0;
     const total = subtotal + shipping + rentalDeposit;
 
-    const fmt = (n: number) =>
-        `Rs. ${n.toLocaleString("en-IN", { minimumFractionDigits: 0 })}`;
+    const fmt = (n?: number) =>
+        `Rs. ${(n ?? 0).toLocaleString("en-IN", {
+            minimumFractionDigits: 0,
+        })}`;
+
+    const isExpiringSoon = remainingMs !== null && remainingMs <= 5 * 60 * 1000; // last 5 min
 
     return (
         <div className="min-h-screen bg-[#FAF6F0] text-[#1A130E] antialiased">
@@ -54,11 +119,17 @@ export default function CartPage() {
                             Review your selected finds before checkout.
                         </p>
                     </div>
-                    {items.length > 0 && (
-                        <div className="flex items-center gap-2 rounded-full border border-[#EBE3D5] bg-white px-4 py-2 text-[13px] text-[#4F4338] shadow-sm">
-                            <ShoppingBag size={14} className="text-[#9E2A1B]" />
-                            <span>Your items are reserved for 30 minutes</span>
-                            <span className="font-bold text-[#9E2A1B]">29:45</span>
+                    {items.length > 0 && remainingMs !== null && (
+                        <div
+                            className={`flex items-center gap-2 rounded-full border px-4 py-2 text-[13px] shadow-sm transition ${
+                                isExpiringSoon
+                                    ? "border-[#9E2A1B]/40 bg-[#FFF5F5] text-[#9E2A1B]"
+                                    : "border-[#EBE3D5] bg-white text-[#4F4338]"
+                            }`}
+                        >
+                            <Clock size={14} className={isExpiringSoon ? "text-[#9E2A1B]" : "text-[#9E2A1B]"} />
+                            <span>Your items are reserved for</span>
+                            <span className="font-bold text-[#9E2A1B]">{formatCountdown(remainingMs)}</span>
                         </div>
                     )}
                 </div>
@@ -87,73 +158,149 @@ export default function CartPage() {
 
                         {/* ── LEFT: Cart Items ── */}
                         <div className="space-y-3">
-                            {items.map((item) => (
-                                <div
-                                    key={item.id}
-                                    className="relative flex overflow-hidden rounded-xl border border-[#E8E0D5] bg-white shadow-sm transition hover:shadow-md"
-                                >
-                                    {/* Image */}
-                                    <div className="relative h-auto w-[160px] shrink-0 self-stretch overflow-hidden bg-[#F0EAE0]">
-                                        <Image
-                                            src={item.image}
-                                            alt={item.name}
-                                            fill
-                                            sizes="160px"
-                                            className="object-cover"
-                                        />
-                                        <span
-                                            className={`absolute left-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${STATUS_PILL[item.status]}`}
-                                        >
-                      {item.status}
-                    </span>
-                                    </div>
+                            {items.map((item) => {
+                                const isPickup = item.fulfillment === "pickup";
+                                const isRent = item.status === "RENT" || item.status === "THRIFT + RENT";
+                                const feeLabel = isPickup ? "Pickup" : "Delivery Fee";
+                                // const feeValue = item.deliveryFee === 0 ? "Free" : fmt(item.deliveryFee);
+                                const feeValue =
+                                    (item.deliveryFee ?? 0) === 0
+                                        ? "Free"
+                                        : fmt(item.deliveryFee);
 
-                                    {/* Details */}
-                                    <div className="flex flex-1 flex-col justify-between px-5 py-4">
-                                        <div>
-                                            <div className="flex items-start justify-between gap-3">
-                                                <h3 className="font-serif text-[15px] font-bold leading-snug text-[#1A130E]">
-                                                    {item.name}
-                                                </h3>
-                                                <p className="shrink-0 text-[17px] font-bold text-[#9E2A1B]">
-                                                    {item.price}
-                                                </p>
-                                            </div>
-
-                                            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-[#6E6053]">
-                                                <span>Size: <strong className="font-semibold text-[#1A130E]">{item.size}</strong></span>
-                                                <span>Color: <strong className="font-semibold text-[#1A130E]">{item.color}</strong></span>
-                                                <span>Condition: <strong className="font-semibold text-[#1A130E]">{item.condition}</strong></span>
-                                            </div>
-                                            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[12px] text-[#6E6053]">
-                                                <span>Category: <strong className="font-semibold text-[#1A130E]">{item.category}</strong></span>
-                                                <span>Brand: <strong className="font-semibold text-[#1A130E]">{item.brand}</strong></span>
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-3 flex items-end justify-between gap-2">
-                                            {item.note && (
-                                                <div className="flex w-fit items-center gap-1.5 rounded-lg border border-[#EBE3D5] bg-[#FAF8F5] px-3 py-1.5 text-[11px] text-[#6E6053]">
-                                                    {item.status === "RENT" ? (
-                                                        <CalendarDays size={12} className="shrink-0 text-[#4A6B3A]" />
-                                                    ) : item.status === "THRIFT + RENT" ? (
-                                                        <Scissors size={12} className="shrink-0 text-[#9E2A1B]" />
-                                                    ) : (
-                                                        <Leaf size={12} className="shrink-0 text-[#9E2A1B]" />
-                                                    )}
-                                                    {item.note}
-                                                </div>
-                                            )}
-                                            <button
-                                                onClick={() => removeItem(item.id)}
-                                                className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#EBE3D5] bg-[#FAF6F0] text-[#A89E94] transition hover:border-[#9E2A1B] hover:bg-[#FFF5F5] hover:text-[#9E2A1B]"
+                                return (
+                                    <div
+                                        key={item.id}
+                                        className="relative flex overflow-hidden rounded-xl border border-[#E8E0D5] bg-white shadow-sm transition hover:shadow-md"
+                                    >
+                                        {/* Image */}
+                                        <div className="relative h-auto w-[150px] shrink-0 self-stretch overflow-hidden bg-[#F0EAE0]">
+                                            <Image
+                                                src={item.image}
+                                                alt={item.name}
+                                                fill
+                                                sizes="150px"
+                                                className="object-cover"
+                                            />
+                                            <span
+                                                className={`absolute left-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${STATUS_PILL[item.status]}`}
                                             >
-                                                <Trash2 size={13} />
-                                            </button>
+                                                {item.status}
+                                            </span>
+                                        </div>
+
+                                        {/* Details */}
+                                        <div className="flex flex-1 flex-col justify-between px-5 py-4">
+                                            <div>
+                                                {/* Status + Fulfillment pills */}
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                    <span
+                                                        className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${STATUS_PILL[item.status]}`}
+                                                    >
+                                                        {item.status}
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1 rounded-full border border-[#EBE3D5] bg-[#FAF8F5] px-2 py-0.5 text-[10px] font-semibold text-[#6E6053]">
+                                                        {isPickup ? <MapPin size={10} /> : <Truck size={10} />}
+                                                        {isPickup ? "Pickup" : "Shipping"}
+                                                    </span>
+                                                </div>
+
+                                                {/* Name + Fee (top right, matches reference) */}
+                                                <div className="mt-2 flex items-start justify-between gap-3">
+                                                    <h3 className="font-serif text-[15px] font-bold leading-snug text-[#1A130E]">
+                                                        {item.name}
+                                                    </h3>
+                                                    <div className="shrink-0 text-right">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8C7E74]">
+                                                            {feeLabel}
+                                                        </p>
+                                                        <p className={`text-[13px] font-bold ${item.deliveryFee === 0 ? "text-[#4A6B3A]" : "text-[#1A130E]"}`}>
+                                                            {feeValue}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Rent dates line (rent only) */}
+                                                {isRent && item.rentalStart && item.rentalEnd && (
+                                                    <p className="mt-0.5 text-[12px] font-medium text-[#4A6B3A]">
+                                                        {item.rentalStart} – {item.rentalEnd}
+                                                        {item.rentalDays ? ` (${item.rentalDays} Day${item.rentalDays > 1 ? "s" : ""})` : ""}
+                                                    </p>
+                                                )}
+
+                                                {/* Size / Brand / Color */}
+                                                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-[#6E6053]">
+                                                    <span>Size: <strong className="font-semibold text-[#1A130E]">{item.size}</strong></span>
+                                                    {!isRent && (
+                                                        <span>Brand: <strong className="font-semibold text-[#1A130E]">{item.brand}</strong></span>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center justify-between w-full mt-1">
+                                                    {/* Price */}
+                                                    <p className="text-[17px] font-bold text-[#9E2A1B]">
+                                                        {item.price}
+                                                    </p>
+
+                                                    {/* Trash Button */}
+                                                    <button
+                                                        onClick={() => removeItem(item.id)}
+                                                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#EBE3D5] bg-[#FAF6F0] text-[#A89E94] transition hover:border-[#9E2A1B] hover:bg-[#FFF5F5] hover:text-[#9E2A1B]"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Bottom info strip — Pickup location OR Rental duration/return */}
+                                            <div className="mt-3 flex items-end justify-between gap-2">
+                                                {isPickup && item.pickupArea && (
+                                                    <div className="flex flex-1 flex-col gap-1 rounded-lg border border-[#DCE4DA] bg-[#F0F6ED] px-3 py-2 text-[11px] text-[#3E5A33]">
+                                                        <span className="flex items-start gap-1.5">
+                                                            <MapPin size={12} className="mt-0.5 shrink-0 text-[#4A6B3A]" />
+                                                            Pickup Location: <strong className="font-semibold">{item.pickupArea}</strong>
+                                                        </span>
+                                                        {item.pickupHours && (
+                                                            <span className="flex items-start gap-1.5">
+                                                                <Clock size={12} className="mt-0.5 shrink-0 text-[#4A6B3A]" />
+                                                                Pickup Hours: <strong className="font-semibold">{item.pickupHours}</strong>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {isRent && (item.rentalDays || item.returnDeadline) && (
+                                                    <div className="flex flex-1 flex-col gap-1 rounded-lg border border-[#DCD5F1] bg-[#F3F1FB] px-3 py-2 text-[11px] text-[#5B4FC0]">
+                                                        {item.rentalDays && (
+                                                            <span className="flex items-center gap-1.5">
+                                                                <CalendarDays size={12} className="shrink-0" />
+                                                                Rental Duration: <strong className="font-semibold">{item.rentalDays} Days</strong>
+                                                            </span>
+                                                        )}
+                                                        {item.returnDeadline && (
+                                                            <span className="flex items-center gap-1.5">
+                                                                <Clock size={12} className="shrink-0" />
+                                                                Return Deadline: <strong className="font-semibold">{item.returnDeadline}</strong>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {!isPickup && !isRent && (
+                                                    <div className="flex-1" />
+                                                )}
+
+                                                {/*<button*/}
+                                                {/*    onClick={() => removeItem(item.id)}*/}
+                                                {/*    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#EBE3D5] bg-[#FAF6F0] text-[#A89E94] transition hover:border-[#9E2A1B] hover:bg-[#FFF5F5] hover:text-[#9E2A1B]"*/}
+                                                {/*>*/}
+                                                {/*    <Trash2 size={13} />*/}
+                                                {/*</button>*/}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         {/* ── RIGHT: Order Summary ── */}
@@ -178,9 +325,9 @@ export default function CartPage() {
                             {/* Totals */}
                             <div className="mt-4 space-y-3 text-[14px]">
                                 <div className="flex justify-between text-[#4F4338]">
-                  <span className="text-[#5C5249]">
-                    Subtotal ({items.length} {items.length === 1 ? "item" : "items"})
-                  </span>
+                                    <span className="text-[#5C5249]">
+                                        Subtotal ({items.length} {items.length === 1 ? "item" : "items"})
+                                    </span>
                                     <span className="font-semibold text-[#1A130E]">{fmt(subtotal)}</span>
                                 </div>
 
@@ -295,7 +442,7 @@ export default function CartPage() {
 }
 
 /* ══════════════════════════════════════════════════════════
-   PAYMENT MODAL
+   PAYMENT MODAL — unchanged
 ══════════════════════════════════════════════════════════ */
 function PaymentModal({ total, onClose }: { total: string; onClose: () => void }) {
     const [selectedPayment, setSelectedPayment] = useState<"esewa" | "khalti">("esewa");
@@ -360,9 +507,9 @@ function PaymentModal({ total, onClose }: { total: string; onClose: () => void }
                             Cash on Delivery
                         </h3>
                         <div className="mb-4 flex justify-center">
-              <span className="rounded-full bg-[#F5ECD5] px-3 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[#8C6A2A]">
-                COD
-              </span>
+                            <span className="rounded-full bg-[#F5ECD5] px-3 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[#8C6A2A]">
+                                COD
+                            </span>
                         </div>
                         <p className="mb-5 text-center text-[13px] leading-relaxed text-[#6E6053]">
                             Pay in cash when your order is delivered to your doorstep.
@@ -399,9 +546,9 @@ function PaymentModal({ total, onClose }: { total: string; onClose: () => void }
                             Pay Online
                         </h3>
                         <div className="mb-4 flex justify-center">
-              <span className="rounded-full bg-[#F5ECD5] px-3 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[#8C6A2A]">
-                Secure & Instant
-              </span>
+                            <span className="rounded-full bg-[#F5ECD5] px-3 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[#8C6A2A]">
+                                Secure & Instant
+                            </span>
                         </div>
                         <p className="mb-4 text-center text-[13px] leading-relaxed text-[#6E6053]">
                             Pay securely using your preferred digital wallet.
@@ -420,7 +567,6 @@ function PaymentModal({ total, onClose }: { total: string; onClose: () => void }
                                             : "border-[#DDD5C8] bg-white hover:border-[#C4B8AE]"
                                     }`}
                                 >
-                                    {/* Radio */}
                                     <div className="shrink-0">
                                         {selectedPayment === option.id ? (
                                             <div className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-[#9E2A1B] bg-[#9E2A1B]">
@@ -431,7 +577,6 @@ function PaymentModal({ total, onClose }: { total: string; onClose: () => void }
                                         )}
                                     </div>
 
-                                    {/* Logo */}
                                     <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-md">
                                         <Image
                                             src={option.logo}
@@ -441,15 +586,13 @@ function PaymentModal({ total, onClose }: { total: string; onClose: () => void }
                                         />
                                     </div>
 
-                                    {/* Desc */}
                                     <div className="flex-1">
                                         <p className="text-[11px] text-[#6E6053]">{option.desc}</p>
                                     </div>
 
-                                    {/* Recommended badge */}
                                     {option.recommended && (
                                         <span className="rounded-full border border-[#C8A96A] bg-[#FBF3E2] px-2 py-0.5 text-[10px] font-bold text-[#8C6A2A]">
-                                          Recommended
+                                            Recommended
                                         </span>
                                     )}
                                 </button>

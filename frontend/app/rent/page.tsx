@@ -10,9 +10,10 @@ import { mapListingsToProducts } from "@/lib/mappers/listingMapper";
 import { Product } from "@/lib/types/product";
 import { useAuth } from "@/lib/AuthContext";
 
+// ── Unified with ProductDetailClient's getContextTag palette ──
 const rentBadgeClass: Record<string, string> = {
-  RENT: "bg-[#8A8A8A] text-white",
-  "THRIFT + RENT": "bg-[#8A8A8A] text-white",
+  RENT: "bg-[#3D5C30] text-white",
+  "THRIFT + RENT": "bg-[#5C5C5C] text-white",
 };
 
 const filters = [
@@ -42,9 +43,6 @@ export default function RentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Auth state now comes from AuthContext, not a local check.
-  // This re-renders automatically the instant signOut() runs —
-  // no refresh needed, no stale localStorage read. ──────────────
   const { authed } = useAuth();
 
   useEffect(() => {
@@ -77,7 +75,7 @@ export default function RentPage() {
   }, []);
 
   return (
-      <div className="min-h-screen bg-[#FBF7EE] text-[#1A1A1A]">
+      <div className="min-h-screen bg-[#FAF6F0] text-[#1A130E]">
         <div>
           <main>
             {/* HERO SECTION */}
@@ -86,18 +84,18 @@ export default function RentPage() {
                 <div className="grid items-center gap-16 lg:grid-cols-[1fr_520px]">
 
                   <div className="relative z-10 max-w-[620px]">
-                    <p className="mb-6 text-[13px] font-semibold uppercase tracking-[0.35em] text-[#A62612]">
+                    <p className="mb-6 text-[13px] font-semibold uppercase tracking-[0.35em] text-[#9E2A1B]">
                       RENT. WEAR. RETURN.
                     </p>
-                    <h1 className="font-serif leading-[0.95] tracking-[-0.04em] text-[#111111]">
+                    <h1 className="font-serif leading-[0.95] tracking-[-0.04em] text-[#1A130E]">
                     <span className="block text-[64px] sm:text-[80px] lg:text-[96px] font-medium">
                       Rent the look,
                     </span>
-                      <span className="block text-[60px] sm:text-[76px] lg:text-[88px] font-normal italic text-[#A62612] mt-2">
+                      <span className="block text-[60px] sm:text-[76px] lg:text-[88px] font-normal italic text-[#9E2A1B] mt-2">
                       own the moment.
                     </span>
                     </h1>
-                    <p className="mt-8 max-w-[480px] text-[16px] leading-[1.8] text-[#4D4D4D]">
+                    <p className="mt-8 max-w-[480px] text-[16px] leading-[1.8] text-[#6E6053]">
                       Designer pieces, occasion-ready picks, and everyday elevated
                       styles—rent for less, love more.
                     </p>
@@ -107,7 +105,7 @@ export default function RentPage() {
                         <div className="mt-8 flex flex-wrap items-center gap-4">
                           <Link
                               href="/list-items"
-                              className="flex items-center gap-2 rounded-full bg-[#a73322] px-7 py-3 text-[15px] font-medium text-white transition-colors hover:bg-[#8a2a1c]"
+                              className="flex items-center gap-2 rounded-full bg-[#9E2A1B] px-7 py-3 text-[15px] font-medium text-white transition-colors hover:bg-[#832215]"
                           >
                             List an Item
                             <ArrowRight className="h-4 w-4" strokeWidth={2.5} />
@@ -127,17 +125,17 @@ export default function RentPage() {
                       />
                     </div>
                     <div className="absolute -bottom-10 right-0">
-                      <label className="flex items-center gap-2 rounded-full border border-[#E4DDD3] bg-[#FBF7EE]/95 px-5 py-2.5 backdrop-blur-sm shadow-sm">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#555]">
+                      <label className="flex items-center gap-2 rounded-full border border-[#EBE3D5] bg-[#FAF6F0]/95 px-5 py-2.5 backdrop-blur-sm shadow-sm">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6E6053]">
                         SORT
                       </span>
-                        <select className="appearance-none bg-transparent pr-4 text-[14px] font-medium text-[#1A1A1A] outline-none cursor-pointer">
+                        <select className="appearance-none bg-transparent pr-4 text-[14px] font-medium text-[#1A130E] outline-none cursor-pointer">
                           <option>Recommended</option>
                           <option>Newest</option>
                           <option>Price low</option>
                           <option>Price high</option>
                         </select>
-                        <ChevronDown className="h-4 w-4 text-[#707070]" />
+                        <ChevronDown className="h-4 w-4 text-[#8C7E74]" />
                       </label>
                     </div>
                   </div>
@@ -147,30 +145,30 @@ export default function RentPage() {
 
             {/* MAIN PRODUCT EXPLORER SECTION */}
             <section className="px-7 pb-20 sm:px-12 lg:px-24">
-              <div className="mx-auto max-w-[1380px] overflow-hidden rounded-[16px] border border-[#E4DDD3] bg-[#FDFBF7]">
+              <div className="mx-auto max-w-[1380px] overflow-hidden rounded-[16px] border border-[#EBE3D5] bg-[#FDFAF7]">
                 <div className="grid lg:grid-cols-[250px_1fr]">
                   <FilterRail />
                   <div className="min-w-0">
-                    <div className="flex items-center justify-between border-b border-[#E4DDD3] px-6 py-5">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#1A1A1A]">
+                    <div className="flex items-center justify-between border-b border-[#EBE3D5] px-6 py-5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#1A130E]">
                         {loading ? "Loading…" : `${rentProducts.length} RENTAL PIECES`}
                       </p>
-                      <div className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-[#707070]">
-                        <Truck size={14} strokeWidth={2} className="text-[#707070]" />
+                      <div className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-[#8C7E74]">
+                        <Truck size={14} strokeWidth={2} className="text-[#8C7E74]" />
                         <p>Free delivery &amp; return on all rentals</p>
                       </div>
                     </div>
 
                     {loading && (
-                        <div className="p-8 text-center text-[13px] text-[#707070]">Loading rentals…</div>
+                        <div className="p-8 text-center text-[13px] text-[#8C7E74]">Loading rentals…</div>
                     )}
 
                     {!loading && error && (
-                        <div className="p-8 text-center text-[13px] text-red-600">{error}</div>
+                        <div className="p-8 text-center text-[13px] text-[#9E2A1B]">{error}</div>
                     )}
 
                     {!loading && !error && rentProducts.length === 0 && (
-                        <div className="p-8 text-center text-[13px] text-[#707070]">
+                        <div className="p-8 text-center text-[13px] text-[#8C7E74]">
                           No rentals available right now.
                         </div>
                     )}
@@ -190,7 +188,7 @@ export default function RentPage() {
                     <Pagination />
 
                     <section className="px-7 pb-8 sm:px-12 lg:px-12">
-                      <div className="mx-auto max-w-[1500px] grid grid-cols-1 md:grid-cols-4 gap-4 border-[#E4DDD3] pt-10">
+                      <div className="mx-auto max-w-[1500px] grid grid-cols-1 md:grid-cols-4 gap-4 border-[#EBE3D5] pt-10">
                         {[
                           { title: "Premium Pieces", desc: "Curated designer & contemporary styles", icon: ShoppingBag },
                           { title: "Flexible Rentals", desc: "4, 8, 14 or 30-day rental periods", icon: Calendar },
@@ -201,16 +199,16 @@ export default function RentPage() {
                           return (
                               <div
                                   key={index}
-                                  className="flex items-start gap-4 p-4 rounded-xl bg-[#FDFBF7] border border-[#E4DDD3]/60 shadow-sm/5"
+                                  className="flex items-start gap-4 p-4 rounded-xl bg-[#FDFAF7] border border-[#EBE3D5]/60 shadow-sm/5"
                               >
-                                <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-[#F5F0E8] text-[#1A1A1A]">
-                                  <IconComponent size={18} strokeWidth={1.75} className="text-[#A62612]" />
+                                <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-[#F5EFE5] text-[#1A130E]">
+                                  <IconComponent size={18} strokeWidth={1.75} className="text-[#9E2A1B]" />
                                 </div>
                                 <div>
-                                  <h4 className="text-[12px] font-bold uppercase tracking-wider text-[#1A1A1A]">
+                                  <h4 className="text-[12px] font-bold uppercase tracking-wider text-[#1A130E]">
                                     {prop.title}
                                   </h4>
-                                  <p className="text-[12px] text-[#707070] mt-1 leading-normal">
+                                  <p className="text-[12px] text-[#8C7E74] mt-1 leading-normal">
                                     {prop.desc}
                                   </p>
                                 </div>
@@ -231,23 +229,23 @@ export default function RentPage() {
 
 function FilterRail() {
   return (
-      <aside className="border-r border-[#E4DDD3] bg-[#FDFBF7] px-5 py-5">
+      <aside className="border-r border-[#EBE3D5] bg-[#FDFAF7] px-5 py-5">
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">
+          <h2 className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#1A130E]">
             RENT FILTERS
           </h2>
-          <button className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#A62612] hover:opacity-80">
+          <button className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9E2A1B] hover:opacity-80">
             CLEAR
           </button>
         </div>
 
         {filters.map((filter) => (
-            <section key={filter.title} className="border-b border-[#E4DDD3] py-5">
+            <section key={filter.title} className="border-b border-[#EBE3D5] py-5">
               <button className="flex w-full items-center justify-between text-left">
-            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A130E]">
               {filter.title}
             </span>
-                <ChevronDown className="h-4 w-4 text-[#707070]" />
+                <ChevronDown className="h-4 w-4 text-[#8C7E74]" />
               </button>
               {filter.open && (
                   <div className="mt-4 space-y-3">
@@ -255,15 +253,15 @@ function FilterRail() {
                         <input
                             type="text"
                             placeholder="Search brand"
-                            className="w-full h-8 px-3 text-[12px] rounded border border-[#E4DDD3] bg-white outline-none focus:border-[#A62612]"
+                            className="w-full h-8 px-3 text-[12px] rounded border border-[#EBE3D5] bg-white outline-none focus:border-[#9E2A1B]"
                         />
                     )}
                     {filter.options.map((option) => (
                         <label
                             key={option}
-                            className="flex cursor-pointer items-center gap-3 text-[13px] text-[#4D4D4D]"
+                            className="flex cursor-pointer items-center gap-3 text-[13px] text-[#4F4338]"
                         >
-                          <input type="checkbox" className="h-4 w-4 accent-[#A62612]" />
+                          <input type="checkbox" className="h-4 w-4 accent-[#9E2A1B]" />
                           {option}
                         </label>
                     ))}
@@ -272,16 +270,16 @@ function FilterRail() {
             </section>
         ))}
 
-        <section className="border-b border-[#E4DDD3] py-5">
+        <section className="border-b border-[#EBE3D5] py-5">
           <button className="flex w-full items-center justify-between text-left mb-4">
-            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">SIZE</span>
-            <ChevronDown className="h-4 w-4 text-[#707070]" />
+            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A130E]">SIZE</span>
+            <ChevronDown className="h-4 w-4 text-[#8C7E74]" />
           </button>
           <div className="grid grid-cols-4 gap-1.5">
             {sizes.map((size) => (
                 <button
                     key={size}
-                    className="h-8 border border-[#E4DDD3] text-[11px] font-semibold text-[#1A1A1A] hover:border-[#1A1A1A] rounded bg-white transition"
+                    className="h-8 border border-[#EBE3D5] text-[11px] font-semibold text-[#1A130E] hover:border-[#1A130E] rounded bg-white transition"
                 >
                   {size}
                 </button>
@@ -289,20 +287,20 @@ function FilterRail() {
           </div>
         </section>
 
-        <section className="border-b border-[#E4DDD3] py-5">
+        <section className="border-b border-[#EBE3D5] py-5">
           <button className="flex w-full items-center justify-between text-left mb-4">
-          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A130E]">
             RENTAL DURATION
           </span>
-            <ChevronDown className="h-4 w-4 text-[#707070]" />
+            <ChevronDown className="h-4 w-4 text-[#8C7E74]" />
           </button>
           <div className="grid grid-cols-2 gap-3">
             {durations.map((duration) => (
                 <label
                     key={duration}
-                    className="flex items-center gap-2 text-[12px] text-[#4D4D4D] cursor-pointer"
+                    className="flex items-center gap-2 text-[12px] text-[#4F4338] cursor-pointer"
                 >
-                  <input type="radio" name="duration" className="accent-[#A62612] h-3.5 w-3.5" />
+                  <input type="radio" name="duration" className="accent-[#9E2A1B] h-3.5 w-3.5" />
                   {duration}
                 </label>
             ))}
@@ -311,14 +309,14 @@ function FilterRail() {
 
         <section className="pt-5">
           <button className="flex w-full items-center justify-between text-left">
-          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]">
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A130E]">
             PRICE RANGE
           </span>
-            <ChevronDown className="h-4 w-4 text-[#707070]" />
+            <ChevronDown className="h-4 w-4 text-[#8C7E74]" />
           </button>
           <div className="mt-4">
-            <input type="range" min="0" max="9999" className="w-full accent-[#A62612]" />
-            <div className="flex justify-between text-[11px] font-medium text-[#707070] mt-1">
+            <input type="range" min="0" max="9999" className="w-full accent-[#9E2A1B]" />
+            <div className="flex justify-between text-[11px] font-medium text-[#8C7E74] mt-1">
               <span>Rs 0</span>
               <span>Rs 9999+</span>
             </div>
@@ -337,7 +335,7 @@ function RentalCard({
 }) {
   return (
       <article className="group">
-        <div className="relative aspect-[0.78/1] overflow-hidden rounded-[8px] bg-[#F5F0E8]">
+        <div className="relative aspect-[0.78/1] overflow-hidden rounded-[8px] bg-[#F5EFE5]">
           <Link href={`/browse-finds/${product.id}?view=rent`} className="block h-full w-full">
             <Image
                 src={product.image}
@@ -359,18 +357,18 @@ function RentalCard({
               aria-label={`Save ${product.name}`}
               className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm"
           >
-            <Heart size={13} strokeWidth={2} className="text-[#707070] transition hover:text-[#A62612]" />
+            <Heart size={13} strokeWidth={2} className="text-[#8C7E74] transition hover:text-[#9E2A1B]" />
           </button>
         </div>
 
         <div className="mt-3">
-          <h2 className="line-clamp-1 text-[14px] font-medium leading-5 text-[#1A1A1A]">
+          <h2 className="line-clamp-1 text-[14px] font-medium leading-5 text-[#1A130E]">
             {product.name}
           </h2>
-          <p className="text-[12px] text-[#707070] font-normal leading-4 mt-0.5">
+          <p className="text-[12px] text-[#8C7E74] font-normal leading-4 mt-0.5">
             {product.brand}
           </p>
-          <p className="mt-1 text-[14px] font-bold text-[#1A1A1A]">
+          <p className="mt-1 text-[14px] font-bold text-[#1A130E]">
             {product.rentalPrice ?? product.price}
           </p>
         </div>
@@ -380,20 +378,20 @@ function RentalCard({
 
 function Pagination() {
   return (
-      <nav className="flex items-center justify-center gap-1.5 border-t border-[#E4DDD3] py-6">
-        <button className="rounded border border-[#E4DDD3] px-3 py-1.5 text-[11px] text-[#707070] transition hover:border-[#A62612] hover:text-[#A62612]">
+      <nav className="flex items-center justify-center gap-1.5 border-t border-[#EBE3D5] py-6">
+        <button className="rounded border border-[#EBE3D5] px-3 py-1.5 text-[11px] text-[#8C7E74] transition hover:border-[#9E2A1B] hover:text-[#9E2A1B]">
           Previous
         </button>
-        <button className="flex h-7 w-7 items-center justify-center rounded bg-[#A62612] text-[11px] font-semibold text-white">
+        <button className="flex h-7 w-7 items-center justify-center rounded bg-[#9E2A1B] text-[11px] font-semibold text-white">
           1
         </button>
-        <button className="flex h-7 w-7 items-center justify-center rounded border border-[#E4DDD3] text-[11px] text-[#1A1A1A] hover:border-[#A62612]">
+        <button className="flex h-7 w-7 items-center justify-center rounded border border-[#EBE3D5] text-[11px] text-[#1A130E] hover:border-[#9E2A1B]">
           2
         </button>
-        <button className="flex h-7 w-7 items-center justify-center rounded border border-[#E4DDD3] text-[11px] text-[#1A1A1A] hover:border-[#A62612]">
+        <button className="flex h-7 w-7 items-center justify-center rounded border border-[#EBE3D5] text-[11px] text-[#1A130E] hover:border-[#9E2A1B]">
           3
         </button>
-        <button className="rounded border border-[#E4DDD3] px-3 py-1.5 text-[11px] text-[#707070] transition hover:border-[#A62612] hover:text-[#A62612]">
+        <button className="rounded border border-[#EBE3D5] px-3 py-1.5 text-[11px] text-[#8C7E74] transition hover:border-[#9E2A1B] hover:text-[#9E2A1B]">
           Next
         </button>
       </nav>
