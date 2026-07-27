@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, FormEvent } from "react";
 import {
   Search,
   LogIn,
@@ -54,16 +54,30 @@ const DROPDOWN_LINKS: NavLink[] = [
   { label: "My Donations", href: "/dashboard/donations", icon: Gift },
 ];
 
-function SearchPill({ className = "" }: { className?: string }) {
+interface SearchPillProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  className?: string;
+}
+
+function SearchPill({ value, onChange, onSubmit, className = "" }: SearchPillProps) {
   return (
-      <div className={`flex items-center gap-2 px-4 py-2 bg-[#fffaf2] rounded-full border border-[#e0d4c4] ${className}`}>
-        <Search size={14} className="text-[#5E6B52] shrink-0" />
+      <form
+          onSubmit={onSubmit}
+          className={`flex items-center gap-2 px-4 py-2 bg-[#fffaf2] rounded-full border border-[#e0d4c4] focus-within:border-[#AC1B18] transition ${className}`}
+      >
+        <button type="submit" aria-label="Search" className="shrink-0 text-[#5E6B52] hover:text-[#AC1B18] transition">
+          <Search size={14} />
+        </button>
         <input
             type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
             placeholder="Search finds, rentals…"
             className="bg-transparent text-sm text-[#211714] placeholder-[#8a8177] focus:outline-none w-full"
         />
-      </div>
+      </form>
   );
 }
 
@@ -79,11 +93,17 @@ export default function Navbar() {
   const { authed, user, signOut } = useAuth();
   const { cartCount } = useCart();
 
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [dropOpen, setDropOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [notificationCount] = useState(2);
   const dropRef = useRef<HTMLDivElement>(null);
+
+  // Synchronize state with URL search parameters on route change
+  useEffect(() => {
+    setSearchQuery(searchParams.get("q") || "");
+  }, [searchParams]);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -95,11 +115,22 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Close the mobile drawer on route change so it doesn't stay open
-  // after navigating.
+  // Close mobile drawer on route change
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  const handleSearchSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const trimmedQuery = searchQuery.trim();
+
+    if (trimmedQuery) {
+      router.push(`/browse-finds?q=${encodeURIComponent(trimmedQuery)}`);
+      setMobileSearchOpen(false);
+    } else {
+      router.push("/browse-finds");
+    }
+  };
 
   const PUBLIC_PATHS = ["/", "/browse-finds", "/rent", "/donate"];
 
@@ -155,10 +186,14 @@ export default function Navbar() {
           {/* ── Right side ── */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Desktop search stays inline */}
-            <SearchPill className="hidden md:flex min-w-50 max-w-60" />
+            <SearchPill
+                value={searchQuery}
+                onChange={setSearchQuery}
+                onSubmit={handleSearchSubmit}
+                className="hidden md:flex min-w-50 max-w-60"
+            />
 
-            {/* Mobile search toggles an icon button (keeps navbar from
-              overflowing on small screens) */}
+            {/* Mobile search toggle button */}
             <button
                 type="button"
                 aria-label="Search"
@@ -196,7 +231,7 @@ export default function Navbar() {
                     )}
                   </Link>
 
-                  {/* Avatar dropdown — desktop only; mobile gets it inside the drawer */}
+                  {/* Avatar dropdown */}
                   <div className="relative hidden sm:block" ref={dropRef}>
                     <button
                         onClick={() => setDropOpen((p) => !p)}
@@ -260,7 +295,6 @@ export default function Navbar() {
                 </>
             ) : (
                 <>
-                  {/* Compact icon-only auth buttons on mobile, full pills from sm up */}
                   <Link
                       href={loginHref}
                       className="flex items-center gap-2 rounded-full bg-white border border-[#d7cbbb] px-3 py-2 text-sm font-bold text-[#211714] transition hover:border-[#AC1B18] hover:text-[#AC1B18] sm:px-4"
@@ -278,7 +312,7 @@ export default function Navbar() {
                 </>
             )}
 
-            {/* Hamburger — mobile/tablet only */}
+            {/* Hamburger menu button */}
             <button
                 type="button"
                 aria-label={mobileOpen ? "Close menu" : "Open menu"}
@@ -290,10 +324,15 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Mobile search bar — expands below the main row */}
+        {/* Mobile search bar */}
         {mobileSearchOpen && (
             <div className="md:hidden border-t border-[#e4d8c8] px-4 py-3">
-              <SearchPill className="w-full max-w-none" />
+              <SearchPill
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  onSubmit={handleSearchSubmit}
+                  className="w-full max-w-none"
+              />
             </div>
         )}
 

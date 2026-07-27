@@ -1,10 +1,10 @@
-// lib/mappers/listingMapper.ts
+// frontend/lib/mappers/listingMapper.ts
 
 import { ListingResponseDTO } from "@/lib/types/listing";
 import { Product, Status } from "@/lib/types/product";
 import { CARE_INSTRUCTIONS } from "@/lib/constants/care";
 
-function formatMoney(value: number | null): string | undefined {
+function formatMoney(value: number | null | undefined): string | undefined {
     if (value == null) return undefined;
     return `Rs. ${value.toLocaleString("en-IN")}`;
 }
@@ -48,7 +48,7 @@ function toDisplayAvailability(
 export function mapListingToProduct(
     dto: ListingResponseDTO
 ): Product {
-    const gallery = [
+    const gallery: string[] = [
         dto.photoFrontUrl,
         dto.photoBackUrl,
         dto.photoLabelUrl,
@@ -58,6 +58,7 @@ export function mapListingToProduct(
     return {
         id: dto.id,
         name: dto.productTitle,
+        category: dto.clothingType ?? undefined,
         status: toDisplayStatus(dto.listingMode),
 
         image:
@@ -137,7 +138,7 @@ export function mapListingToProduct(
         pickupDays: dto.pickupDays
             ? dto.pickupDays
                 .split(",")
-                .map((d) => d.trim())
+                .map((d: string) => d.trim()) // Explicitly typing 'd' fixes TS7006
                 .filter(Boolean)
             : undefined,
 
@@ -174,8 +175,5 @@ export function mapListingToProduct(
 export function mapListingsToProducts(
     dtos: ListingResponseDTO[]
 ): Product[] {
-    return dtos.map((dto) => {
-        console.log("RAW rentPerDay from API:", dto.rentPerDay, dto); // ✅ dto here is one item from the array
-        return mapListingToProduct(dto);
-    });
+    return dtos.map((dto) => mapListingToProduct(dto));
 }

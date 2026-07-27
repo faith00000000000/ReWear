@@ -848,17 +848,17 @@ export default function ListItemPage() {
 
             {/* ── Top Bar ── */}
             <div className="bg-[#FDF6EC]">
-                <div className="px-8 sm:px-12 lg:px-16 py-8 lg:py-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                <div className="px-4 sm:px-8 md:px-12 lg:px-16 py-6 sm:py-8 lg:py-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6">
                     <div>
-                        <h1 className="font-serif text-[32px] leading-none tracking-[-0.02em] text-[#2A1F1A]">
+                        <h1 className="font-serif text-[26px] sm:text-[32px] leading-none tracking-[-0.02em] text-[#2A1F1A]">
                             List Your Item
                         </h1>
-                        <p className="mt-2.5 text-[15px] text-[#6F6258]">
+                        <p className="mt-2.5 text-[14px] sm:text-[15px] text-[#6F6258]">
                             Create a beautiful listing and help your style live on.
                         </p>
                     </div>
-                    <button className="inline-flex items-center gap-3 rounded-2xl border border-[#E0D4C8] bg-white px-5 py-3.5 text-[14px] font-medium text-[#3D322B] transition-colors hover:bg-[#FDF6EC] hover:border-[#CBBDAF] shrink-0 shadow-sm">
-                        <HelpCircle size={18} strokeWidth={1.8} className="text-[#6F5E52]" />
+                    <button className="inline-flex items-center gap-3 rounded-2xl border border-[#E0D4C8] bg-white px-4 sm:px-5 py-3 sm:py-3.5 text-[13px] sm:text-[14px] font-medium text-[#3D322B] transition-colors hover:bg-[#FDF6EC] hover:border-[#CBBDAF] shrink-0 shadow-sm self-start md:self-auto">
+                        <HelpCircle size={18} strokeWidth={1.8} className="text-[#6F5E52] flex-shrink-0" />
                         <span>
               Need help? Check our{" "}
                             <span className="font-semibold text-[#A33214]">Seller Guide</span>
@@ -868,7 +868,7 @@ export default function ListItemPage() {
             </div>
 
             {/* ── Body (same horizontal padding as top bar) ── */}
-            <div className="px-8 sm:px-12 lg:px-16 pb-12 flex gap-7">
+            <div className="px-4 sm:px-8 md:px-12 lg:px-16 pb-12 flex flex-col lg:flex-row gap-5 lg:gap-7">
 
                 {/* ── Left: Form ── */}
                 <div className="flex-1 min-w-0 flex flex-col gap-5">
@@ -876,21 +876,21 @@ export default function ListItemPage() {
                     {/* ━━ 1. Basic Information ━━ */}
                     <div className="bg-white rounded-xl border border-[#E8DDD0] overflow-hidden">
                         {/* Section header bar */}
-                        <div className="flex items-center gap-3 px-7 py-5 border-b border-[#F0E6DA]">
+                        <div className="flex items-center gap-3 px-4 sm:px-7 py-4 sm:py-5 border-b border-[#F0E6DA]">
                           <span className="w-7 h-7 rounded-full bg-[#A33214] text-white text-[13px] font-bold flex items-center justify-center flex-shrink-0">
                             1
                           </span>
                             <div>
-                                <h2 className="text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
+                                <h2 className="text-[16px] sm:text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
                                     Basic Information
                                 </h2>
-                                <p className="text-[13px] text-[#8A7060] mt-0.5">
+                                <p className="text-[12px] sm:text-[13px] text-[#8A7060] mt-0.5">
                                     Add key details so buyers can find your item easily.
                                 </p>
                             </div>
                         </div>
 
-                        <div className="px-7 py-6 flex flex-col gap-5">
+                        <div className="px-4 sm:px-7 py-5 sm:py-6 flex flex-col gap-5">
 
 
                             {/* Row 1: Title full width */}
@@ -904,13 +904,13 @@ export default function ListItemPage() {
                             />
 
                             {/* Row 2: Category, Clothing Type, Gender */}
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
                                 <div>
                                     <label className="text-[13px] font-medium text-[#3D2B1F] block mb-2">
                                         Listing Mode <span className="text-[#A33214]">*</span>
                                     </label>
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-wrap gap-2">
                                         {(["Thrift", "Rent", "Thrift + Rent"] as ListingMode[]).map((mode) => (
                                             <button
                                                 key={mode}
@@ -943,7 +943,7 @@ export default function ListItemPage() {
                             </div>
 
                             {/* Row 3: Brand, Style/Occasion, Era */}
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <InputField
                                     label="Brand"
                                     value={form.brand}
@@ -968,28 +968,28 @@ export default function ListItemPage() {
 
                     {/* ━━ 2. Media ━━ */}
                     <div className="bg-white rounded-xl border border-[#E8DDD0] overflow-hidden">
-                        <div className="flex items-center gap-3 px-7 py-5 border-b border-[#F0E6DA]">
+                        <div className="flex items-center gap-3 px-4 sm:px-7 py-4 sm:py-5 border-b border-[#F0E6DA]">
                             <span className="w-7 h-7 rounded-full bg-[#A33214] text-white text-[13px] font-bold flex items-center justify-center flex-shrink-0">
                               2
                             </span>
                             <div>
-                                <h2 className="text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
+                                <h2 className="text-[16px] sm:text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
                                     Media
                                 </h2>
-                                <p className="text-[13px] text-[#8A7060] mt-0.5">
+                                <p className="text-[12px] sm:text-[13px] text-[#8A7060] mt-0.5">
                                     Add up to 4 photos and 1 video. Clear photos build trust and sell faster.
                                 </p>
                             </div>
                         </div>
 
-                        <div className="px-7 py-6 flex flex-col gap-6">
+                        <div className="px-4 sm:px-7 py-5 sm:py-6 flex flex-col gap-6">
                             {/* Photos */}
                             <div>
                                 <p className="text-[13px] font-semibold text-[#3D2B1F] mb-3">
                                     Photos <span className="font-normal text-[#8A7060]">(Max 4)</span>
                                 </p>
-                                {/* 4 equal-width columns */}
-                                <div className="grid grid-cols-4 gap-3">
+                                {/* 2 columns on mobile, 4 on larger screens */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                     {[
                                         { label: "Upload Front", sub: "Main view",        icon: <Upload size={20} /> },
                                         { label: "Upload Back",  sub: "Back view",        icon: <Upload size={20} /> },
@@ -1016,12 +1016,12 @@ export default function ListItemPage() {
                                 <p className="text-[13px] font-semibold text-[#3D2B1F] mb-3">
                                     Video <span className="font-normal text-[#8A7060]">(Optional)</span>
                                 </p>
-                                <div className="flex gap-4">
+                                <div className="flex flex-col sm:flex-row gap-4">
                                     <VideoUploadSlot
                                         previewUrl={form.video}
                                         onFileChange={updateVideo}
                                     />
-                                    <div className="bg-[#FDFAF6] border border-[#E8DDD0] rounded-2xl px-5 py-4 w-[210px] flex-shrink-0">
+                                    <div className="bg-[#FDFAF6] border border-[#E8DDD0] rounded-2xl px-5 py-4 w-full sm:w-[210px] flex-shrink-0">
                                         <div className="flex items-center gap-1.5 mb-2.5">
                                             <Info size={13} className="text-[#8A7060]" />
                                             <p className="text-[12px] font-semibold text-[#2A1F1A]">Tips for great media</p>
@@ -1045,20 +1045,20 @@ export default function ListItemPage() {
 
                     {/* ━━ 3. Description ━━ */}
                     <div className="bg-white rounded-xl border border-[#E8DDD0] overflow-hidden">
-                        <div className="flex items-center gap-3 px-7 py-5 border-b border-[#F0E6DA]">
+                        <div className="flex items-center gap-3 px-4 sm:px-7 py-4 sm:py-5 border-b border-[#F0E6DA]">
                               <span className="w-7 h-7 rounded-full bg-[#A33214] text-white text-[13px] font-bold flex items-center justify-center flex-shrink-0">
                                 3
                               </span>
                             <div>
-                                <h2 className="text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
+                                <h2 className="text-[16px] sm:text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
                                     Description
                                 </h2>
-                                <p className="text-[13px] text-[#8A7060] mt-0.5">
+                                <p className="text-[12px] sm:text-[13px] text-[#8A7060] mt-0.5">
                                     Write an honest, clear description to help buyers understand the item better.
                                 </p>
                             </div>
                         </div>
-                        <div className="px-7 py-6">
+                        <div className="px-4 sm:px-7 py-5 sm:py-6">
                             <div className="relative">
                             <textarea
                                 value={form.description}
@@ -1066,7 +1066,7 @@ export default function ListItemPage() {
                                 placeholder="Describe the item, fabric, fit, condition, wear history, flaws (if any), and styling notes..."
                                 maxLength={1500}
                                 rows={5}
-                                className="w-full bg-white border border-[#DDD0C4] rounded-2xl px-5 py-4 text-[14px] text-[#1A130E] placeholder-[#BBA898] focus:outline-none focus:border-[#A33214] focus:ring-2 focus:ring-[#A33214]/10 resize-none transition-colors"
+                                className="w-full bg-white border border-[#DDD0C4] rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-[14px] text-[#1A130E] placeholder-[#BBA898] focus:outline-none focus:border-[#A33214] focus:ring-2 focus:ring-[#A33214]/10 resize-none transition-colors"
                             />
                                 <span className="absolute bottom-4 right-5 text-[11px] text-[#BBA898] tabular-nums">
                               {form.description.length}/1500
@@ -1077,23 +1077,23 @@ export default function ListItemPage() {
 
                     {/* ━━ 4. Item Attributes ━━ */}
                     <div className="bg-white rounded-xl border border-[#E8DDD0] overflow-hidden">
-                        <div className="flex items-center gap-3 px-7 py-5 border-b border-[#F0E6DA]">
+                        <div className="flex items-center gap-3 px-4 sm:px-7 py-4 sm:py-5 border-b border-[#F0E6DA]">
                                       <span className="w-7 h-7 rounded-full bg-[#A33214] text-white text-[13px] font-bold flex items-center justify-center flex-shrink-0">
                                         4
                                       </span>
                             <div>
-                                <h2 className="text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
+                                <h2 className="text-[16px] sm:text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
                                     Item Attributes
                                 </h2>
-                                <p className="text-[13px] text-[#8A7060] mt-0.5">
+                                <p className="text-[12px] sm:text-[13px] text-[#8A7060] mt-0.5">
                                     Provide accurate details to improve discoverability and buyer confidence.
                                 </p>
                             </div>
                         </div>
 
-                        <div className="px-7 py-6 flex flex-col gap-5">
+                        <div className="px-4 sm:px-7 py-5 sm:py-6 flex flex-col gap-5">
                             {/* Row 1: Size, Condition, Color */}
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <SelectField
                                     label="Size on Label"
                                     required
@@ -1118,7 +1118,7 @@ export default function ListItemPage() {
                             </div>
 
                             {/* Row 2: Material, Original Price, Availability */}
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <SelectField
                                     label="Material"
                                     required
@@ -1164,23 +1164,23 @@ export default function ListItemPage() {
 
                     {/* ━━ 5. Delivery Options ━━ */}
                     <div className="bg-white rounded-xl border border-[#E8DDD0] overflow-hidden">
-                        <div className="flex items-center gap-3 px-7 py-5 border-b border-[#F0E6DA]">
+                        <div className="flex items-center gap-3 px-4 sm:px-7 py-4 sm:py-5 border-b border-[#F0E6DA]">
                           <span className="w-7 h-7 rounded-full bg-[#A33214] text-white text-[13px] font-bold flex items-center justify-center flex-shrink-0">
                             5
                           </span>
                             <div>
-                                <h2 className="text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
+                                <h2 className="text-[16px] sm:text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
                                     Delivery Options
                                 </h2>
-                                <p className="text-[13px] text-[#8A7060] mt-0.5">
+                                <p className="text-[12px] sm:text-[13px] text-[#8A7060] mt-0.5">
                                     Choose how buyers can receive this item. You can offer one or both options.
                                 </p>
                             </div>
                         </div>
 
-                        <div className="px-7 py-6 flex flex-col gap-6">
+                        <div className="px-4 sm:px-7 py-5 sm:py-6 flex flex-col gap-6">
                             {/* Option selector */}
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <DeliveryOptionCard
                                     icon={<Truck size={16} />}
                                     title="Shipping"
@@ -1233,7 +1233,7 @@ export default function ListItemPage() {
                                         <label className="text-[13px] font-medium text-[#3D2B1F] block mb-2.5">
                                             Shipping Fee Type <span className="text-[#A33214]">*</span>
                                         </label>
-                                        <div className="grid grid-cols-3 gap-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                             <FeeTypeCard
                                                 title="Free Shipping"
                                                 desc="You'll cover the shipping cost"
@@ -1278,7 +1278,7 @@ export default function ListItemPage() {
                                             <p className="text-[12px] font-medium text-[#3D2B1F] mb-2">
                                                 Shipping Rate Structure
                                             </p>
-                                            <div className="grid grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                                 <InputField
                                                     label="Within District"
                                                     required
@@ -1364,10 +1364,12 @@ export default function ListItemPage() {
                                             <button
                                                 type="button"
                                                 onClick={handleUseMyLocation}
-                                                className="absolute top-3 right-3 z-[1000] px-3 py-2 rounded-lg bg-white/95 border border-[#DDD0C4] text-[#A33214] text-[12px] font-semibold shadow-sm hover:bg-white transition-colors flex items-center gap-1.5"
+                                                className="absolute top-3 right-3 z-[1000] px-2.5 sm:px-3 py-2 rounded-lg bg-white/95 border border-[#DDD0C4] text-[#A33214] text-[11px] sm:text-[12px] font-semibold shadow-sm hover:bg-white transition-colors flex items-center gap-1.5"
                                             >
                                                 <Navigation size={13} />
-                                                {form.pickupLocationConfirmed ? "Update Pin" : "Select My Location"}
+                                                <span className="hidden xs:inline">
+                                                    {form.pickupLocationConfirmed ? "Update Pin" : "Select My Location"}
+                                                </span>
                                             </button>
                                         </div>
 
@@ -1381,7 +1383,7 @@ export default function ListItemPage() {
                                         )}
 
                                         {form.pickupLocationConfirmed ? (
-                                            <div className="mt-2 flex items-center justify-between gap-2 bg-[#F2FAF0] border border-[#D8E8D0] rounded-xl px-3.5 py-2.5">
+                                            <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 bg-[#F2FAF0] border border-[#D8E8D0] rounded-xl px-3.5 py-2.5">
                                                 <div className="flex items-center gap-1.5 text-[12px] text-[#3D5C30] font-medium">
                                                     <CheckCircle size={13} />
                                                     Location entered successfully
@@ -1398,9 +1400,9 @@ export default function ListItemPage() {
                                     </div>
 
                                     {/* Pickup Contact Number + Pickup Instructions — side by side */}
-                                    <div className="grid grid-cols-2 gap-4 items-stretch">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
                                         <div className="flex flex-col gap-1.5">
-                                            <div className="flex items-center justify-between">
+                                            <div className="flex items-center justify-between flex-wrap gap-1.5">
                                                 <label className="text-[13px] font-medium text-[#3D2B1F]">
                                                     Pickup Contact Number <span className="text-[#A33214]">*</span>
                                                 </label>
@@ -1467,7 +1469,7 @@ export default function ListItemPage() {
                                                 type="time"
                                                 value={form.pickupTimeFrom}
                                                 onChange={(e) => update("pickupTimeFrom", e.target.value)}
-                                                className="w-full bg-white border border-[#DDD0C4] rounded-xl px-4 py-2.5 text-[14px] text-[#1A130E] focus:outline-none focus:border-[#A33214] focus:ring-2 focus:ring-[#A33214]/10 transition-colors"
+                                                className="w-full bg-white border border-[#DDD0C4] rounded-xl px-2 sm:px-4 py-2.5 text-[13px] sm:text-[14px] text-[#1A130E] focus:outline-none focus:border-[#A33214] focus:ring-2 focus:ring-[#A33214]/10 transition-colors"
                                             />
                                         </div>
                                         <div className="flex flex-col gap-1.5">
@@ -1476,7 +1478,7 @@ export default function ListItemPage() {
                                                 type="time"
                                                 value={form.pickupTimeTo}
                                                 onChange={(e) => update("pickupTimeTo", e.target.value)}
-                                                className="w-full bg-white border border-[#DDD0C4] rounded-xl px-4 py-2.5 text-[14px] text-[#1A130E] focus:outline-none focus:border-[#A33214] focus:ring-2 focus:ring-[#A33214]/10 transition-colors"
+                                                className="w-full bg-white border border-[#DDD0C4] rounded-xl px-2 sm:px-4 py-2.5 text-[13px] sm:text-[14px] text-[#1A130E] focus:outline-none focus:border-[#A33214] focus:ring-2 focus:ring-[#A33214]/10 transition-colors"
                                             />
                                         </div>
                                     </div>
@@ -1498,22 +1500,22 @@ export default function ListItemPage() {
 
                     {/* ━━ 6. Pricing ━━ */}
                     <div className="bg-white rounded-xl border border-[#E8DDD0] overflow-hidden">
-                        <div className="flex items-center gap-3 px-7 py-5 border-b border-[#F0E6DA]">
+                        <div className="flex items-center gap-3 px-4 sm:px-7 py-4 sm:py-5 border-b border-[#F0E6DA]">
                           <span className="w-7 h-7 rounded-full bg-[#A33214] text-white text-[13px] font-bold flex items-center justify-center flex-shrink-0">
                             6
                           </span>
                             <div>
-                                <h2 className="text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
+                                <h2 className="text-[16px] sm:text-[18px] font-serif font-semibold text-[#2A1F1A] leading-none">
                                     Pricing
                                 </h2>
-                                <p className="text-[13px] text-[#8A7060] mt-0.5">
+                                <p className="text-[12px] sm:text-[13px] text-[#8A7060] mt-0.5">
                                     Set your price based on item quality, brand, and market value.
                                 </p>
                             </div>
                         </div>
 
-                        <div className="px-7 py-6">
-                            <div className="grid grid-cols-3 gap-4">
+                        <div className="px-4 sm:px-7 py-5 sm:py-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
                                 {/* Thrift card */}
                                 <div
@@ -1650,16 +1652,16 @@ export default function ListItemPage() {
                     </div>
 
                     {/* ━━ Action Buttons ━━ */}
-                    <div className="bg-white rounded-xl border border-[#E8DDD0] px-7 py-5 flex items-center justify-between">
+                    <div className="bg-white rounded-xl border border-[#E8DDD0] px-4 sm:px-7 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center gap-2 text-[12px] text-[#8A7060]">
-                            <Shield size={15} className="text-[#8A7060]" />
+                            <Shield size={15} className="text-[#8A7060] flex-shrink-0" />
                             <span>Your listing goes live immediately after publishing.</span>
                         </div>
                         <button
                             type="button"
                             disabled={isSubmitting}
                             onClick={() => handleSubmit()}
-                            className="px-5 py-2.5 rounded-xl bg-[#A33214] text-white text-[14px] font-bold hover:bg-[#8B2910] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#A33214] text-white text-[14px] font-bold hover:bg-[#8B2910] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {isSubmitting ? "Publishing..." : "Publish Listing"}
                         </button>
@@ -1667,8 +1669,8 @@ export default function ListItemPage() {
                 </div>
 
                 {/* ── Right: Preview ── */}
-                <div className="w-[400px] flex-shrink-0">
-                    <div className="sticky top-6">
+                <div className="w-full lg:w-[400px] flex-shrink-0">
+                    <div className="lg:sticky lg:top-6">
                         <div className="bg-white rounded-xl border border-[#E8DDD0] overflow-hidden">
 
                             {/* Header */}
@@ -2026,4 +2028,4 @@ export default function ListItemPage() {
             </div>
         </div>
     );
-}   
+}

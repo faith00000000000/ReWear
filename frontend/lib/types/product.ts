@@ -14,6 +14,8 @@ export interface Product {
     name: string;
     status: Status;
 
+    category?: string; // <--- ADD THIS LINE HERE
+
     image: string;
     videoUrl?: string;
     gallery: string[];
