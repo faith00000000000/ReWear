@@ -107,7 +107,7 @@ public class ListingRequestDTO {
     private String pickupTimeFrom;    // "HH:mm"
     private String pickupTimeTo;      // "HH:mm"
     private String pickupInstructions;
-    private boolean sameDayPickup;
+    private Boolean sameDayPickup;
 
     // ── Section 6 ────────────────────────────────────────────────────
 
@@ -128,6 +128,7 @@ public class ListingRequestDTO {
     // Frontend now always sends true (Save Draft button removed), but the
     // field stays so DRAFT-via-other-callers (admin tools, future re-add
     // of drafts) keeps working without another DTO change.
+    @Builder.Default
     private boolean publish = false;
 
     // NOTE: sellerId removed. The seller is resolved server-side from the

@@ -21,14 +21,27 @@ function isPublicAuthRequest(url?: string) {
 }
 
 // Attach JWT access token only where authentication is required.
+// api.interceptors.request.use((config) => {
+//   if (isPublicAuthRequest(config.url)) {
+//     delete config.headers.Authorization;
+//     return config;
+//   }
+//
+//   const token = localStorage.getItem("accessToken");
+//   if (token) config.headers.Authorization = `Bearer ${token}`;
+//   return config;
+// });
+
 api.interceptors.request.use((config) => {
   if (isPublicAuthRequest(config.url)) {
     delete config.headers.Authorization;
     return config;
   }
 
-  const token = localStorage.getItem("accessToken");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("accessToken");
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -44,6 +57,11 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
+
+      if (typeof window === "undefined") {
+        return Promise.reject(error); // no browser session to refresh on the server
+      }
+      
       const refreshToken = localStorage.getItem("refreshToken");
 
       if (!refreshToken) {

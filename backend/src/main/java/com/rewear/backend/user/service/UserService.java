@@ -40,6 +40,24 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
+    public UserResponseDto getUserById(Long id, boolean includePrivateFields) {
+        log.debug("Fetching user by id: {} (includePrivateFields={})", id, includePrivateFields);
+        User user = findUserById(id);
+        UserResponseDto full = userMapper.toResponseDto(user);
+
+        if (includePrivateFields) {
+            return full;
+        }
+
+        // Public/non-owner view — strip account-internal fields (email, phone).
+        return UserResponseDto.builder()
+                .id(full.getId())
+                .fullName(full.getFullName())
+                .profilePictureUrl(full.getProfilePictureUrl())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
     public UserResponseDto getUserByEmail(String email) {
         log.debug("Fetching user by email: {}", email);
         User user = userRepository.findByEmail(email.toLowerCase().trim())
@@ -76,6 +94,13 @@ public class UserService {
         if (requestDto.getPassword() != null && !requestDto.getPassword().isBlank()) {
             user.setPassword(passwordEncoder.encode(requestDto.getPassword()));
             log.debug("Updated password for user: {}", id);
+        }
+
+        // NEW — phone. @Pattern on the DTO already guarantees this is exactly
+        // 10 digits by the time it reaches here (or null, if not being changed).
+        if (requestDto.getPhone() != null && !requestDto.getPhone().isBlank()) {
+            user.setPhone(requestDto.getPhone().trim());
+            log.debug("Updated phone for user: {}", id);
         }
 
         User updatedUser = userRepository.save(user);

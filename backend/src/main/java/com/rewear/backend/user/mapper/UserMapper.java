@@ -23,6 +23,7 @@ public class UserMapper {
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .profilePictureUrl(user.getProfilePictureUrl()) // Google photo URL or null
+                .phone(user.getPhone())                          // NEW
                 .isActive(user.getIsActive())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())

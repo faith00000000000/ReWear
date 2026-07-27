@@ -8,6 +8,8 @@ import { fetchListings, filterByMode } from "@/lib/api/listings";
 import { mapListingsToProducts } from "@/lib/mappers/listingMapper";
 import { Product } from "@/lib/types/product";
 import { useAuth } from "@/lib/AuthContext";
+import { useFavorites, mapAvailability } from "@/lib/FavoritesContext";
+import { toast } from "react-toastify";
 
 const filters = [
     {
@@ -276,6 +278,31 @@ export function ProductCard({
     product: Product;
     badgeClass: string;
 }) {
+    // NEW — guests never see the heart icon at all; it only renders once
+    // logged in, and only then do we bother checking favorite state.
+    const { authed } = useAuth();
+    const { isFavorite, toggleFavorite } = useFavorites();
+    const isFav = authed && isFavorite(String(product.id));
+
+    function handleToggleFavorite() {
+        const nowFavorited = toggleFavorite({
+            id: String(product.id),
+            name: product.name,
+            brand: product.brand,
+            image: product.image,
+            price: product.price,
+            status: product.status,
+            category: "thrift",
+            size: product.size,
+            availability: mapAvailability(product.availability),
+        });
+
+        toast[nowFavorited ? "success" : "info"](
+            nowFavorited ? "Added to favourites" : "Removed from favourites",
+            { autoClose: 2000 }
+        );
+    }
+
     return (
         <article className="group">
             <div className="relative aspect-[0.8/1] overflow-hidden rounded-[8px] bg-[#F5F0E8]">
@@ -295,17 +322,22 @@ export function ProductCard({
           {product.status}
         </span>
 
-                <button
-                    type="button"
-                    aria-label={`Save ${product.name}`}
-                    className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm"
-                >
-                    <Heart
-                        size={14}
-                        strokeWidth={2}
-                        className="text-[#707070] transition hover:text-[#A62612]"
-                    />
-                </button>
+                {/* Not nested inside the <Link> above, so no need to stop propagation.
+                    Hidden entirely for guests — favoriting requires an account. */}
+                {authed && (
+                    <button
+                        type="button"
+                        onClick={handleToggleFavorite}
+                        aria-label={isFav ? `Remove ${product.name} from favourites` : `Save ${product.name}`}
+                        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm"
+                    >
+                        <Heart
+                            size={14}
+                            strokeWidth={2}
+                            className={isFav ? "fill-[#A62612] text-[#A62612]" : "text-[#707070] transition hover:text-[#A62612]"}
+                        />
+                    </button>
+                )}
             </div>
 
             <Link href={`/browse-finds/${product.id}?view=thrift`} className="mt-3 block">
@@ -319,6 +351,8 @@ export function ProductCard({
         </article>
     );
 }
+
+
 function Pagination() {
     return (
         <nav className="flex items-center justify-center gap-2 border-t border-[#E4DDD3] py-5">

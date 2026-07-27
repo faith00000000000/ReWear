@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -7,119 +8,131 @@ import {
   PackageCheck,
   RotateCcw,
   ArrowRight,
-  ShoppingBag,
-  CalendarClock,
-  Sparkles,
-  HeartHandshake,
-  ChevronRight,
-  Truck,
-  ShieldCheck,
-  CircleDollarSign,
-  Headphones, ArrowUpRight,
 } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
-import Navbar from "@/layout/Navbar";
-import Footer from "@/layout/Footer";
+import { useCart } from "@/lib/CartContext";
+import { useFavorites } from "@/lib/FavoritesContext";
+import { useRecentlyViewed } from "@/lib/RecentlyViewedContext";
 import HeroSection from "@/components/HeroSection";
 import FAQSection from "@/components/FAQSection";
+import { fetchListings, filterByMode } from "@/lib/api/listings";
+import { ListingResponseDTO } from "@/lib/types/listing";
 
-const readyToWear = [
-  {
-    name: "Red Cable Knit Cropped Cardigan",
-    tag: "Thrift" as const,
-    price: "6,400",
-    image:
-        "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=600&q=80",
-  },
-  {
-    name: "Cognac Suede Weekend Jacket",
-    tag: "Thrift + Rent" as const,
-    price: "9,200",
-    image:
-        "https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=520&q=90",
-  },
-  {
-    name: "Crochet Lace Buttoned Blouse",
-    tag: "Thrift" as const,
-    price: "5,250",
-    image:
-        "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=520&q=90",
-  },
-  {
-    name: "High Waist Wide-Leg Denim",
-    tag: "Thrift" as const,
-    price: "7,500",
-    image:
-        "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=520&q=90",
-  },
-];
+/* ─── Shared product item shape used by ProductRail ──────────────────── */
+interface ProductItem {
+  id: number;
+  name: string;
+  image: string;
+  price: string;
+  tag: "Thrift" | "Thrift + Rent" | "Rent";
+}
 
-const rentLooks = [
-  {
-    name: "Silk Bias Mini Dress",
-    tag: "Rent" as const,
-    price: "2,400 / day",
-    image:
-        "https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=520&q=90",
-  },
-  {
-    name: "Belted Trench Coat",
-    tag: "Rent" as const,
-    price: "1,500 / day",
-    image:
-        "https://images.unsplash.com/photo-1548624313-0396c75e4b1a?auto=format&fit=crop&w=520&q=90",
-  },
-  {
-    name: "Printed Wrap Dress",
-    tag: "Thrift + Rent" as const,
-    price: "1,950 / day",
-    image:
-        "https://images.unsplash.com/photo-1581044777550-4cfa60707c03?auto=format&fit=crop&w=520&q=90",
-  },
-  {
-    name: "Cream Evening Blazer",
-    tag: "Rent" as const,
-    price: "1,800 / day",
-    image:
-        "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=520&q=90",
-  },
-];
+/* Maps a backend listing to the card shape, keeping THRIFT/RENT price logic
+   consistent with how browse-finds/rent already display it. */
+function toReadyToWearItem(l: ListingResponseDTO): ProductItem {
+  const tag: ProductItem["tag"] =
+      l.listingMode === "THRIFT_AND_RENT" ? "Thrift + Rent" : "Thrift";
+  return {
+    id: l.id,
+    name: l.productTitle,
+    image: l.photoFrontUrl || "/images/placeholder-item.png",
+    price: l.thriftPrice != null ? Number(l.thriftPrice).toLocaleString() : "—",
+    tag,
+  };
+}
+
+function toRentItem(l: ListingResponseDTO): ProductItem {
+  const tag: ProductItem["tag"] =
+      l.listingMode === "THRIFT_AND_RENT" ? "Thrift + Rent" : "Rent";
+  return {
+    id: l.id,
+    name: l.productTitle,
+    image: l.photoFrontUrl || "/images/placeholder-item.png",
+    price:
+        l.rentPerDay != null
+            ? `${Number(l.rentPerDay).toLocaleString()} / day`
+            : "—",
+    tag,
+  };
+}
 
 export default function Home() {
   const { authed, user, isMounted } = useAuth();
+
+  const [readyToWear, setReadyToWear] = useState<ProductItem[]>([]);
+  const [rentLooks, setRentLooks] = useState<ProductItem[]>([]);
+  const [loadingListings, setLoadingListings] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadListings() {
+      try {
+        // Pull a page and split client-side by mode. If your catalog grows
+        // large, swap this for two dedicated endpoint calls with a
+        // `listingMode` query param instead.
+        const { content } = await fetchListings({ page: 0, size: 24 });
+        if (cancelled) return;
+
+        const thriftItems = filterByMode(content, "THRIFT").slice(0, 4);
+        const rentItems = filterByMode(content, "RENT").slice(0, 4);
+
+        setReadyToWear(thriftItems.map(toReadyToWearItem));
+        setRentLooks(rentItems.map(toRentItem));
+      } catch {
+        // Fail quiet on the landing page — sections simply won't render
+        setReadyToWear([]);
+        setRentLooks([]);
+      } finally {
+        if (!cancelled) setLoadingListings(false);
+      }
+    }
+
+    loadListings();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!isMounted) return null;
 
   return (
       <div className="min-h-screen bg-[#F7F4EB] font-sans antialiased text-[#1A1A1A]">
-        {/* No <Navbar /> here — layout handles it */}
-        {/* No border-x wrapper here — layout handles it */}
-
         <HeroSection isAuthenticated={authed} userName={user?.fullName} />
-
-        <div className="bg-[#F7F4EB] pt-16 pb-4 text-center">{/* section header */}</div>
 
         {authed ? <StatsCardsAuthenticated /> : <StatsCardsGuest />}
 
-        {!authed ? <PromotionalOffersSection /> : <ContinueWhereYouLeftOffSection userId={user?.id} />}
+        {authed && <ContinueWhereYouLeftOffSection />}
+        {/* Guest promotional banners (New Arrivals / Handbag / Watch / Backpack)
+          intentionally removed per current requirements. */}
 
-        <ProductRail eyebrow="CURATED FINDS" title="Ready-To-Wear" href="/browse-finds" items={readyToWear} />
-        <ProductRail eyebrow="RENT, DON'T OWN" title="Rent The Look" href="/rent" items={rentLooks} />
+        {!loadingListings && readyToWear.length > 0 && (
+            <ProductRail
+                eyebrow="CURATED FINDS"
+                title="Ready-To-Wear"
+                href="/browse-finds"
+                items={readyToWear}
+            />
+        )}
+
+        {!loadingListings && rentLooks.length > 0 && (
+            <ProductRail
+                eyebrow="RENT, DON'T OWN"
+                title="Rent The Look"
+                href="/rent"
+                items={rentLooks}
+            />
+        )}
 
         <DonateFeature />
         <FAQSection />
-
-        {/* No <Footer /> here — layout handles it */}
       </div>
   );
 }
 
-interface ProductItem {
-  name: string;
-  image: string;
-  price: string | number;
-  tag: "Thrift" | "Thrift + Rent" | "Rent";
-}
+/* ──────────────────────────────────────────────────────────────────────
+   PRODUCT RAIL — mobile: 2-up grid, scales to 4-up on desktop
+   ────────────────────────────────────────────────────────────────────── */
 
 export function ProductRail({
                               eyebrow,
@@ -133,78 +146,76 @@ export function ProductRail({
   items: ProductItem[];
 }) {
   return (
-      <section className="bg-[#F7F4EB] px-6 py-12 sm:px-12 lg:px-20">
+      <section className="bg-[#F7F4EB] px-4 py-10 sm:px-6 sm:py-12 lg:px-20">
         <div className="mx-auto max-w-[1380px]">
           {/* Section Header */}
-          <div className="mb-8 flex items-end justify-between border-b border-gray-200/50 pb-4">
+          <div className="mb-6 flex items-end justify-between gap-3 border-b border-gray-200/50 pb-4 sm:mb-8">
             <div className="flex flex-col gap-1">
-              <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#962D18]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#962D18] sm:text-[11px] sm:tracking-[0.25em]">
                 {eyebrow}
               </p>
-              <h2 className="text-3xl font-serif tracking-tight text-[#1A1A1A]">
+              <h2 className="text-xl font-serif tracking-tight text-[#1A1A1A] sm:text-3xl">
                 {title}
               </h2>
             </div>
 
             <Link
                 href={href}
-                className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.15em] text-[#1A1A1A] transition hover:text-[#962D18]"
+                className="flex shrink-0 items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A] transition hover:text-[#962D18] sm:text-[11px] sm:tracking-[0.15em]"
             >
-              <span>VIEW ALL PRODUCTS</span>
+              <span className="hidden sm:inline">VIEW ALL PRODUCTS</span>
+              <span className="sm:hidden">VIEW ALL</span>
               <ArrowRight size={14} strokeWidth={2.5} />
             </Link>
           </div>
 
-          {/* Product Grid Layout */}
-          <div className="grid grid-cols-1 gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Product Grid — 2-up on mobile, not 1-up, so small screens don't
+            waste horizontal space on a single stretched card. */}
+          <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:gap-x-5 sm:gap-y-10 lg:grid-cols-4">
             {items.map((item) => (
                 <article
-                    key={item.name}
-                    className="group flex flex-col bg-white p-3 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] transition hover:shadow-[0_4px_24px_rgba(0,0,0,0.05)]"
+                    key={item.id}
+                    className="group flex flex-col bg-white p-2 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] transition hover:shadow-[0_4px_24px_rgba(0,0,0,0.05)] sm:p-3 sm:rounded-2xl"
                 >
-                  {/* Card Image Container */}
-                  <div className="relative aspect-[1/1.05] w-full overflow-hidden rounded-xl bg-[#EFECE8]">
+                  <div className="relative aspect-[1/1.05] w-full overflow-hidden rounded-lg bg-[#EFECE8] sm:rounded-xl">
                     <Image
                         src={item.image}
                         alt={item.name}
                         fill
-                        sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                        sizes="(min-width: 1024px) 25vw, 50vw"
                         className="object-cover transition duration-500 group-hover:scale-103"
                     />
 
-                    {/* Left Side Product Badge Tags */}
                     {item.tag === "Thrift" && (
-                        <span className="absolute left-3 top-3 z-10 rounded-full bg-[#A32219] px-3 py-1 text-[9px] font-bold tracking-wider text-white shadow-sm uppercase">
+                        <span className="absolute left-2 top-2 z-10 rounded-full bg-[#A32219] px-2 py-0.5 text-[8px] font-bold tracking-wider text-white shadow-sm uppercase sm:left-3 sm:top-3 sm:px-3 sm:py-1 sm:text-[9px]">
                     Thrift
                   </span>
                     )}
                     {item.tag === "Thrift + Rent" && (
-                        <span className="absolute left-3 top-3 z-10 rounded-full bg-[#1F1916] px-3 py-1 text-[9px] font-bold tracking-wider text-white shadow-sm uppercase">
+                        <span className="absolute left-2 top-2 z-10 rounded-full bg-[#1F1916] px-2 py-0.5 text-[8px] font-bold tracking-wider text-white shadow-sm uppercase sm:left-3 sm:top-3 sm:px-3 sm:py-1 sm:text-[9px]">
                     Thrift + Rent
                   </span>
                     )}
                     {item.tag === "Rent" && (
-                        <span className="absolute left-3 top-3 z-10 rounded-full bg-[#525E4B] px-3 py-1 text-[9px] font-bold tracking-wider text-white shadow-sm uppercase">
+                        <span className="absolute left-2 top-2 z-10 rounded-full bg-[#525E4B] px-2 py-0.5 text-[8px] font-bold tracking-wider text-white shadow-sm uppercase sm:left-3 sm:top-3 sm:px-3 sm:py-1 sm:text-[9px]">
                     Rent
                   </span>
                     )}
 
-                    {/* Right Side Add to Favourite Button */}
                     <button
                         type="button"
                         aria-label={`Save ${item.name}`}
-                        className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#1A1A1A] shadow-sm transition hover:bg-white hover:text-[#962D18]"
+                        className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-[#1A1A1A] shadow-sm transition hover:bg-white hover:text-[#962D18] sm:right-3 sm:top-3 sm:h-8 sm:w-8"
                     >
-                      <Heart size={15} strokeWidth={2} />
+                      <Heart size={14} strokeWidth={2} />
                     </button>
                   </div>
 
-                  {/* Content Box below Card Image */}
-                  <div className="mt-4 flex flex-col gap-1 px-1 pb-1">
-                    <h3 className="text-[14px] font-bold tracking-tight text-[#1A1A1A] line-clamp-1">
+                  <div className="mt-3 flex flex-col gap-1 px-1 pb-1 sm:mt-4">
+                    <h3 className="text-[12px] font-bold tracking-tight text-[#1A1A1A] line-clamp-1 sm:text-[14px]">
                       {item.name}
                     </h3>
-                    <p className="text-sm font-semibold text-gray-600">
+                    <p className="text-xs font-semibold text-gray-600 sm:text-sm">
                       Rs. {item.price}
                     </p>
                   </div>
@@ -216,15 +227,20 @@ export function ProductRail({
   );
 }
 
-// ==================== GUEST VIEW COMPONENTS ====================
+/* ──────────────────────────────────────────────────────────────────────
+   GUEST / AUTH STAT CARDS — unchanged logic, mobile-tightened spacing
+   ────────────────────────────────────────────────────────────────────── */
 
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import type { LucideIcon } from "lucide-react";
+import {
+  ShoppingBag,
+  CalendarClock,
+  Sparkles,
+  HeartHandshake,
+} from "lucide-react";
 
 type StatKey = "saved" | "activeRentals" | "donations" | "tryOns";
 type Stats = Record<StatKey, number>;
-
-// ─── Config ───────────────────────────────────────────────────────────────────
 
 const CARD_CONFIG = [
   {
@@ -269,14 +285,12 @@ const CARD_CONFIG = [
   },
 ] as const;
 
-// ─── Shared card shell ────────────────────────────────────────────────────────
-
 const CARD_BASE =
-    "group flex flex-col rounded-2xl border border-gray-100 bg-[#fdf8f2] p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#c8bfb4] hover:shadow-[0_14px_32px_-10px_rgba(80,60,40,0.13)]";
+    "group flex flex-col rounded-xl border border-gray-100 bg-[#fdf8f2] p-3.5 transition-all duration-300 hover:-translate-y-1 hover:border-[#c8bfb4] hover:shadow-[0_14px_32px_-10px_rgba(80,60,40,0.13)] sm:rounded-2xl sm:p-5";
 
 interface StatsCardProps {
   href: string;
-  icon: React.ElementType;
+  icon: LucideIcon;
   iconWrap: string;
   iconColor: string;
   title: string;
@@ -287,54 +301,39 @@ interface StatsCardProps {
 function StatsCard({ href, icon: Icon, iconWrap, iconColor, title, desc, footer }: StatsCardProps) {
   return (
       <Link href={href} className={CARD_BASE}>
-        <div className="flex items-start gap-4">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconWrap}`}>
-            <Icon size={20} strokeWidth={1.75} className={iconColor} />
+        <div className="flex items-start gap-3 sm:gap-4">
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconWrap} sm:h-10 sm:w-10 sm:rounded-xl`}>
+            <Icon size={18} strokeWidth={1.75} className={iconColor} />
           </div>
           <div>
-            <h3 className="mb-1 text-sm font-bold tracking-tight text-[#1e1812]">{title}</h3>
-            <p className="text-xs font-normal leading-relaxed text-gray-500">{desc}</p>
+            <h3 className="mb-0.5 text-xs font-bold tracking-tight text-[#1e1812] sm:mb-1 sm:text-sm">{title}</h3>
+            <p className="hidden text-xs font-normal leading-relaxed text-gray-500 sm:block">{desc}</p>
           </div>
         </div>
 
-        {footer && (
-            <div className="mt-3 border-t border-[#ece5db] pt-3">{footer}</div>
-        )}
+        {footer && <div className="mt-3 border-t border-[#ece5db] pt-3">{footer}</div>}
       </Link>
   );
 }
 
-// ─── Guest view ───────────────────────────────────────────────────────────────
-
 export function StatsCardsGuest() {
   return (
-      <section className="border-y border-[#e8e0d5] bg-white px-4 py-12 sm:px-8 lg:px-20">
-        <div className="mx-auto grid max-w-[1380px] grid-cols-2 gap-4 md:grid-cols-4">
+      <section className="border-y border-[#e8e0d5] bg-white px-4 py-8 sm:px-8 sm:py-12 lg:px-20">
+        <div className="mx-auto grid max-w-[1380px] grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
           {CARD_CONFIG.map((card) => (
-              <StatsCard
-                  key={card.href}
-                  {...card}
-                  footer={null}
-              />
+              <StatsCard key={card.href} {...card} footer={null} />
           ))}
         </div>
       </section>
   );
 }
 
-// ─── Authenticated view ───────────────────────────────────────────────────────
-
-const MOCK_STATS: Stats = {
-  saved: 24,
-  activeRentals: 2,
-  donations: 3,
-  tryOns: 5,
-};
+const MOCK_STATS: Stats = { saved: 24, activeRentals: 2, donations: 3, tryOns: 5 };
 
 export function StatsCardsAuthenticated({ stats = MOCK_STATS }: { stats?: Stats }) {
   return (
-      <section className="border-y border-[#e8e0d5] bg-white px-4 py-12 sm:px-8 lg:px-20">
-        <div className="mx-auto grid max-w-[1380px] grid-cols-2 gap-4 md:grid-cols-4">
+      <section className="border-y border-[#e8e0d5] bg-white px-4 py-8 sm:px-8 sm:py-12 lg:px-20">
+        <div className="mx-auto grid max-w-[1380px] grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
           {CARD_CONFIG.map((card) => (
               <StatsCard
                   key={card.href}
@@ -342,7 +341,7 @@ export function StatsCardsAuthenticated({ stats = MOCK_STATS }: { stats?: Stats 
                   footer={
                     <div className="flex items-center gap-2">
                       <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                      <p className="text-xs font-semibold tracking-wide text-[#4a3d30]">
+                      <p className="text-[11px] font-semibold tracking-wide text-[#4a3d30] sm:text-xs">
                         {card.statLabel}&nbsp;
                         <span className="text-sm font-bold text-[#1e1812]">{stats[card.statKey]}</span>
                       </p>
@@ -354,320 +353,142 @@ export function StatsCardsAuthenticated({ stats = MOCK_STATS }: { stats?: Stats 
       </section>
   );
 }
-/**
- * Promotional Offers Section - Guest View Only
- * Extracted from original code
- */
-function PromotionalOffersSection() {
+
+/* ──────────────────────────────────────────────────────────────────────
+   CONTINUE WHERE YOU LEFT OFF — now wired to real context data.
+   Each column hides if empty; whole section hides if everything is empty.
+   ────────────────────────────────────────────────────────────────────── */
+
+function ActivityColumn({
+                          title,
+                          count,
+                          bgClass,
+                          items,
+                          viewAllHref,
+                          viewAllLabel,
+                        }: {
+  title: string;
+  count: number;
+  bgClass: string;
+  items: { id: string | number; name: string; image: string; href: string }[];
+  viewAllHref: string;
+  viewAllLabel: string;
+}) {
   return (
-      <section className="bg-[#F7F4EB] px-6 py-12 sm:px-8 lg:px-20">
-        <div className="mx-auto max-w-[1200px] grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {/* Left Main Feature Banner: Women's Style */}
-          <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#EAEFF4] sm:aspect-auto sm:min-h-[460px]">
-            <Image
-                src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80"
-                alt="Women's Style New Arrivals"
-                fill
-                priority
-                className="object-cover object-center"
-            />
-            {/* Top-Right Stacked Text Elements */}
-            <div className="absolute right-8 top-12 text-right z-10 max-w-[280px]">
-            <span className="text-xs sm:text-sm font-bold tracking-wide text-[#2563EB]">
-              New Arrivals
-            </span>
-              <h3 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-[#1A1A1A] mt-1 leading-tight">
-                Women&apos;s Style
-              </h3>
-              <p className="text-sm sm:text-base text-gray-700 font-medium mt-1">
-                Up to 70% Off
-              </p>
-              <div className="mt-5 flex justify-end">
-                <Link
-                    href="/browse"
-                    className="inline-flex items-center justify-center bg-transparent border-2 border-[#1A1A1A] text-[#1A1A1A] px-5 py-2 rounded-full text-xs font-bold tracking-wider transition hover:bg-[#1A1A1A] hover:text-white"
-                >
-                  Shop Now
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Dynamic Grouped Banner Grid */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-            {/* Top-Left Grid: Handbag Promo */}
-            <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#B09E8F]">
-              <Image
-                  src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=600&q=80"
-                  alt="Handbags Promotion"
-                  fill
-                  className="object-cover object-center mix-blend-multiply opacity-90"
-              />
-              {/* Top-Left Positioned Badge & Content */}
-              <div className="absolute left-5 top-5 z-10 flex flex-col items-start gap-1">
-              <span className="bg-[#0066CC] text-white font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-sm">
-                25% OFF
-              </span>
-                <h4 className="text-2xl font-extrabold text-white tracking-wide mt-1">
-                  Handbag
-                </h4>
-                <Link
-                    href="/handbags"
-                    className="text-xs font-bold text-white mt-2 inline-flex items-center gap-0.5 hover:underline"
-                >
-                  <span>Shop Now</span>
-                  <ChevronRight size={14} strokeWidth={3} />
-                </Link>
-              </div>
-            </div>
-
-            {/* Top-Right Grid: Watch Promo */}
-            <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#D1CDC6]">
-              <Image
-                  src="https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=600&q=80"
-                  alt="Watches Promotion"
-                  fill
-                  className="object-cover object-center mix-blend-multiply opacity-85"
-              />
-              <div className="absolute left-5 top-5 z-10 flex flex-col items-start gap-1">
-              <span className="bg-[#0066CC] text-white font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-sm">
-                45% OFF
-              </span>
-                <h4 className="text-2xl font-extrabold text-[#1A1A1A] tracking-wide mt-1">
-                  Watch
-                </h4>
-                <Link
-                    href="/watches"
-                    className="text-xs font-bold text-[#1A1A1A] mt-2 inline-flex items-center gap-0.5 hover:underline"
-                >
-                  <span>Shop Now</span>
-                  <ChevronRight size={14} strokeWidth={3} />
-                </Link>
-              </div>
-            </div>
-
-            {/* Bottom Full-Width Horizontal Grid: Backpack Promo */}
-            <div className="relative aspect-[2.1/1] w-full overflow-hidden bg-[#9C8E81] sm:col-span-2 lg:col-span-1 xl:col-span-2">
-              <Image
-                  src="https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=1000&q=80"
-                  alt="Backpacks Accessories Promotion"
-                  fill
-                  className="object-cover object-center mix-blend-multiply opacity-80"
-              />
-              <div className="absolute left-6 top-1/5 -translate-y-1/2 z-10 flex flex-col items-start">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-white/90">
-                Accessories
-              </span>
-                <h4 className="text-3xl font-extrabold text-white tracking-tight mt-0.5">
-                  Backpack
-                </h4>
-                <p className="text-xs font-semibold text-white/90 mt-1">
-                  Min. 40–80% Off
-                </p>
-                <Link
-                    href="/backpacks"
-                    className="text-xs font-bold text-white mt-4 inline-flex items-center gap-0.5 border-b-2 border-white pb-0.5 hover:opacity-80"
-                >
-                  <span>Shop Now</span>
-                  <ChevronRight size={14} strokeWidth={3} />
-                </Link>
-              </div>
-            </div>
-          </div>
+      <div className="flex flex-col">
+        <h3 className="text-base font-bold text-[#1A1A1A] mb-1 px-2 sm:text-lg sm:px-3">{title}</h3>
+        <p className="text-[11px] font-semibold text-gray-500 mb-3 px-2 sm:text-xs sm:mb-4 sm:px-3">
+          {count} item{count !== 1 ? "s" : ""}
+        </p>
+        <div className={`flex flex-wrap gap-2.5 p-3 rounded-xl border border-gray-200 sm:gap-3 sm:p-4 ${bgClass}`}>
+          {items.map((item) => (
+              <Link key={item.id} href={item.href} className="relative group">
+                <div className="w-16 h-16 bg-[#EFECE8] rounded-lg overflow-hidden sm:w-20 sm:h-20">
+                  <Image
+                      src={item.image}
+                      alt={item.name}
+                      width={80}
+                      height={80}
+                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                  />
+                </div>
+              </Link>
+          ))}
         </div>
-      </section>
+        <Link href={viewAllHref} className="text-xs font-bold text-[#962D18] mt-3 px-2 hover:underline sm:px-3">
+          {viewAllLabel} →
+        </Link>
+      </div>
   );
 }
 
-/**
- * Continue Where You Left Off Section - Authenticated View Only
- * Shows recently viewed, cart items, and saved for later
- */
-function ContinueWhereYouLeftOffSection({ userId }: { userId?: number }) {
-  // Mock data - in real app, fetch from API based on userId
-  const recentlyViewed = [
-    {
-      id: 1,
-      name: "Vintage Coat",
-      image:
-          "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=60",
-    },
-    {
-      id: 2,
-      name: "Silk Dress",
-      image:
-          "https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=150&q=60",
-    },
-    {
-      id: 3,
-      name: "Denim Jeans",
-      image:
-          "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=150&q=60",
-    },
-  ];
+function ContinueWhereYouLeftOffSection() {
+  const { items: recentlyViewed } = useRecentlyViewed();
+  const { cartItems } = useCart();
+  const { favorites } = useFavorites();
 
-  const cartItems = [
-    {
-      id: 1,
-      name: "Red Cardigan",
-      image:
-          "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=60",
-    },
-    {
-      id: 2,
-      name: "Weekend Jacket",
-      image:
-          "https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=150&q=60",
-    },
-  ];
+  const hasRecentlyViewed = recentlyViewed.length > 0;
+  const hasCart = cartItems.length > 0;
+  const hasSaved = favorites.length > 0;
 
-  const savedForLater = [
-    {
-      id: 1,
-      name: "Lace Blouse",
-      image:
-          "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=150&q=60",
-    },
-    {
-      id: 2,
-      name: "Trench Coat",
-      image:
-          "https://images.unsplash.com/photo-1548624313-0396c75e4b1a?auto=format&fit=crop&w=150&q=60",
-    },
-    {
-      id: 3,
-      name: "Evening Blazer",
-      image:
-          "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=150&q=60",
-    },
-  ];
+  // Hide the whole section if there's genuinely nothing to show — a brand
+  // new guest-turned-user shouldn't see three empty boxes.
+  if (!hasRecentlyViewed && !hasCart && !hasSaved) return null;
 
   return (
-      <section className="bg-[#F7F4EB] px-6 py-12 sm:px-12 lg:px-20 border-b border-gray-200/40">
+      <section className="bg-[#F7F4EB] px-4 py-10 sm:px-12 sm:py-12 lg:px-20 border-b border-gray-200/40">
         <div className="mx-auto max-w-[1380px]">
-          {/* Section Title */}
-          <div className="mb-10 border-b border-gray-200/50 pb-4">
-            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#962D18] mb-2">
+          <div className="mb-6 border-b border-gray-200/50 pb-4 sm:mb-10">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#962D18] mb-2 sm:text-[11px] sm:tracking-[0.25em]">
               Your Activity
             </p>
-            <h2 className="text-3xl font-serif tracking-tight text-[#1A1A1A]">
+            <h2 className="text-xl font-serif tracking-tight text-[#1A1A1A] sm:text-3xl">
               Continue Where You Left Off
             </h2>
           </div>
 
-          {/* Three Column Grid */}
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-            {/* Recently Viewed */}
-            <div className="flex flex-col">
-              <h3 className="text-lg font-bold text-[#1A1A1A] mb-1 px-3">
-                Recently Viewed
-              </h3>
-              <p className="text-xs font-semibold text-gray-500 mb-4 px-3">
-                3 items
-              </p>
-              <div className="flex flex-wrap gap-3 bg-white/50 p-4 rounded-xl border border-gray-200">
-                {recentlyViewed.map((item) => (
-                    <Link
-                        key={item.id}
-                        href={`/browse-finds/${item.id}`}
-                        className="relative group"
-                    >
-                      <div className="w-20 h-20 bg-[#EFECE8] rounded-lg overflow-hidden">
-                        <Image
-                            src={item.image}
-                            alt={item.name}
-                            width={80}
-                            height={80}
-                            className="w-full h-full object-cover group-hover:scale-105 transition"
-                        />
-                      </div>
-                    </Link>
-                ))}
-              </div>
-              <Link
-                  href="/browse-finds"
-                  className="text-xs font-bold text-[#962D18] mt-3 px-3 hover:underline"
-              >
-                View all →
-              </Link>
-            </div>
+          <div className="grid grid-cols-1 gap-6 sm:gap-8 md:grid-cols-3">
+            {hasRecentlyViewed && (
+                <ActivityColumn
+                    title="Recently Viewed"
+                    count={recentlyViewed.length}
+                    bgClass="bg-white/50"
+                    viewAllHref="/browse-finds"
+                    viewAllLabel="View all"
+                    items={recentlyViewed.map((i) => ({
+                      id: i.id,
+                      name: i.name,
+                      image: i.image,
+                      href: `/browse-finds/${i.id}`,
+                    }))}
+                />
+            )}
 
-            {/* In Your Cart */}
-            <div className="flex flex-col">
-              <h3 className="text-lg font-bold text-[#1A1A1A] mb-1 px-3">
-                In Your Cart
-              </h3>
-              <p className="text-xs font-semibold text-gray-500 mb-4 px-3">
-                {cartItems.length} items
-              </p>
-              <div className="flex flex-wrap gap-3 bg-[#FFF5F0]/50 p-4 rounded-xl border border-gray-200">
-                {cartItems.map((item) => (
-                    <Link key={item.id} href="/cart" className="relative group">
-                      <div className="w-20 h-20 bg-[#EFECE8] rounded-lg overflow-hidden">
-                        <Image
-                            src={item.image}
-                            alt={item.name}
-                            width={80}
-                            height={80}
-                            className="w-full h-full object-cover group-hover:scale-105 transition"
-                        />
-                      </div>
-                    </Link>
-                ))}
-              </div>
-              <Link
-                  href="/cart"
-                  className="text-xs font-bold text-[#962D18] mt-3 px-3 hover:underline"
-              >
-                View cart →
-              </Link>
-            </div>
+            {hasCart && (
+                <ActivityColumn
+                    title="In Your Cart"
+                    count={cartItems.length}
+                    bgClass="bg-[#FFF5F0]/50"
+                    viewAllHref="/cart"
+                    viewAllLabel="View cart"
+                    items={cartItems.map((i) => ({
+                      id: i.id,
+                      name: i.name,
+                      image: i.image,
+                      href: "/cart",
+                    }))}
+                />
+            )}
 
-            {/* Saved for Later */}
-            <div className="flex flex-col">
-              <h3 className="text-lg font-bold text-[#1A1A1A] mb-1 px-3">
-                Saved for Later
-              </h3>
-              <p className="text-xs font-semibold text-gray-500 mb-4 px-3">
-                {savedForLater.length} items
-              </p>
-              <div className="flex flex-wrap gap-3 bg-gray-100/30 p-4 rounded-xl border border-gray-200">
-                {savedForLater.map((item) => (
-                    <Link
-                        key={item.id}
-                        href={`/browse-finds/${item.id}`}
-                        className="relative group"
-                    >
-                      <div className="w-20 h-20 bg-[#EFECE8] rounded-lg overflow-hidden">
-                        <Image
-                            src={item.image}
-                            alt={item.name}
-                            width={80}
-                            height={80}
-                            className="w-full h-full object-cover group-hover:scale-105 transition"
-                        />
-                      </div>
-                    </Link>
-                ))}
-              </div>
-              <Link
-                  href="/saved"
-                  className="text-xs font-bold text-[#962D18] mt-3 px-3 hover:underline"
-              >
-                View saved →
-              </Link>
-            </div>
+            {hasSaved && (
+                <ActivityColumn
+                    title="Saved for Later"
+                    count={favorites.length}
+                    bgClass="bg-gray-100/30"
+                    viewAllHref="/saved"
+                    viewAllLabel="View saved"
+                    items={favorites.map((i) => ({
+                      id: i.id,
+                      name: i.name,
+                      image: i.image,
+                      href: `/browse-finds/${i.id}`,
+                    }))}
+                />
+            )}
           </div>
         </div>
       </section>
   );
 }
 
+/* ──────────────────────────────────────────────────────────────────────
+   DONATE FEATURE — mobile spacing/type tightened, unchanged otherwise
+   ────────────────────────────────────────────────────────────────────── */
+
 function DonateFeature() {
   return (
-      <section className="bg-[#F7F4EB] px-6 py-16 sm:px-12 lg:px-20 border-t border-gray-200/40">
-        <div className="mx-auto grid max-w-[1380px] grid-cols-1 gap-10 lg:grid-cols-2 lg:items-center">
-          {/* Left Side: Image Container with Rounded Corners */}
+      <section className="bg-[#F7F4EB] px-4 py-10 sm:px-12 sm:py-16 lg:px-20 border-t border-gray-200/40">
+        <div className="mx-auto grid max-w-[1380px] grid-cols-1 gap-6 lg:grid-cols-2 lg:items-center lg:gap-10">
           <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-[#EFECE8] shadow-sm">
             <Image
                 src="https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=1000&q=80"
@@ -679,29 +500,25 @@ function DonateFeature() {
             />
           </div>
 
-          {/* Right Side: Fluid Content Area to Optimize Whitespace */}
           <div className="flex flex-col justify-center w-full">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.25em] text-[#962D18]">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#962D18] sm:text-[11px] sm:tracking-[0.25em]">
               Send it forward
             </p>
 
-            {/* Bold, Elegant Serif Header */}
-            <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-[#1A1A1A] leading-[1.15]">
+            <h2 className="font-serif text-2xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-[#1A1A1A] leading-[1.15]">
               Donate the pieces you no longer wear
             </h2>
 
-            {/* Fluid Typography description covering horizontal whitespace */}
-            <p className="mt-5 text-sm sm:text-base font-normal leading-relaxed text-gray-600">
+            <p className="mt-3 text-sm sm:mt-5 sm:text-base font-normal leading-relaxed text-gray-600">
               They can spark somebody else&apos;s best outfit. We resell what we
               can, donate the rest to local shelters, and responsibly recycle
               anything past its life.
             </p>
 
-            {/* Action Call to Buttons with authentic pill shapes */}
-            <div className="mt-8 flex flex-wrap items-center gap-3.5">
+            <div className="mt-6 flex flex-wrap items-center gap-2.5 sm:mt-8 sm:gap-3.5">
               <Link
                   href="/donate/shipping-label"
-                  className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A] px-6 py-3.5 text-[11px] font-bold uppercase tracking-wider text-white transition hover:bg-[#962D18] shadow-sm"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A] px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-white transition hover:bg-[#962D18] shadow-sm sm:px-6 sm:py-3.5 sm:text-[11px]"
               >
                 <PackageCheck size={14} strokeWidth={2.5} />
                 <span>Get a shipping label</span>
@@ -709,7 +526,7 @@ function DonateFeature() {
 
               <Link
                   href="/donate"
-                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-6 py-3.5 text-[11px] font-bold uppercase tracking-wider text-[#1A1A1A] transition hover:border-[#1A1A1A] hover:bg-gray-50 shadow-sm"
+                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#1A1A1A] transition hover:border-[#1A1A1A] hover:bg-gray-50 shadow-sm sm:px-6 sm:py-3.5 sm:text-[11px]"
               >
                 <RotateCcw size={14} strokeWidth={2.5} />
                 <span>Learn more</span>

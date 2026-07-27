@@ -62,21 +62,37 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/auth/signup",
-                                "/api/auth/login",
-                                "/api/auth/refresh",
-                                "/api/auth/forgot-password",
-                                "/api/auth/verify-otp",
-                                "/api/auth/reset-password",
-                                "/login/oauth2/**",
-                                "/oauth2/**",
-                                "/health",
-                                "/health/**",
-                                "/api/listings",
-                                "/api/listings/**"
-                        ).permitAll()
-                        .anyRequest().authenticated()
+//                        .requestMatchers(
+//                                "/api/auth/signup",
+//                                "/api/auth/login",
+//                                "/api/auth/refresh",
+//                                "/api/auth/forgot-password",
+//                                "/api/auth/verify-otp",
+//                                "/api/auth/reset-password",
+//                                "/login/oauth2/**",
+//                                "/oauth2/**",
+//                                "/health",
+//                                "/health/**",
+//                                "/api/listings",
+//                                "/api/listings/**"
+//                        ).permitAll()
+//                        .anyRequest().authenticated()
+                                .requestMatchers(
+                                        "/api/auth/signup",
+                                        "/api/auth/login",
+                                        "/api/auth/refresh",
+                                        "/api/auth/forgot-password",
+                                        "/api/auth/verify-otp",
+                                        "/api/auth/reset-password",
+                                        "/login/oauth2/**",
+                                        "/oauth2/**",
+                                        "/health",
+                                        "/health/**",
+                                        "/api/listings",
+                                        "/api/listings/**"
+                                ).permitAll()
+                                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/users/{id}").permitAll()
+                                .anyRequest().authenticated()
                 )
 //                .oauth2Login(oauth2 -> oauth2
 //                        .successHandler(oAuth2SuccessHandler)

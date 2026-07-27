@@ -1,5 +1,6 @@
 package com.rewear.backend.user.controller;
 
+import com.rewear.backend.exception.ResourceNotFoundException;
 import com.rewear.backend.user.dto.request.UserUpdateRequestDto;
 import com.rewear.backend.user.dto.response.UserResponseDto;
 import com.rewear.backend.user.service.UserService;
@@ -7,6 +8,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -32,8 +35,17 @@ public class UserController {
      * @param principal the authenticated user principal
      * @return UserResponseDto
      */
+//    @GetMapping("/me")
+//    public ResponseEntity<UserResponseDto> getCurrentUser(Principal principal) {
+//        log.info("Fetching current user profile: {}", principal.getName());
+//        UserResponseDto user = userService.getUserByEmail(principal.getName());
+//        return ResponseEntity.ok(user);
+//    }
     @GetMapping("/me")
     public ResponseEntity<UserResponseDto> getCurrentUser(Principal principal) {
+        if (principal == null) {
+            throw new ResourceNotFoundException("No authenticated user found");
+        }
         log.info("Fetching current user profile: {}", principal.getName());
         UserResponseDto user = userService.getUserByEmail(principal.getName());
         return ResponseEntity.ok(user);
@@ -56,10 +68,23 @@ public class UserController {
      * @param id user ID
      * @return UserResponseDto
      */
+//    @GetMapping("/{id}")
+//    public ResponseEntity<UserResponseDto> getUserById(@PathVariable Long id) {
+//        log.info("Fetching user by id: {}", id);
+//        return ResponseEntity.ok(userService.getUserById(id));
+//    }
     @GetMapping("/{id}")
-    public ResponseEntity<UserResponseDto> getUserById(@PathVariable Long id) {
-        log.info("Fetching user by id: {}", id);
-        return ResponseEntity.ok(userService.getUserById(id));
+    public ResponseEntity<UserResponseDto> getUserById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        boolean isOwner = false;
+        if (userDetails != null) {
+            UserResponseDto caller = userService.getUserByEmail(userDetails.getUsername());
+            isOwner = caller.getId().equals(id);
+        }
+        log.info("Fetching user by id: {} (isOwner={})", id, isOwner);
+        return ResponseEntity.ok(userService.getUserById(id, isOwner));
     }
 
     /**
@@ -70,36 +95,55 @@ public class UserController {
      * @param principal authenticated user
      * @return UserResponseDto
      */
+//    @PatchMapping("/{id}")
+//    public ResponseEntity<UserResponseDto> updateUser(
+//            @PathVariable Long id,
+//            @Valid @RequestBody UserUpdateRequestDto requestDto,
+//            Principal principal
+//    ) {
+//        log.info("Updating user: {} by {}", id, principal.getName());
+//        return ResponseEntity.ok(userService.updateUser(id, requestDto));
+//    }
+
     @PatchMapping("/{id}")
     public ResponseEntity<UserResponseDto> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody UserUpdateRequestDto requestDto,
             Principal principal
     ) {
+        UserResponseDto caller = userService.getUserByEmail(principal.getName());
+        if (!caller.getId().equals(id)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "You may only update your own account.");
+        }
         log.info("Updating user: {} by {}", id, principal.getName());
         return ResponseEntity.ok(userService.updateUser(id, requestDto));
     }
 
-    /**
-     * Deactivate user account
-     * 
-     * @param id user ID
-     * @return UserResponseDto
-     */
     @PatchMapping("/{id}/deactivate")
-    public ResponseEntity<UserResponseDto> deactivateUser(@PathVariable Long id) {
+    public ResponseEntity<UserResponseDto> deactivateUser(
+            @PathVariable Long id,
+            Principal principal
+    ) {
+        UserResponseDto caller = userService.getUserByEmail(principal.getName());
+        if (!caller.getId().equals(id)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "You may only deactivate your own account.");
+        }
         log.info("Deactivating user: {}", id);
         return ResponseEntity.ok(userService.deactivateUser(id));
     }
 
-    /**
-     * Delete user account (permanent)
-     * 
-     * @param id user ID
-     * @return ResponseEntity
-     */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteUser(
+            @PathVariable Long id,
+            Principal principal
+    ) {
+        UserResponseDto caller = userService.getUserByEmail(principal.getName());
+        if (!caller.getId().equals(id)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "You may only delete your own account.");
+        }
         log.info("Deleting user: {}", id);
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();

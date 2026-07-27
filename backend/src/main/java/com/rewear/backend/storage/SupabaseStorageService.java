@@ -10,6 +10,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.io.IOException;
 import java.util.UUID;
@@ -87,6 +88,40 @@ public class SupabaseStorageService {
     // Private helpers
     // ──────────────────────────────────────────────────────────────────────
 
+//    private String upload(MultipartFile file, String folder) throws IOException {
+//        String extension = StringUtils.getFilenameExtension(file.getOriginalFilename());
+//        String fileName = UUID.randomUUID() + (extension != null ? "." + extension : "");
+//        String objectPath = folder + "/" + fileName;
+//
+//        byte[] bytes = file.getBytes();
+//        String contentType = file.getContentType() != null
+//                ? file.getContentType()
+//                : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+//
+//        // PUT /object/<bucket>/<path>
+//        webClient.put()
+//                .uri("/object/{bucket}/{path}", bucket, objectPath)
+//                .header("Authorization", "Bearer " + supabaseApiKey)
+//                .header("apikey", supabaseApiKey)
+//                .contentType(MediaType.parseMediaType(contentType))
+//                .body(BodyInserters.fromResource(new ByteArrayResource(bytes) {
+//                    @Override
+//                    public long contentLength() { return bytes.length; }
+//                }))
+//                .retrieve()
+//                .toBodilessEntity()
+//                .block();
+//
+//        // Return the public URL
+//        String publicUrl = supabaseUrl
+//                + "/storage/v1/object/public/"
+//                + bucket + "/"
+//                + objectPath;
+//
+//        log.info("Uploaded file to Supabase: {}", publicUrl);
+//        return publicUrl;
+//    }
+
     private String upload(MultipartFile file, String folder) throws IOException {
         String extension = StringUtils.getFilenameExtension(file.getOriginalFilename());
         String fileName = UUID.randomUUID() + (extension != null ? "." + extension : "");
@@ -97,21 +132,25 @@ public class SupabaseStorageService {
                 ? file.getContentType()
                 : MediaType.APPLICATION_OCTET_STREAM_VALUE;
 
-        // PUT /object/<bucket>/<path>
-        webClient.put()
-                .uri("/object/{bucket}/{path}", bucket, objectPath)
-                .header("Authorization", "Bearer " + supabaseApiKey)
-                .header("apikey", supabaseApiKey)
-                .contentType(MediaType.parseMediaType(contentType))
-                .body(BodyInserters.fromResource(new ByteArrayResource(bytes) {
-                    @Override
-                    public long contentLength() { return bytes.length; }
-                }))
-                .retrieve()
-                .toBodilessEntity()
-                .block();
+        try {
+            webClient.put()
+                    .uri("/object/{bucket}/{path}", bucket, objectPath)
+                    .header("Authorization", "Bearer " + supabaseApiKey)
+                    .header("apikey", supabaseApiKey)
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .body(BodyInserters.fromResource(new ByteArrayResource(bytes) {
+                        @Override
+                        public long contentLength() { return bytes.length; }
+                    }))
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
+        } catch (WebClientResponseException e) {
+            log.error("Supabase upload failed [status={}] [path={}] [body={}]",
+                    e.getStatusCode(), objectPath, e.getResponseBodyAsString(), e);
+            throw new IOException("Supabase upload failed with status " + e.getStatusCode(), e);
+        }
 
-        // Return the public URL
         String publicUrl = supabaseUrl
                 + "/storage/v1/object/public/"
                 + bucket + "/"

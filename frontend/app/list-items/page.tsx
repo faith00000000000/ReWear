@@ -7,6 +7,8 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import api from "@/lib/axios";
 import { isAuthenticated } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
+import { fetchProfile } from "@/lib/api/profileApi";
 import {
     Upload,
     Plus,
@@ -450,6 +452,7 @@ function DayToggle({
 
 export default function ListItemPage() {
     const router = useRouter();
+    const { user } = useAuth();
 
     const [form, setForm] = useState<FormState>({
         productTitle: "",
@@ -508,6 +511,9 @@ export default function ListItemPage() {
 
     // ── Submission state ─────────────────────────────────────────────────
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // NEW — prevents double-clicks while the profile phone number loads
+    const [fetchingProfileNumber, setFetchingProfileNumber] = useState(false);
 
     const [selectedMedia, setSelectedMedia] = useState<{
         type: "image" | "video";
@@ -644,16 +650,34 @@ export default function ListItemPage() {
         "Thrift + Rent": "bg-[#A33214] text-white",
     };
 
-    const handleUseProfileNumber = () => {
-        // TODO: wire this to your actual logged-in user's phone number
-        // e.g. from an auth context, a /api/me call, or localStorage
-        const profileNumber = ""; // <-- replace with real source
-
-        if (!profileNumber) {
-            toast.error("Couldn't find a phone number on your profile.");
+    // Fetches the logged-in user's phone number from their profile and
+    // drops it into the pickup contact field. Guards against:
+    // - not being logged in (shouldn't happen here since the page redirects
+    //   guests away, but user.id can still be briefly undefined on first render)
+    // - the profile existing but having no phone set yet (empty by default —
+    //   see EditPhoneModal / DetailRow on the profile page)
+    // - the network call itself failing
+    const handleUseProfileNumber = async () => {
+        if (!user?.id) {
+            toast.error("You need to be logged in to do this.");
             return;
         }
-        update("pickupContactNumber", profileNumber);
+
+        setFetchingProfileNumber(true);
+        try {
+            const profile = await fetchProfile(user.id);
+
+            if (!profile?.phone) {
+                toast.info("You haven't added a phone number to your profile yet.");
+                return;
+            }
+
+            update("pickupContactNumber", profile.phone);
+        } catch (err) {
+            toast.error("Couldn't fetch your profile number. Please try again.");
+        } finally {
+            setFetchingProfileNumber(false);
+        }
     };
 
     // ── Validation matching backend ListingRequestDTO constraints ───────
@@ -1363,8 +1387,8 @@ export default function ListItemPage() {
                                                     Location entered successfully
                                                 </div>
                                                 <span className="text-[10px] text-[#6F9060] tabular-nums">
-                        {form.pickupLat}, {form.pickupLng}
-                    </span>
+                                                    {form.pickupLat}, {form.pickupLng}
+                                                </span>
                                             </div>
                                         ) : (
                                             <p className="text-[11px] text-[#8A7060] mt-2">
@@ -1383,10 +1407,11 @@ export default function ListItemPage() {
                                                 <button
                                                     type="button"
                                                     onClick={handleUseProfileNumber}
-                                                    className="flex items-center gap-1.5 text-[12px] text-[#A33214] font-medium hover:underline"
+                                                    disabled={fetchingProfileNumber}
+                                                    className="flex items-center gap-1.5 text-[12px] text-[#A33214] font-medium hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
                                                 >
                                                     <Phone size={13} />
-                                                    Use profile number
+                                                    {fetchingProfileNumber ? "Fetching..." : "Use profile number"}
                                                 </button>
                                             </div>
                                             <div className="relative">
@@ -2001,4 +2026,4 @@ export default function ListItemPage() {
             </div>
         </div>
     );
-}
+}   

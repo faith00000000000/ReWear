@@ -1,5 +1,5 @@
 // lib/api/listings.ts
-import api from "@/lib/axios"; // adjust to your actual axios instance path
+import api from "@/lib/axios";
 import { ListingResponseDTO, PageResponse, ListingMode, Availability } from "@/lib/types/listing";
 
 export interface GetListingsParams {
@@ -38,6 +38,22 @@ export async function searchListings(
 ): Promise<PageResponse<ListingResponseDTO>> {
     const { data } = await api.get<PageResponse<ListingResponseDTO>>("/api/listings/search", {
         params: { keyword, page, size },
+    });
+    return data;
+}
+
+// NEW — matches the real DELETE /api/listings/{id} endpoint, which already
+// exists (ListingController#deleteListing) and removes Supabase media too.
+export async function deleteListing(id: number | string): Promise<void> {
+    await api.delete(`/api/listings/${id}`);
+}
+
+export async function updateListing(
+    id: number | string,
+    formData: FormData,
+): Promise<ListingResponseDTO> {
+    const { data } = await api.put<ListingResponseDTO>(`/api/listings/${id}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
     });
     return data;
 }

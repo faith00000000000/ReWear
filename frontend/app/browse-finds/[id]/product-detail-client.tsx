@@ -56,6 +56,8 @@ import {
     resolveDistanceBucket,
     toNumber,
 } from "@/lib/delivery";
+import { toast } from "react-toastify";
+import { useFavorites } from "@/lib/FavoritesContext";
 
 // Leaflet touches `window` at import time — client-only load
 const PickupLocationMap = dynamic(() => import("@/components/PickupLocationMap"), {
@@ -284,6 +286,33 @@ export default function ProductDetailClient({
     const searchParams = useSearchParams();
 
     const { authed } = useAuth();
+    const { isFavorite, toggleFavorite } = useFavorites();
+    const isFav = isFavorite(String(product.id));
+
+    function mapAvailability(value?: string): "Available" | "Limited Dates" | "Unavailable" | "Sold" {
+        if (value === "Available") return "Available";
+        if (value === "Reserved") return "Limited Dates";
+        return "Unavailable";
+    }
+
+    function handleToggleFavorite() {
+        const nowFavorited = toggleFavorite({
+            id: String(product.id),
+            name: product.name,
+            brand: product.brand,
+            image: product.image,
+            price: isRent ? `${dailyRate} / day` : product.price,
+            status: product.status,
+            category: isRent ? "rent" : "thrift",
+            size: product.size,
+            availability: mapAvailability(product.availability),
+        });
+
+        toast[nowFavorited ? "success" : "info"](
+            nowFavorited ? "Added to favourites" : "Removed from favourites",
+            { autoClose: 2000 }
+        );
+    }
 
     const media = useMemo<MediaItem[]>(
         () => [
@@ -330,6 +359,7 @@ export default function ProductDetailClient({
     // Real seller data — always present now, no fallback hack needed.
     const sellerName = product.seller.name;
     const sellerAvatarUrl = product.seller.avatarUrl;
+    const sellerId = product.seller.id;   // ← add this line
 
     function switchView(target: "thrift" | "rent") {
         const params = new URLSearchParams(searchParams.toString());
@@ -483,8 +513,16 @@ export default function ProductDetailClient({
                                 >
                                     <Maximize2 size={13} />
                                 </button>
-                                <button className="absolute right-2.5 top-11 flex h-7 w-7 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] shadow-sm transition hover:text-[#9E2A1B]">
-                                    <Heart size={13} />
+
+                                <button
+                                    onClick={handleToggleFavorite}
+                                    aria-label={isFav ? "Remove from favourites" : "Add to favourites"}
+                                    className="absolute right-2.5 top-11 flex h-7 w-7 items-center justify-center rounded-full border border-[#EBE3D5] bg-white shadow-sm transition hover:scale-105"
+                                >
+                                    <Heart
+                                        size={13}
+                                        className={isFav ? "fill-[#9E2A1B] text-[#9E2A1B]" : "text-[#6E6053] transition hover:text-[#9E2A1B]"}
+                                    />
                                 </button>
                             </div>
 
@@ -627,18 +665,33 @@ export default function ProductDetailClient({
                                   {detailPageTag.label}
                                 </span>
 
-                                <div className="flex items-center gap-2 rounded-full bg-[#F5EFE5] border border-[#9E2A1B]/4 py-1 pl-1 pr-3.5">
+                                {/*<div className="flex items-center gap-2 rounded-full bg-[#F5EFE5] border border-[#9E2A1B]/4 py-1 pl-1 pr-3.5">*/}
+                                {/*    <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-[#9E2A1B] text-white">*/}
+                                {/*        {sellerAvatarUrl ? (*/}
+                                {/*            <Image src={sellerAvatarUrl} alt={sellerName} fill className="object-cover" />*/}
+                                {/*        ) : (*/}
+                                {/*            <span className="flex h-full w-full items-center justify-center text-[11px] font-bold">*/}
+                                {/*            {getInitials(sellerName)}*/}
+                                {/*          </span>*/}
+                                {/*        )}*/}
+                                {/*    </div>*/}
+                                {/*    <span className="text-[12px] font-semibold text-[#1A130E] whitespace-nowrap">{sellerName}</span>*/}
+                                {/*</div>*/}
+                                <Link
+                                    href={`/profile/${sellerId}`}
+                                    className="flex items-center gap-2 rounded-full bg-[#F5EFE5] border border-[#9E2A1B]/4 py-1 pl-1 pr-3.5 transition hover:bg-[#F5EFE5]/70"
+                                >
                                     <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-[#9E2A1B] text-white">
                                         {sellerAvatarUrl ? (
                                             <Image src={sellerAvatarUrl} alt={sellerName} fill className="object-cover" />
                                         ) : (
                                             <span className="flex h-full w-full items-center justify-center text-[11px] font-bold">
-                        {getInitials(sellerName)}
-                      </span>
+                                                {getInitials(sellerName)}
+                                            </span>
                                         )}
                                     </div>
                                     <span className="text-[12px] font-semibold text-[#1A130E] whitespace-nowrap">{sellerName}</span>
-                                </div>
+                                </Link>
                             </div>
 
                             {/* Title */}
@@ -647,8 +700,8 @@ export default function ProductDetailClient({
                                     {product.name}
                                 </h1>
                                 <span className="mt-1.5 inline-block rounded-full border border-[#9E2A1B] bg-[#9E2A1B]/4 px-2.5 py-0.5 text-[11px] font-semibold text-[#9E2A1B]">
-                  Party Wear
-                </span>
+                                      Party Wear
+                                    </span>
                                 <p className="mt-2 text-[13px] leading-relaxed text-[#6E6053]">
                                     {product.description ?? "No description provided for this item."}
                                 </p>
@@ -730,8 +783,15 @@ export default function ProductDetailClient({
                                         >
                                             <Sparkles size={13} className="text-[#9E2A1B]" /> Virtual Try-On
                                         </button>
-                                        <button className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]">
-                                            <Heart size={13} /> Save Item
+                                        {/*<button className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]">*/}
+                                        {/*    <Heart size={13} /> Save Item*/}
+                                        {/*</button>*/}
+                                        <button
+                                            onClick={handleToggleFavorite}
+                                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
+                                        >
+                                            <Heart size={13} className={isFav ? "fill-[#9E2A1B] text-[#9E2A1B]" : ""} />
+                                            {isFav ? "Saved" : "Save Item"}
                                         </button>
                                         <button className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]">
                                             <Share2 size={13} /> Share
@@ -889,8 +949,15 @@ export default function ProductDetailClient({
                                         >
                                             <Sparkles size={13} className="text-[#9E2A1B]" /> Virtual Try-On
                                         </button>
-                                        <button className="flex items-center justify-center gap-2 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[12px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]">
-                                            <Heart size={13} /> Save Item
+                                        {/*<button className="flex items-center justify-center gap-2 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[12px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]">*/}
+                                        {/*    <Heart size={13} /> Save Item*/}
+                                        {/*</button>*/}
+                                        <button
+                                            onClick={handleToggleFavorite}
+                                            className="flex items-center justify-center gap-2 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[12px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
+                                        >
+                                            <Heart size={13} className={isFav ? "fill-[#9E2A1B] text-[#9E2A1B]" : ""} />
+                                            {isFav ? "Saved" : "Save Item"}
                                         </button>
                                     </div>
 

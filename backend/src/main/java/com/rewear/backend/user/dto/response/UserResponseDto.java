@@ -17,6 +17,7 @@ public class UserResponseDto {
     private String fullName;
     private String profilePictureUrl;   // null for email/password users, Google photo URL for
     // OAuth users
+    private String phone;               // NEW — null if user hasn't set one, or if !isOwner (stripped in UserService)
     private Boolean isActive;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

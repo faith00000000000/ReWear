@@ -34,6 +34,10 @@ public class User {
     @Column(name = "profile_picture_url")
     private String profilePictureUrl;
 
+    // NEW — nullable because existing users won't have one, and it's optional at signup
+    @Column(name = "phone", length = 20)
+    private String phone;
+
     @Column(name = "is_active")
     @Builder.Default
     private Boolean isActive = true;

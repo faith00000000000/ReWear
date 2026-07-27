@@ -80,7 +80,7 @@ public class ListingController {
             @RequestParam(value = "pickupTimeFrom",       required = false)    String pickupTimeFrom,
             @RequestParam(value = "pickupTimeTo",         required = false)    String pickupTimeTo,
             @RequestParam(value = "pickupInstructions",   required = false)    String pickupInstructions,
-            @RequestParam(value = "sameDayPickup", defaultValue = "false")     boolean sameDayPickup,
+            @RequestParam(value = "sameDayPickup", defaultValue = "false")     Boolean sameDayPickup,
 
             // Section 6
             @RequestParam(value = "thriftPrice",     required = false) BigDecimal thriftPrice,
@@ -201,7 +201,8 @@ public class ListingController {
             @RequestParam(value = "pickupTimeFrom",         required = false) String pickupTimeFrom,
             @RequestParam(value = "pickupTimeTo",           required = false) String pickupTimeTo,
             @RequestParam(value = "pickupInstructions",     required = false) String pickupInstructions,
-            @RequestParam(value = "sameDayPickup", defaultValue = "false")    boolean sameDayPickup,
+//            @RequestParam(value = "sameDayPickup", defaultValue = "false")    boolean sameDayPickup,
+            @RequestParam(value = "sameDayPickup", required = false) Boolean sameDayPickup,
 
             @RequestParam(value = "thriftPrice",     required = false) BigDecimal thriftPrice,
             @RequestParam(value = "rentPerDay",      required = false) BigDecimal rentPerDay,
@@ -267,7 +268,7 @@ public class ListingController {
             String pickupArea, Double pickupLat, Double pickupLng,
             String pickupResolvedAddress, String pickupContactNumber, String pickupDays,
             String pickupTimeFrom, String pickupTimeTo, String pickupInstructions,
-            boolean sameDayPickup,
+            Boolean sameDayPickup,
             BigDecimal thriftPrice, BigDecimal rentPerDay, BigDecimal securityDeposit,
             boolean publish
     ) {

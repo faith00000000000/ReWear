@@ -64,7 +64,7 @@ public class ListingResponseDTO {
     private String pickupTimeFrom;
     private String pickupTimeTo;
     private String pickupInstructions;
-    private boolean sameDayPickup;
+    private Boolean sameDayPickup;
 
     // Section 6
     private BigDecimal thriftPrice;

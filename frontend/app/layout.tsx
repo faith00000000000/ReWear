@@ -9,9 +9,11 @@ import {
 import "./globals.css";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthProvider } from "@/lib/AuthContext";
+import { RecentlyViewedProvider } from "@/lib/RecentlyViewedContext";
 import Navbar from "@/layout/Navbar";
 import Footer from "@/layout/Footer";
 import { CartProvider } from "@/lib/CartContext";
+import { FavoritesProvider } from "@/lib/FavoritesContext";
 import { Suspense } from "react";
 import { ToastContainer } from "react-toastify";
 
@@ -43,6 +45,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <body suppressHydrationWarning className="min-h-screen font-sans text-[#1A1A1A] bg-[#FBF7EE]">
         <AuthProvider>
             <CartProvider>
+                <FavoritesProvider>
+                    <RecentlyViewedProvider>
 
                 {/* ── Fixed red top border line ── */}
                 <div className="fixed top-0 left-0 right-0 z-[100] h-[6px] bg-[#962D18]" />
@@ -88,6 +92,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                     progressClassName="!bg-[#A33214]"
                 />
 
+                    </RecentlyViewedProvider>
+                </FavoritesProvider>
             </CartProvider>
         </AuthProvider>
         </body>
