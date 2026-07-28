@@ -59,6 +59,8 @@ export function mapListingToProduct(
         id: dto.id,
         name: dto.productTitle,
         category: dto.clothingType ?? undefined,
+        gender: dto.gender ?? undefined,             // <-- ADD
+        styleOccasion: dto.styleOccasion ?? undefined, // <-- ADD
         status: toDisplayStatus(dto.listingMode),
 
         image:

@@ -11,40 +11,27 @@ import { Product } from "@/lib/types/product";
 import { useAuth } from "@/lib/AuthContext";
 import { useFavorites, mapAvailability } from "@/lib/FavoritesContext";
 import { toast } from "react-toastify";
+import {
+    buildFilterSections,
+    matchesSelectedFilters,
+    FilterSectionConfig,
+} from "@/lib/filters/productFilters";
 
-interface FilterSectionConfig {
-    id: string;
-    title: string;
-    options: string[];
-}
-
-const FILTER_SECTIONS: FilterSectionConfig[] = [
-    {
-        id: "category",
-        title: "Category",
-        options: ["Ready-to-Wear", "Handbags", "Shoes", "Accessories"],
-    },
-    {
-        id: "availability",
-        title: "Availability",
-        options: ["Thrift", "Thrift + Rent"],
-    },
-    {
-        id: "brand",
-        title: "Brand",
-        options: ["Vintage", "Levi's", "Wrangler", "Studio Slip"],
-    },
-    {
-        id: "size",
-        title: "Size",
-        options: ["XS", "S", "M", "L", "XL", "One Size"],
-    },
-    {
-        id: "condition",
-        title: "Condition",
-        options: ["Like New", "Excellent", "Very Good", "Vintage"],
-    },
+const BROWSE_FILTER_SECTION_IDS = [
+    "category",
+    "gender",
+    "brand",
+    "size",
+    "condition",
+    "color",
+    "material",
+    "occasion",
+    "listingMode",
+    "availability",
+    "delivery",
 ];
+
+const DEFAULT_OPEN_SECTIONS = ["category", "listingMode"];
 
 const THRIFT_BADGE_CLASS: Record<string, string> = {
     THRIFT: "bg-[#A62612] text-[#FBF7EE]",
@@ -61,7 +48,6 @@ export default function BrowseFindsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Filter states
     const [selectedFilters, setSelectedFilters] = useState<Record<string, string[]>>({});
     const [minPrice, setMinPrice] = useState<string>("");
     const [maxPrice, setMaxPrice] = useState<string>("");
@@ -98,6 +84,11 @@ export default function BrowseFindsPage() {
             cancelled = true;
         };
     }, []);
+
+    const filterSections = useMemo(
+        () => buildFilterSections(thriftProducts, BROWSE_FILTER_SECTION_IDS),
+        [thriftProducts]
+    );
 
     const toggleFilterOption = useCallback((sectionId: string, option: string) => {
         setSelectedFilters((prev) => {
@@ -142,41 +133,10 @@ export default function BrowseFindsPage() {
                     const nameMatch = product.name?.toLowerCase().includes(q);
                     const brandMatch = product.brand?.toLowerCase().includes(q);
                     const statusMatch = product.status?.toLowerCase().includes(q);
-
                     if (!nameMatch && !brandMatch && !statusMatch) return false;
                 }
 
-                if (selectedFilters.availability?.length) {
-                    const matchesAvail = selectedFilters.availability.some((opt) => {
-                        if (opt === "Thrift") return product.status === "THRIFT";
-                        if (opt === "Thrift + Rent") return product.status === "THRIFT + RENT";
-                        return true;
-                    });
-                    if (!matchesAvail) return false;
-                }
-
-                if (selectedFilters.category?.length) {
-                    const catMatch = selectedFilters.category.some(
-                        (c) =>
-                            product.category?.toLowerCase() === c.toLowerCase() ||
-                            product.name?.toLowerCase().includes(c.toLowerCase())
-                    );
-                    if (!catMatch) return false;
-                }
-
-                if (selectedFilters.brand?.length) {
-                    const brandMatch = selectedFilters.brand.some(
-                        (b) => product.brand?.toLowerCase() === b.toLowerCase()
-                    );
-                    if (!brandMatch) return false;
-                }
-
-                if (selectedFilters.size?.length) {
-                    const sizeMatch = selectedFilters.size.some(
-                        (s) => product.size?.toLowerCase() === s.toLowerCase()
-                    );
-                    if (!sizeMatch) return false;
-                }
+                if (!matchesSelectedFilters(product, selectedFilters)) return false;
 
                 const productPrice = parsePriceNumber(product.price);
                 if (minPrice && !isNaN(parseFloat(minPrice))) {
@@ -285,6 +245,7 @@ export default function BrowseFindsPage() {
                         <div className="grid lg:grid-cols-[250px_1fr]">
                             <div className="hidden lg:block border-r border-[#E4DDD3]">
                                 <FilterRail
+                                    sections={filterSections}
                                     selectedFilters={selectedFilters}
                                     onToggleOption={toggleFilterOption}
                                     minPrice={minPrice}
@@ -403,6 +364,7 @@ export default function BrowseFindsPage() {
 
                         <div className="flex-1 overflow-y-auto">
                             <FilterRail
+                                sections={filterSections}
                                 selectedFilters={selectedFilters}
                                 onToggleOption={toggleFilterOption}
                                 minPrice={minPrice}
@@ -430,6 +392,7 @@ export default function BrowseFindsPage() {
 }
 
 interface FilterRailProps {
+    sections: FilterSectionConfig[];
     selectedFilters: Record<string, string[]>;
     onToggleOption: (sectionId: string, option: string) => void;
     minPrice: string;
@@ -441,6 +404,7 @@ interface FilterRailProps {
 }
 
 function FilterRail({
+                        sections,
                         selectedFilters,
                         onToggleOption,
                         minPrice,
@@ -450,13 +414,10 @@ function FilterRail({
                         onClear,
                         activeFilterCount,
                     }: FilterRailProps) {
-    const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-        category: true,
-        availability: true,
-        brand: false,
-        size: false,
-        condition: false,
-        price: true,
+    const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+        const initial: Record<string, boolean> = { price: true };
+        DEFAULT_OPEN_SECTIONS.forEach((id) => (initial[id] = true));
+        return initial;
     });
 
     const toggleSection = (id: string) => {
@@ -479,7 +440,7 @@ function FilterRail({
                 )}
             </div>
 
-            {FILTER_SECTIONS.map((section) => {
+            {sections.map((section) => {
                 const isOpen = !!openSections[section.id];
                 const activeInGroup = selectedFilters[section.id] || [];
 

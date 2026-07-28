@@ -14,7 +14,10 @@ export interface Product {
     name: string;
     status: Status;
 
-    category?: string; // <--- ADD THIS LINE HERE
+
+    category?: string;
+    gender?: string;          // <-- ADD
+    styleOccasion?: string;
 
     image: string;
     videoUrl?: string;

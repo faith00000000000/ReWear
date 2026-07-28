@@ -21,35 +21,32 @@ import { Product } from "@/lib/types/product";
 import { useAuth } from "@/lib/AuthContext";
 import { useFavorites, mapAvailability } from "@/lib/FavoritesContext";
 import { toast } from "react-toastify";
+import {
+  buildFilterSections,
+  matchesSelectedFilters,
+  FilterSectionConfig,
+} from "@/lib/filters/productFilters";
 
 const RENT_BADGE_CLASS: Record<string, string> = {
   RENT: "bg-[#3D5C30] text-white",
   "THRIFT + RENT": "bg-[#5C5C5C] text-white",
 };
 
-interface FilterSectionConfig {
-  id: string;
-  title: string;
-  options: string[];
-}
-
-const FILTER_SECTIONS: FilterSectionConfig[] = [
-  {
-    id: "category",
-    title: "Category",
-    options: ["Dresses", "Tops", "Bottoms", "Outerwear", "Sets & Jumpsuits"],
-  },
-  {
-    id: "brand",
-    title: "Brand",
-    options: ["Vintage", "Levi's", "Wrangler", "Studio Slip"],
-  },
-  {
-    id: "size",
-    title: "Size",
-    options: ["XXS", "XS", "S", "M", "L", "XL", "XXL"],
-  },
+const RENT_FILTER_SECTION_IDS = [
+  "category",
+  "gender",
+  "brand",
+  "size",
+  "condition",
+  "color",
+  "material",
+  "occasion",
+  "listingMode",
+  "availability",
+  "delivery",
 ];
+
+const DEFAULT_OPEN_SECTIONS = ["category", "brand", "size"];
 
 type SortOption = "recommended" | "newest" | "price-low" | "price-high";
 
@@ -61,9 +58,7 @@ export default function RentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filter & Sort States
   const [selectedFilters, setSelectedFilters] = useState<Record<string, string[]>>({});
-  const [selectedDuration, setSelectedDuration] = useState<string>("");
   const [minPrice, setMinPrice] = useState<string>("");
   const [maxPrice, setMaxPrice] = useState<string>("");
   const [sortBy, setSortBy] = useState<SortOption>("recommended");
@@ -100,6 +95,11 @@ export default function RentPage() {
     };
   }, []);
 
+  const filterSections = useMemo(
+      () => buildFilterSections(rentProducts, RENT_FILTER_SECTION_IDS),
+      [rentProducts]
+  );
+
   const toggleFilterOption = useCallback((sectionId: string, option: string) => {
     setSelectedFilters((prev) => {
       const current = prev[sectionId] || [];
@@ -119,18 +119,16 @@ export default function RentPage() {
 
   const clearFilters = useCallback(() => {
     setSelectedFilters({});
-    setSelectedDuration("");
     setMinPrice("");
     setMaxPrice("");
   }, []);
 
   const activeFilterCount = useMemo(() => {
     let count = Object.values(selectedFilters).reduce((acc, arr) => acc + arr.length, 0);
-    if (selectedDuration) count++;
     if (minPrice) count++;
     if (maxPrice) count++;
     return count;
-  }, [selectedFilters, selectedDuration, minPrice, maxPrice]);
+  }, [selectedFilters, minPrice, maxPrice]);
 
   const parsePriceNumber = (priceStr: string): number => {
     const numeric = priceStr.replace(/[^0-9.]/g, "");
@@ -145,32 +143,10 @@ export default function RentPage() {
             const nameMatch = product.name?.toLowerCase().includes(q);
             const brandMatch = product.brand?.toLowerCase().includes(q);
             const statusMatch = product.status?.toLowerCase().includes(q);
-
             if (!nameMatch && !brandMatch && !statusMatch) return false;
           }
 
-          if (selectedFilters.category?.length) {
-            const catMatch = selectedFilters.category.some(
-                (c) =>
-                    product.category?.toLowerCase() === c.toLowerCase() ||
-                    product.name?.toLowerCase().includes(c.toLowerCase())
-            );
-            if (!catMatch) return false;
-          }
-
-          if (selectedFilters.brand?.length) {
-            const brandMatch = selectedFilters.brand.some(
-                (b) => product.brand?.toLowerCase() === b.toLowerCase()
-            );
-            if (!brandMatch) return false;
-          }
-
-          if (selectedFilters.size?.length) {
-            const sizeMatch = selectedFilters.size.some(
-                (s) => product.size?.toLowerCase() === s.toLowerCase()
-            );
-            if (!sizeMatch) return false;
-          }
+          if (!matchesSelectedFilters(product, selectedFilters)) return false;
 
           const effectivePrice = parsePriceNumber(product.rentalPrice || product.price);
           if (minPrice && !isNaN(parseFloat(minPrice))) {
@@ -278,10 +254,9 @@ export default function RentPage() {
                 {/* Desktop Filter Sidebar */}
                 <div className="hidden lg:block border-r border-[#EBE3D5]">
                   <FilterRail
+                      sections={filterSections}
                       selectedFilters={selectedFilters}
                       onToggleOption={toggleFilterOption}
-                      selectedDuration={selectedDuration}
-                      onSelectDuration={setSelectedDuration}
                       minPrice={minPrice}
                       maxPrice={maxPrice}
                       onMinPriceChange={setMinPrice}
@@ -439,10 +414,9 @@ export default function RentPage() {
 
                 <div className="flex-1 overflow-y-auto">
                   <FilterRail
+                      sections={filterSections}
                       selectedFilters={selectedFilters}
                       onToggleOption={toggleFilterOption}
-                      selectedDuration={selectedDuration}
-                      onSelectDuration={setSelectedDuration}
                       minPrice={minPrice}
                       maxPrice={maxPrice}
                       onMinPriceChange={setMinPrice}
@@ -468,10 +442,9 @@ export default function RentPage() {
 }
 
 interface FilterRailProps {
+  sections: FilterSectionConfig[];
   selectedFilters: Record<string, string[]>;
   onToggleOption: (sectionId: string, option: string) => void;
-  selectedDuration: string;
-  onSelectDuration: (val: string) => void;
   minPrice: string;
   maxPrice: string;
   onMinPriceChange: (val: string) => void;
@@ -481,10 +454,9 @@ interface FilterRailProps {
 }
 
 function FilterRail({
+                      sections,
                       selectedFilters,
                       onToggleOption,
-                      selectedDuration,
-                      onSelectDuration,
                       minPrice,
                       maxPrice,
                       onMinPriceChange,
@@ -492,19 +464,15 @@ function FilterRail({
                       onClear,
                       activeFilterCount,
                     }: FilterRailProps) {
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    category: true,
-    brand: true,
-    size: true,
-    duration: true,
-    price: true,
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = { price: true };
+    DEFAULT_OPEN_SECTIONS.forEach((id) => (initial[id] = true));
+    return initial;
   });
 
   const toggleSection = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
   };
-
-  const durations = ["4 Days", "8 Days", "14 Days", "30 Days"];
 
   return (
       <aside className="bg-[#FDFAF7] p-5">
@@ -522,7 +490,7 @@ function FilterRail({
           )}
         </div>
 
-        {FILTER_SECTIONS.map((section) => {
+        {sections.map((section) => {
           const isOpen = !!openSections[section.id];
           const activeInGroup = selectedFilters[section.id] || [];
 
@@ -568,44 +536,6 @@ function FilterRail({
               </section>
           );
         })}
-
-        {/* Duration Filter Section */}
-        <section className="border-b border-[#EBE3D5] py-4">
-          <button
-              onClick={() => toggleSection("duration")}
-              className="flex w-full items-center justify-between text-left"
-          >
-          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1A130E]">
-            Rental Duration
-          </span>
-            <ChevronDown
-                className={`h-4 w-4 text-[#8C7E74] transition-transform duration-200 ${
-                    openSections.duration ? "rotate-180" : ""
-                }`}
-            />
-          </button>
-          {openSections.duration && (
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {durations.map((duration) => (
-                    <label
-                        key={duration}
-                        className="flex items-center gap-2 text-[12px] text-[#4F4338] cursor-pointer"
-                    >
-                      <input
-                          type="radio"
-                          name="duration"
-                          checked={selectedDuration === duration}
-                          onChange={() =>
-                              onSelectDuration(selectedDuration === duration ? "" : duration)
-                          }
-                          className="accent-[#9E2A1B] h-3.5 w-3.5"
-                      />
-                      {duration}
-                    </label>
-                ))}
-              </div>
-          )}
-        </section>
 
         {/* Price Range Section */}
         <section className="pt-4">
