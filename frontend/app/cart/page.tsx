@@ -11,7 +11,6 @@ import {
     Shirt,
     X,
     RefreshCw,
-    Banknote,
     CreditCard,
     Package,
     CalendarDays,
@@ -19,8 +18,10 @@ import {
     Truck,
     Clock,
     Info,
+    Loader2,
 } from "lucide-react";
 import { useCart } from "@/lib/CartContext";
+import api from "@/lib/axios";
 
 const STATUS_PILL: Record<string, string> = {
     THRIFT: "bg-[#1A1A1A] text-[#FAF6F0]",
@@ -28,11 +29,7 @@ const STATUS_PILL: Record<string, string> = {
     "THRIFT + RENT": "bg-[#9E2A1B] text-white",
 };
 
-/* ─── Reservation window ──────────────────────────────────────
-   2 hours from the moment the FIRST item lands in the cart.
-   Persisted in localStorage so it survives refreshes/navigation,
-   and auto-clears the cart the instant it hits zero. ────────── */
-const RESERVATION_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
+const RESERVATION_WINDOW_MS = 2 * 60 * 60 * 1000;
 const RESERVATION_STORAGE_KEY = "cartReservationStartedAt";
 
 function formatCountdown(ms: number) {
@@ -48,9 +45,10 @@ export default function CartPage() {
     const { cartItems: items, removeFromCart: removeItem, subtotal } = useCart();
     const [paymentModalOpen, setPaymentModalOpen] = useState(false);
     const [remainingMs, setRemainingMs] = useState<number | null>(null);
+    const [orderId, setOrderId] = useState<number | null>(null);
+    const [creatingOrder, setCreatingOrder] = useState(false);
     const hadItemsBefore = useRef(false);
 
-    /* ── Start / clear the reservation timestamp based on cart contents ── */
     useEffect(() => {
         if (items.length > 0) {
             const existing = localStorage.getItem(RESERVATION_STORAGE_KEY);
@@ -59,13 +57,11 @@ export default function CartPage() {
             }
             hadItemsBefore.current = true;
         } else if (hadItemsBefore.current) {
-            // Cart just became empty (checkout, manual removal, or auto-expiry) — reset window.
             localStorage.removeItem(RESERVATION_STORAGE_KEY);
             hadItemsBefore.current = false;
         }
     }, [items.length]);
 
-    /* ── Tick every second; auto-clear the cart when the window expires ── */
     useEffect(() => {
         if (items.length === 0) {
             setRemainingMs(null);
@@ -79,7 +75,6 @@ export default function CartPage() {
             setRemainingMs(remaining);
 
             if (remaining <= 0) {
-                // Reservation window expired — release all held items.
                 items.forEach((item) => removeItem(item.id));
                 localStorage.removeItem(RESERVATION_STORAGE_KEY);
             }
@@ -91,25 +86,64 @@ export default function CartPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [items.length]);
 
-    const shipping = subtotal > 0 ? 595 : 0;
-    const rentalDeposit =
-        items.filter((i) => i.status === "RENT" || i.status === "THRIFT + RENT").length > 0
-            ? 2500
-            : 0;
-    const total = subtotal + shipping + rentalDeposit;
+    // ── FIX: real per-item shipping instead of a flat Rs. 595 ──
+    // Pickup items never carry a shipping cost. Shipping items sum their
+    // own deliveryFee, which BuyNowModal/RentNowModal already computed
+    // from real Listing data (fixed or haversine-based dynamic rates).
+    const shipping = items
+        .filter((i) => i.fulfillment !== "pickup")
+        .reduce((sum, i) => sum + (i.deliveryFee ?? 0), 0);
+
+    // ── FIX: real per-item security deposit instead of a flat Rs. 2500 ──
+    // Sums each rental item's own securityDeposit (sourced from
+    // Listing.securityDeposit via RentNowModal). Thrift items simply
+    // don't carry this field, so they contribute 0.
+    const rentalDeposit = items.reduce(
+        (sum, i) => sum + (i.securityDeposit ?? 0),
+        0
+    );
+
+    const total = subtotal + shipping + rentalDeposit; // raw NPR number
 
     const fmt = (n?: number) =>
         `Rs. ${(n ?? 0).toLocaleString("en-IN", {
             minimumFractionDigits: 0,
         })}`;
 
-    const isExpiringSoon = remainingMs !== null && remainingMs <= 5 * 60 * 1000; // last 5 min
+    const isExpiringSoon = remainingMs !== null && remainingMs <= 5 * 60 * 1000;
+
+    async function handleCheckoutClick() {
+        setCreatingOrder(true);
+        try {
+            const { data } = await api.post("/api/orders", {
+                items: items.map((i) => ({
+                    listingId: i.id,
+                    name: i.name,
+                    image: i.image,
+                    price: i.price,
+                    status: i.status,
+                    rentalStart: i.rentalStart ?? null,
+                    rentalEnd: i.rentalEnd ?? null,
+                    rentalDays: i.rentalDays ?? null,
+                    returnDeadline: i.returnDeadline ?? null,
+                })),
+                totalAmountNpr: total,
+            });
+            setOrderId(data.id);
+            setPaymentModalOpen(true);
+        } catch (err) {
+            console.error(err);
+            alert("Could not start checkout. Please try again.");
+        } finally {
+            setCreatingOrder(false);
+        }
+    }
+
 
     return (
         <div className="min-h-screen bg-[#FAF6F0] text-[#1A130E] antialiased">
             <main className="mx-auto max-w-[1240px] px-6 pb-24 pt-8 lg:px-8">
 
-                {/* ── Page Header ── */}
                 <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h1 className="font-serif text-[42px] font-normal leading-[1.1] tracking-tight text-[#1A130E]">
@@ -134,7 +168,6 @@ export default function CartPage() {
                     )}
                 </div>
 
-                {/* ── Empty State ── */}
                 {items.length === 0 ? (
                     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#DDD5C8] bg-white py-24 text-center">
                         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#FAF6F0] text-[#8C7E74]">
@@ -156,13 +189,11 @@ export default function CartPage() {
                 ) : (
                     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.8fr_1fr] lg:items-start">
 
-                        {/* ── LEFT: Cart Items ── */}
                         <div className="space-y-3">
                             {items.map((item) => {
                                 const isPickup = item.fulfillment === "pickup";
                                 const isRent = item.status === "RENT" || item.status === "THRIFT + RENT";
                                 const feeLabel = isPickup ? "Pickup" : "Delivery Fee";
-                                // const feeValue = item.deliveryFee === 0 ? "Free" : fmt(item.deliveryFee);
                                 const feeValue =
                                     (item.deliveryFee ?? 0) === 0
                                         ? "Free"
@@ -173,7 +204,6 @@ export default function CartPage() {
                                         key={item.id}
                                         className="relative flex overflow-hidden rounded-xl border border-[#E8E0D5] bg-white shadow-sm transition hover:shadow-md"
                                     >
-                                        {/* Image */}
                                         <div className="relative h-auto w-[150px] shrink-0 self-stretch overflow-hidden bg-[#F0EAE0]">
                                             <Image
                                                 src={item.image}
@@ -189,10 +219,8 @@ export default function CartPage() {
                                             </span>
                                         </div>
 
-                                        {/* Details */}
                                         <div className="flex flex-1 flex-col justify-between px-5 py-4">
                                             <div>
-                                                {/* Status + Fulfillment pills */}
                                                 <div className="flex flex-wrap items-center gap-1.5">
                                                     <span
                                                         className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${STATUS_PILL[item.status]}`}
@@ -205,7 +233,6 @@ export default function CartPage() {
                                                     </span>
                                                 </div>
 
-                                                {/* Name + Fee (top right, matches reference) */}
                                                 <div className="mt-2 flex items-start justify-between gap-3">
                                                     <h3 className="font-serif text-[15px] font-bold leading-snug text-[#1A130E]">
                                                         {item.name}
@@ -220,7 +247,6 @@ export default function CartPage() {
                                                     </div>
                                                 </div>
 
-                                                {/* Rent dates line (rent only) */}
                                                 {isRent && item.rentalStart && item.rentalEnd && (
                                                     <p className="mt-0.5 text-[12px] font-medium text-[#4A6B3A]">
                                                         {item.rentalStart} – {item.rentalEnd}
@@ -228,7 +254,6 @@ export default function CartPage() {
                                                     </p>
                                                 )}
 
-                                                {/* Size / Brand / Color */}
                                                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-[#6E6053]">
                                                     <span>Size: <strong className="font-semibold text-[#1A130E]">{item.size}</strong></span>
                                                     {!isRent && (
@@ -236,13 +261,18 @@ export default function CartPage() {
                                                     )}
                                                 </div>
 
+                                                {/* NEW: show each rental item's own refundable deposit inline,
+                                                    so the per-item card matches what the summary now sums. */}
+                                                {isRent && (item.securityDeposit ?? 0) > 0 && (
+                                                    <p className="mt-0.5 text-[12px] text-[#6E6053]">
+                                                        Deposit: <strong className="font-semibold text-[#1A130E]">{fmt(item.securityDeposit)}</strong> (Refundable)
+                                                    </p>
+                                                )}
+
                                                 <div className="flex items-center justify-between w-full mt-1">
-                                                    {/* Price */}
                                                     <p className="text-[17px] font-bold text-[#9E2A1B]">
                                                         {item.price}
                                                     </p>
-
-                                                    {/* Trash Button */}
                                                     <button
                                                         onClick={() => removeItem(item.id)}
                                                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#EBE3D5] bg-[#FAF6F0] text-[#A89E94] transition hover:border-[#9E2A1B] hover:bg-[#FFF5F5] hover:text-[#9E2A1B]"
@@ -252,7 +282,6 @@ export default function CartPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Bottom info strip — Pickup location OR Rental duration/return */}
                                             <div className="mt-3 flex items-end justify-between gap-2">
                                                 {isPickup && item.pickupArea && (
                                                     <div className="flex flex-1 flex-col gap-1 rounded-lg border border-[#DCE4DA] bg-[#F0F6ED] px-3 py-2 text-[11px] text-[#3E5A33]">
@@ -289,13 +318,6 @@ export default function CartPage() {
                                                 {!isPickup && !isRent && (
                                                     <div className="flex-1" />
                                                 )}
-
-                                                {/*<button*/}
-                                                {/*    onClick={() => removeItem(item.id)}*/}
-                                                {/*    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#EBE3D5] bg-[#FAF6F0] text-[#A89E94] transition hover:border-[#9E2A1B] hover:bg-[#FFF5F5] hover:text-[#9E2A1B]"*/}
-                                                {/*>*/}
-                                                {/*    <Trash2 size={13} />*/}
-                                                {/*</button>*/}
                                             </div>
                                         </div>
                                     </div>
@@ -303,7 +325,6 @@ export default function CartPage() {
                             })}
                         </div>
 
-                        {/* ── RIGHT: Order Summary ── */}
                         <div className="sticky top-6 w-full rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] p-6 shadow-sm">
                             <h2 className="font-serif text-[26px] font-normal tracking-tight text-[#1A130E]">
                                 Order Summary
@@ -312,7 +333,6 @@ export default function CartPage() {
                                 {items.length} {items.length === 1 ? "item" : "items"} in your cart
                             </p>
 
-                            {/* Item breakdown */}
                             <div className="mt-4 space-y-2 border-b border-[#EBE3D5] pb-4">
                                 {items.map((item) => (
                                     <div key={item.id} className="flex items-center justify-between gap-2 text-[12px]">
@@ -322,7 +342,6 @@ export default function CartPage() {
                                 ))}
                             </div>
 
-                            {/* Totals */}
                             <div className="mt-4 space-y-3 text-[14px]">
                                 <div className="flex justify-between text-[#4F4338]">
                                     <span className="text-[#5C5249]">
@@ -338,7 +357,9 @@ export default function CartPage() {
                                             <Info size={13} strokeWidth={2} />
                                         </button>
                                     </div>
-                                    <span className="font-semibold text-[#1A130E]">{fmt(shipping)}</span>
+                                    <span className="font-semibold text-[#1A130E]">
+                                        {shipping === 0 ? "Free" : fmt(shipping)}
+                                    </span>
                                 </div>
 
                                 {rentalDeposit > 0 && (
@@ -359,7 +380,6 @@ export default function CartPage() {
                                 </div>
                             </div>
 
-                            {/* Eco note */}
                             <div className="mt-4 flex items-start gap-3 rounded-xl border border-[#DCE4DA] bg-[#F3F6F2] px-4 py-3">
                                 <ShieldCheck size={16} className="mt-0.5 shrink-0 text-[#4A6B3A]" />
                                 <p className="text-[11px] leading-relaxed text-[#405A35]">
@@ -367,14 +387,18 @@ export default function CartPage() {
                                 </p>
                             </div>
 
-                            {/* CTA buttons */}
                             <div className="mt-5 space-y-2.5">
                                 <button
-                                    onClick={() => setPaymentModalOpen(true)}
-                                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#9E2A1B] py-3.5 text-[14px] font-bold text-white shadow-sm transition hover:bg-[#832215]"
+                                    onClick={handleCheckoutClick}
+                                    disabled={creatingOrder}
+                                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#9E2A1B] py-3.5 text-[14px] font-bold text-white shadow-sm transition hover:bg-[#832215] disabled:opacity-60"
                                 >
-                                    <ShoppingBag size={15} />
-                                    Checkout Securely
+                                    {creatingOrder ? (
+                                        <Loader2 size={15} className="animate-spin" />
+                                    ) : (
+                                        <ShoppingBag size={15} />
+                                    )}
+                                    {creatingOrder ? "Preparing checkout…" : "Checkout Securely"}
                                 </button>
                                 <Link
                                     href="/browse-finds"
@@ -384,7 +408,6 @@ export default function CartPage() {
                                 </Link>
                             </div>
 
-                            {/* Trust badges */}
                             <div className="mt-5 space-y-3 border-t border-[#EBE3D5] pt-4">
                                 {[
                                     { icon: ShoppingBag, title: "Secure checkout", desc: "Your information is protected" },
@@ -404,7 +427,6 @@ export default function CartPage() {
                     </div>
                 )}
 
-                {/* ── Bottom Feature Strip ── */}
                 {items.length > 0 && (
                     <div className="mt-14 rounded-2xl border border-[#EBE3D5]/60 bg-[#F7F3EE]/50 p-6 shadow-sm">
                         <div className="grid grid-cols-1 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -433,8 +455,12 @@ export default function CartPage() {
                     </div>
                 )}
 
-                {paymentModalOpen && (
-                    <PaymentModal total={fmt(total)} onClose={() => setPaymentModalOpen(false)} />
+                {paymentModalOpen && orderId !== null && (
+                    <PaymentModal
+                        total={total}
+                        orderId={orderId}
+                        onClose={() => setPaymentModalOpen(false)}
+                    />
                 )}
             </main>
         </div>
@@ -442,10 +468,23 @@ export default function CartPage() {
 }
 
 /* ══════════════════════════════════════════════════════════
-   PAYMENT MODAL — unchanged
+   PAYMENT MODAL — Online-only, wired to backend /api/payments
 ══════════════════════════════════════════════════════════ */
-function PaymentModal({ total, onClose }: { total: string; onClose: () => void }) {
+function PaymentModal({
+                          total,
+                          orderId,
+                          onClose,
+                      }: {
+    total: number; // raw NPR
+    orderId: number;
+    onClose: () => void;
+}) {
     const [selectedPayment, setSelectedPayment] = useState<"esewa" | "khalti">("esewa");
+    const [processing, setProcessing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const fmt = (n: number) =>
+        `Rs. ${n.toLocaleString("en-IN", { minimumFractionDigits: 0 })}`;
 
     const paymentOptions = [
         {
@@ -464,161 +503,173 @@ function PaymentModal({ total, onClose }: { total: string; onClose: () => void }
         },
     ];
 
+    async function handlePay() {
+        setProcessing(true);
+        setError(null);
+        try {
+            const { data } = await api.post("/api/payments/initiate", {
+                orderId,
+                amountNpr: total,
+                paymentGateway: selectedPayment.toUpperCase(),
+                successUrl: `${window.location.origin}/cart/checkout/success`,
+                failureUrl: `${window.location.origin}/cart/checkout/failure`,
+            });
+
+            if (data.gateway === "ESEWA") {
+                // eSewa needs a real browser form POST — axios can't do this,
+                // so build a plain HTML form and submit it directly
+                const form = document.createElement("form");
+                form.method = "POST";
+                form.action = data.gatewayRedirectUrl;
+                Object.entries(data.gatewayFormFields as Record<string, string>).forEach(
+                    ([key, value]) => {
+                        const input = document.createElement("input");
+                        input.type = "hidden";
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    }
+                );
+                document.body.appendChild(form);
+                form.submit();
+            } else if (data.gateway === "KHALTI") {
+                window.location.href = data.gatewayRedirectUrl;
+            }
+        } catch (err) {
+            console.error(err);
+            setError("Something went wrong starting your payment. Please try again.");
+            setProcessing(false);
+        }
+    }
+
     return (
         <div
             className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
             onClick={onClose}
         >
             <div
-                className="relative w-full max-w-[840px] rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
+                className="relative w-full max-w-[700px] rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
                 <button
                     onClick={onClose}
-                    className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+                    className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3] z-10"
                 >
                     <X size={15} />
                 </button>
 
-                <div className="px-8 pt-8 pb-5 text-center">
-                    <h2 className="font-serif text-[26px] font-normal tracking-wide text-[#1A130E]">
-                        Choose Your Payment Method
+                <div className="px-8 pt-5 pb-3 text-center">
+                    <h2 className="font-serif text-[24px] font-normal tracking-wide text-[#1A130E]">
+                        Complete Your Payment
                     </h2>
-                    <p className="mt-1 text-[13px] text-[#6E6053]">
-                        Complete your order of <span className="font-bold text-[#9E2A1B]">{total}</span> securely.
+                    <p className="mt-0.5 text-[13px] text-[#6E6053]">
+                        Pay <span className="font-bold text-[#9E2A1B]">{fmt(total)}</span> securely online.
                     </p>
                 </div>
 
-                <div className="relative grid grid-cols-2 gap-0 px-6 pb-5">
-                    <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#DDD5C8] bg-[#FCFAF7] text-[11px] font-bold text-[#8C7E74]">
-                            OR
-                        </div>
-                    </div>
-
-                    {/* LEFT: Cash on Delivery */}
-                    <div className="mr-3 rounded-xl border border-[#EBE3D5] bg-[#FAF8F5] p-6">
-                        <div className="mb-4 flex justify-center">
-                            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#EBE3D5] bg-white">
-                                <Banknote size={28} strokeWidth={1.4} className="text-[#9E2A1B]" />
+                <div className="px-8 pb-5">
+                    <div className="rounded-xl border border-[#EBE3D5] bg-[#FAF8F5] p-4 sm:p-5">
+                        <div className="mb-2 flex justify-center">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#EBE3D5] bg-white">
+                                <CreditCard size={22} strokeWidth={1.4} className="text-[#9E2A1B]" />
                             </div>
                         </div>
-                        <h3 className="mb-2 text-center font-serif text-[22px] font-normal text-[#1A130E]">
-                            Cash on Delivery
-                        </h3>
-                        <div className="mb-4 flex justify-center">
-                            <span className="rounded-full bg-[#F5ECD5] px-3 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[#8C6A2A]">
-                                COD
-                            </span>
-                        </div>
-                        <p className="mb-5 text-center text-[13px] leading-relaxed text-[#6E6053]">
-                            Pay in cash when your order is delivered to your doorstep.
-                        </p>
-                        <div className="mb-5 space-y-2.5 rounded-xl border border-[#EBE3D5] bg-white px-4 py-3.5">
-                            {[
-                                { icon: ShieldCheck, text: "Pay only when you receive the item" },
-                                { icon: Package,     text: "Open and inspect before payment" },
-                                { icon: RefreshCw,   text: "Easy returns & exchanges" },
-                            ].map(({ icon: Icon, text }) => (
-                                <div key={text} className="flex items-center gap-2.5 text-[12px] text-[#4F4338]">
-                                    <Icon size={14} strokeWidth={1.8} className="shrink-0 text-[#9E2A1B]" />
-                                    {text}
-                                </div>
-                            ))}
-                        </div>
-                        <button className="w-full rounded-xl bg-[#9E2A1B] py-3.5 text-[14px] font-bold text-white transition hover:bg-[#832215]">
-                            Confirm — Pay {total}
-                        </button>
-                        <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#8C7E74]">
-                            <ShieldCheck size={12} strokeWidth={1.6} className="text-[#A89E94]" />
-                            100% Secure. Your order is protected.
-                        </p>
-                    </div>
-
-                    {/* RIGHT: Pay Online */}
-                    <div className="ml-3 rounded-xl border border-[#EBE3D5] bg-[#FAF8F5] p-6">
-                        <div className="mb-4 flex justify-center">
-                            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#EBE3D5] bg-white">
-                                <CreditCard size={26} strokeWidth={1.4} className="text-[#9E2A1B]" />
-                            </div>
-                        </div>
-                        <h3 className="mb-2 text-center font-serif text-[22px] font-normal text-[#1A130E]">
+                        <h3 className="mb-1 text-center font-serif text-[20px] font-normal text-[#1A130E]">
                             Pay Online
                         </h3>
-                        <div className="mb-4 flex justify-center">
-                            <span className="rounded-full bg-[#F5ECD5] px-3 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[#8C6A2A]">
+                        <div className="mb-2 flex justify-center">
+                            <span className="rounded-full bg-[#F5ECD5] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#8C6A2A]">
                                 Secure & Instant
                             </span>
                         </div>
-                        <p className="mb-4 text-center text-[13px] leading-relaxed text-[#6E6053]">
+                        <p className="mb-3 text-center text-[12px] leading-relaxed text-[#6E6053]">
                             Pay securely using your preferred digital wallet.
                         </p>
-                        <p className="mb-2.5 text-center text-[12px] font-semibold text-[#4F4338]">
+                        <p className="mb-2 text-center text-[12px] font-semibold text-[#4F4338]">
                             Select your payment option
                         </p>
-                        <div className="mb-5 space-y-2">
+
+                        <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {paymentOptions.map((option) => (
                                 <button
                                     key={option.id}
                                     onClick={() => setSelectedPayment(option.id)}
-                                    className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
+                                    disabled={processing}
+                                    className={`relative flex flex-col items-center justify-between rounded-xl border p-3.5 transition disabled:opacity-60 ${
                                         selectedPayment === option.id
                                             ? "border-[#9E2A1B] bg-white ring-1 ring-[#9E2A1B]/20"
                                             : "border-[#DDD5C8] bg-white hover:border-[#C4B8AE]"
                                     }`}
                                 >
-                                    <div className="shrink-0">
-                                        {selectedPayment === option.id ? (
-                                            <div className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-[#9E2A1B] bg-[#9E2A1B]">
-                                                <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                                            </div>
-                                        ) : (
-                                            <div className="h-4 w-4 rounded-full border-2 border-[#C4B8AE]" />
-                                        )}
+                                    {option.recommended && (
+                                        <span className="absolute -top-2.5 right-4 rounded-full border border-[#C8A96A] bg-[#FBF3E2] px-2 py-0.5 text-[9px] font-bold text-[#8C6A2A]">
+                                            Recommended
+                                        </span>
+                                    )}
+
+                                    <div className="flex w-full items-center justify-between mb-1">
+                                        <div className="shrink-0">
+                                            {selectedPayment === option.id ? (
+                                                <div className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-[#9E2A1B] bg-[#9E2A1B]">
+                                                    <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                                                </div>
+                                            ) : (
+                                                <div className="h-4 w-4 rounded-full border-2 border-[#C4B8AE]" />
+                                            )}
+                                        </div>
                                     </div>
 
-                                    <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-md">
+                                    <div className="relative h-14 w-36 shrink-0 overflow-hidden my-1">
                                         <Image
                                             src={option.logo}
                                             alt={option.name}
                                             fill
-                                            className="object-contain"
+                                            className="object-contain scale-110"
                                         />
                                     </div>
 
-                                    <div className="flex-1">
-                                        <p className="text-[11px] text-[#6E6053]">{option.desc}</p>
-                                    </div>
-
-                                    {option.recommended && (
-                                        <span className="rounded-full border border-[#C8A96A] bg-[#FBF3E2] px-2 py-0.5 text-[10px] font-bold text-[#8C6A2A]">
-                                            Recommended
-                                        </span>
-                                    )}
+                                    <p className="mt-1 text-center text-[11px] text-[#6E6053]">
+                                        {option.desc}
+                                    </p>
                                 </button>
                             ))}
                         </div>
-                        <button className="w-full rounded-xl bg-[#9E2A1B] py-3.5 text-[14px] font-bold text-white transition hover:bg-[#832215]">
-                            Pay {total} via {selectedPayment === "esewa" ? "eSewa" : "Khalti"}
+
+                        {error && (
+                            <p className="mb-3 text-center text-[12px] font-semibold text-[#9E2A1B]">
+                                {error}
+                            </p>
+                        )}
+
+                        <button
+                            onClick={handlePay}
+                            disabled={processing}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#9E2A1B] py-3 text-[14px] font-bold text-white transition hover:bg-[#832215] disabled:opacity-60"
+                        >
+                            {processing && <Loader2 size={15} className="animate-spin" />}
+                            {processing
+                                ? "Redirecting…"
+                                : `Pay ${fmt(total)} via ${selectedPayment === "esewa" ? "eSewa" : "Khalti"}`}
                         </button>
-                        <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#8C7E74]">
+
+                        <p className="mt-2.5 flex items-center justify-center gap-1.5 text-[11px] text-[#8C7E74]">
                             <ShieldCheck size={12} strokeWidth={1.6} className="text-[#A89E94]" />
                             Secure payment. Encrypted & trusted.
                         </p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-3 divide-x divide-[#EBE3D5] border-t border-[#EBE3D5] px-6 py-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-[#EBE3D5] border-t border-[#EBE3D5] px-6 py-3">
                     {[
                         { icon: ShieldCheck, title: "Secure Checkout", desc: "Your information is safe and encrypted." },
                         { icon: Package,     title: "Verified Items",  desc: "Every item is authenticated." },
                         { icon: RefreshCw,   title: "Easy Returns",    desc: "14-day returns & exchanges." },
                     ].map(({ icon: Icon, title, desc }) => (
-                        <div key={title} className="flex items-start gap-3 px-5 first:pl-0 last:pr-0">
-                            <Icon size={18} strokeWidth={1.6} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
+                        <div key={title} className="flex items-start gap-2.5 p-2 sm:px-4 first:pl-0 last:pr-0">
+                            <Icon size={17} strokeWidth={1.6} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
                             <div>
                                 <p className="text-[12px] font-bold text-[#1A130E]">{title}</p>
-                                <p className="text-[11px] leading-snug text-[#6E6053]">{desc}</p>
+                                <p className="text-[10.5px] leading-snug text-[#6E6053]">{desc}</p>
                             </div>
                         </div>
                     ))}

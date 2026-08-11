@@ -1,5 +1,20 @@
 import api from "@/lib/axios";
-import { ListingResponseDTO, PageResponse, ListingMode } from "@/lib/types/listing";
+import { ListingResponseDTO } from "@/lib/types/listing";
+
+// Extracted type union to match ListingResponseDTO['listingMode']
+export type ListingMode = ListingResponseDTO["listingMode"];
+
+// Standardized Spring Page response interface
+export interface PageResponse<T> {
+    content: T[];
+    totalPages: number;
+    totalElements: number;
+    size: number;
+    number: number;
+    first: boolean;
+    last: boolean;
+    empty: boolean;
+}
 
 export interface GetListingsParams {
     page?: number;

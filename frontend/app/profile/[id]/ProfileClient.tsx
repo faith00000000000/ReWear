@@ -102,8 +102,6 @@ export default function ProfileClient({
         <OwnProfileView
             profile={profile}
             listings={listings}
-            // Lets OwnProfileView push edits (e.g. a saved phone number) back
-            // up without refetching the whole profile from the server.
             onProfileUpdate={(updates) =>
                 setProfile((prev) => (prev ? { ...prev, ...updates } : prev))
             }
@@ -164,6 +162,12 @@ function OwnProfileView({
         };
     }, [profile.id]);
 
+    // Listings count comes from the `listings` prop (fetched server-side via
+    // fetchListingsBySeller in page.tsx) rather than profile.stats, so this
+    // number always reflects the actual listings the seller currently has —
+    // not a stale/mocked stat.
+    const listingsCount = listings.length;
+
     async function handleSavePhone(newPhone: string) {
         setSavingPhone(true);
         try {
@@ -212,18 +216,23 @@ function OwnProfileView({
                     </div>
                 </div>
 
-                {/* ── Stats strip ── */}
+                {/* ── Stats strip — all values now derived from real fetched data ── */}
                 <div className="mt-4 grid grid-cols-2 gap-4 rounded-xl border border-[#EBE3D5] bg-white p-6 sm:grid-cols-3 md:grid-cols-5">
-                    <StatBlock icon={ShoppingBag} value={profile.stats.listingsPosted} label="Listings Posted" />
+                    <StatBlock icon={ShoppingBag} value={listingsCount} label="Listings Posted" />
                     <StatBlock icon={Calendar} value={rentals.length} label="Active Rentals" />
                     <StatBlock icon={Heart} value={favorites.length} label="Saved Items" />
                     <StatBlock icon={Gift} value={donations.length} label="Donations Made" />
-                    <StatBlock icon={Star} value={4.8} suffix=" (56)" label="Reviews" />
+                    {/*<StatBlock icon={Star} value={4.8} suffix=" (56)" label="Reviews" />*/}
                 </div>
 
                 {/* ── Row 1 — Listings / Rentals / Saved ── */}
                 <div className="mt-5 grid gap-5 lg:grid-cols-3">
-                    <SectionCard icon={ShoppingBag} title="My Listings" sub="18 active · 2 inactive" href="/profile/listings">
+                    <SectionCard
+                        icon={ShoppingBag}
+                        title="My Listings"
+                        sub={`${listingsCount} listed`}
+                        href="/profile/listings"
+                    >
                         <div className="grid grid-cols-3 gap-2">
                             {listings.slice(0, 3).map((item) => (
                                 <ThumbWithStatus key={item.id} image={item.image} label="Active" />
@@ -259,7 +268,10 @@ function OwnProfileView({
                     </SectionCard>
                 </div>
 
-                {/* ── Row 2 — Donations / Order History ── */}
+                {/* ── Row 2 — Donations / Order History ──
+                     Order History now points at the dedicated /order-history
+                     page (built off real /api/orders data) instead of the
+                     unbuilt /profile/orders route. */}
                 <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_1.7fr]">
                     <SectionCard icon={Gift} title="My Donations" sub={`${donations.length} donations made`} href="/profile/donations">
                         <div className="grid grid-cols-3 gap-2">
@@ -272,12 +284,12 @@ function OwnProfileView({
                         <ActionButton href="/profile/donations">View Donation History</ActionButton>
                     </SectionCard>
 
-                    <SectionCard icon={Package} title="Order History" sub={`${orders.length} orders placed`} href="/profile/orders">
+                    <SectionCard icon={Package} title="Order History" sub={`${orders.length} orders placed`} href="/order-history">
                         <div className="space-y-2.5">
                             {orders.slice(0, 3).map((o) => (
                                 <Link
                                     key={o.id}
-                                    href={`/profile/orders/${o.id}`}
+                                    href="/order-history"
                                     className="flex items-center gap-3 rounded-lg border border-[#EBE3D5] p-2.5 transition hover:bg-[#FAF6F0]"
                                 >
                                     <div className="relative h-11 w-9 shrink-0 overflow-hidden rounded-md bg-[#F5F0E8]">
@@ -295,7 +307,7 @@ function OwnProfileView({
                                 </Link>
                             ))}
                         </div>
-                        <ActionButton href="/profile/orders">View All Orders</ActionButton>
+                        <ActionButton href="/order-history">View All Orders</ActionButton>
                     </SectionCard>
                 </div>
 
@@ -312,18 +324,12 @@ function OwnProfileView({
 
                         <div className="mt-4 space-y-3">
                             <DetailRow label="Full Name" value={profile.name} />
-                            {/* Email is read-only — comes from registration, not user-editable here */}
                             <DetailRow label="Email Address" value={profile.email ?? "—"} />
-                            {/* Phone is the only editable row — opens the modal */}
                             <DetailRow
                                 label="Phone Number"
                                 value={profile.phone ?? "—"}
                                 onEdit={() => setShowPhoneModal(true)}
                             />
-                            {/*<div className="grid grid-cols-2 gap-3">*/}
-                            {/*    <DetailRow label="Location" value={profile.location ?? "—"} />*/}
-                            {/*    <DetailRow label="Preferred Sizes" value={profile.preferredSizes?.join(", ") ?? "—"} />*/}
-                            {/*</div>*/}
                         </div>
 
                         <div className="mt-4 space-y-1 border-t border-[#EBE3D5] pt-4">
@@ -377,6 +383,8 @@ function OwnProfileView({
 
 /* ══════════════════════════════════════════════════════════
    PUBLIC VIEW — storefront, no Follow / Message / Reviews / Response Rate
+   (unchanged — public stats intentionally still come from profile.stats,
+   since this is another seller's page, not the logged-in user's own data)
 ══════════════════════════════════════════════════════════ */
 function PublicProfileView({ profile, listings }: { profile: Profile; listings: Product[] }) {
     const { isFavorite, toggleFavorite } = useFavorites();
@@ -411,7 +419,6 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
         <div className="min-h-screen bg-[#FAF6F0] text-[#1A130E]">
             <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
-                {/* ── Header — Follow/Message/rating/response-rate intentionally omitted ── */}
                 <div className="flex flex-wrap items-center gap-4 rounded-xl border border-[#EBE3D5] bg-white p-6">
                     <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border-2 border-[#EBE3D5] bg-[#9E2A1B] text-white">
                         {profile.avatarUrl ? (
@@ -437,7 +444,6 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
                     </div>
                 </div>
 
-                {/* ── Stats — Average Rating omitted along with reviews ── */}
                 <div className="mt-4 grid grid-cols-2 gap-4 rounded-xl border border-[#EBE3D5] bg-white p-6 sm:grid-cols-4">
                     <StatBlock icon={ShoppingBag} value={profile.stats.listingsPosted} label="Items Listed" />
                     <StatBlock icon={Tag} value={profile.stats.activeItems} label="Active Items" />
@@ -445,7 +451,6 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
                     <StatBlock icon={Heart} value={profile.stats.savedByUsers} label="Saved by Users" />
                 </div>
 
-                {/* ── Listings ── */}
                 <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h2 className="font-serif text-[20px] font-normal text-[#1A130E]">Listings by {profile.name.split(" ")[0]}</h2>
@@ -519,7 +524,6 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
                     </Link>
                 </div>
 
-                {/* ── About the Seller / Policies — Response Time omitted; reviews panel dropped ── */}
                 <div className="mt-8 grid gap-5 sm:grid-cols-2">
                     <div className="rounded-xl border border-[#EBE3D5] bg-white p-5">
                         <h3 className="text-[14px] font-bold text-[#1A130E]">About the Seller</h3>
@@ -541,7 +545,6 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
                     </div>
                 </div>
 
-                {/* ── Trust strip ── */}
                 <div className="mt-6 rounded-xl border border-[#EBE3D5] bg-white p-5 text-center">
                     <p className="flex items-center justify-center gap-1.5 text-[13px] font-bold text-[#1A130E]">
                         <ShieldCheck size={15} className="text-[#9E2A1B]" /> Shop with confidence from verified sellers.
@@ -555,7 +558,7 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
     );
 }
 
-/* ─── Shared small pieces ─────────────────────────────────── */
+/* ─── Shared small pieces (unchanged) ─────────────────────────────────── */
 function StatBlock({ icon: Icon, value, suffix = "", label }: { icon: typeof Heart; value: number; suffix?: string; label: string }) {
     return (
         <div className="flex flex-col items-center gap-1.5 text-center">
@@ -629,8 +632,6 @@ function ActionButton({ href, children }: { href: string; children: React.ReactN
     );
 }
 
-// NEW — onEdit is optional. Rows that don't pass it (e.g. Email) render with
-// no pencil button at all, making them effectively read-only.
 function DetailRow({ label, value, onEdit }: { label: string; value: string; onEdit?: () => void }) {
     return (
         <div className="flex items-center justify-between rounded-lg border border-[#EBE3D5] px-3.5 py-2.5">

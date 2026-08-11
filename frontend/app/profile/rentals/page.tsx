@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Calendar, Construction } from "lucide-react";
+import { ArrowLeft, Calendar, AlertCircle } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuth } from "@/lib/AuthContext";
 import { isAuthenticated } from "@/lib/auth";
@@ -17,9 +17,9 @@ export default function ActiveRentalsPage() {
 
     const [rentals, setRentals] = useState<RentalListing[]>([]);
     const [loading, setLoading] = useState(true);
-    // Distinguishes "no rentals" from "the endpoint doesn't exist yet" so
-    // the empty state is honest instead of implying the user simply has none.
-    const [backendUnavailable, setBackendUnavailable] = useState(false);
+    // Now a real fetch error (network/auth/5xx) — /api/orders exists, so
+    // this is no longer a "not built yet" placeholder state.
+    const [error, setError] = useState(false);
 
     useEffect(() => {
         if (!isAuthenticated()) {
@@ -29,17 +29,18 @@ export default function ActiveRentalsPage() {
 
     useEffect(() => {
         if (!user?.id) return;
-        const userId = user.id; // narrowed once, safe to use below
+        const userId = user.id;
         let cancelled = false;
 
         async function load() {
             setLoading(true);
-            setBackendUnavailable(false);
+            setError(false);
             try {
                 const data = await fetchRentals(userId);
                 if (!cancelled) setRentals(data);
             } catch (err) {
-                if (!cancelled) setBackendUnavailable(true);
+                console.error(err);
+                if (!cancelled) setError(true);
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -51,7 +52,7 @@ export default function ActiveRentalsPage() {
         };
     }, [user?.id]);
 
-    // No return/extend endpoints exist yet either.
+    // No return/extend endpoints exist yet.
     function handleAction(label: string) {
         toast.info(`${label} isn't available yet — coming soon.`);
     }
@@ -60,7 +61,6 @@ export default function ActiveRentalsPage() {
         <div className="min-h-screen bg-[#FAF6F0] text-[#1A130E]">
             <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
 
-                {/* Header */}
                 <div className="flex items-center gap-3">
                     <Link
                         href="/profile"
@@ -72,27 +72,26 @@ export default function ActiveRentalsPage() {
                     <div>
                         <h1 className="font-serif text-[26px] font-normal text-[#1A130E]">Active Rentals</h1>
                         <p className="text-[12px] text-[#8C7E74]">
-                            {loading ? "Loading…" : backendUnavailable ? "" : `${rentals.length} ongoing`}
+                            {loading ? "Loading…" : error ? "" : `${rentals.length} ongoing`}
                         </p>
                     </div>
                 </div>
 
-                {/* Content states */}
                 {loading && (
                     <div className="mt-10 text-center text-[13px] text-[#8C7E74]">Loading your rentals…</div>
                 )}
 
-                {!loading && backendUnavailable && (
+                {!loading && error && (
                     <div className="mt-10 flex flex-col items-center gap-3 rounded-xl border border-[#EBE3D5] bg-white py-16 text-center">
-                        <Construction size={28} className="text-[#B5A89E]" />
-                        <p className="text-[14px] font-semibold text-[#1A130E]">Rentals tracking is coming soon</p>
+                        <AlertCircle size={28} className="text-[#B5A89E]" />
+                        <p className="text-[14px] font-semibold text-[#1A130E]">Couldn't load your rentals</p>
                         <p className="max-w-xs text-[12px] text-[#8C7E74]">
-                            This page will show your active rentals here once that feature is wired up on our end.
+                            Something went wrong on our end. Please try again in a moment.
                         </p>
                     </div>
                 )}
 
-                {!loading && !backendUnavailable && rentals.length === 0 && (
+                {!loading && !error && rentals.length === 0 && (
                     <div className="mt-10 flex flex-col items-center gap-3 rounded-xl border border-[#EBE3D5] bg-white py-16 text-center">
                         <Calendar size={28} className="text-[#B5A89E]" />
                         <p className="text-[14px] font-semibold text-[#1A130E]">No active rentals</p>
@@ -106,13 +105,10 @@ export default function ActiveRentalsPage() {
                     </div>
                 )}
 
-                {!loading && !backendUnavailable && rentals.length > 0 && (
+                {!loading && !error && rentals.length > 0 && (
                     <div className="mt-6 flex flex-col gap-3">
                         {rentals.map((r) => (
-                            <div
-                                key={r.id}
-                                className="flex items-center gap-4 rounded-xl border border-[#EBE3D5] bg-white p-4"
-                            >
+                            <div key={r.id} className="flex items-center gap-4 rounded-xl border border-[#EBE3D5] bg-white p-4">
                                 <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-[#F5F0E8]">
                                     <Image src={r.image} alt={r.name} fill className="object-cover" />
                                 </div>

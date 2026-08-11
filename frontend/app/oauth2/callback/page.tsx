@@ -15,26 +15,6 @@ export default function OAuth2CallbackPage() {
   const params = useSearchParams();
 
   useEffect(() => {
-    // const accessToken = params.get("accessToken");
-    // const refreshToken = params.get("refreshToken");
-    // const id = params.get("userId");
-    // const fullName = params.get("fullName");
-    // const email = params.get("email");
-    // const picture = params.get("picture");
-    //
-    // if (accessToken && refreshToken && id && fullName && email) {
-    //   saveTokens({ accessToken, refreshToken });
-    //   saveUser({
-    //     id: Number(id),
-    //     fullName,
-    //     email,
-    //     profilePictureUrl: picture ?? undefined,
-    //   });
-    //   router.replace("/");
-    // } else {
-    //   // Something went wrong — send back to signup
-    //   router.replace("/signup?error=oauth_failed");
-    // }
     const accessToken = params.get("accessToken");
     const refreshToken = params.get("refreshToken");
     const id = params.get("userId");

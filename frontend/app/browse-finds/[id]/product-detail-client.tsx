@@ -17,7 +17,7 @@ import {
     Download,
     Droplet,
     FlameKindling,
-    Heart, Info,
+    Heart,
     Leaf,
     Lock,
     MapPin,
@@ -33,6 +33,7 @@ import {
     Sparkle,
     Sparkles,
     Tag,
+    Info,
     ThumbsDown,
     ThumbsUp,
     Trees,
@@ -794,7 +795,7 @@ export default function ProductDetailClient({
                                             {isFav ? "Saved" : "Save Item"}
                                         </button>
                                         <button className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]">
-                                            <Share2 size={13} /> Share
+                                            <Info size={13} /> Report
                                         </button>
                                     </div>
 
@@ -2570,24 +2571,6 @@ function RentNowModal({
 
     const handleSaveAndAddToCart = () => {
         if (!canSubmit) return;
-        // addToCart({
-        //     id: product.id,
-        //     brand: product.brand ?? "",
-        //     name: product.name,
-        //     price: `${fmt(rentInfo.dailyRateNumber)} / day`,
-        //     size: product.size ?? "",
-        //     condition: product.condition ?? "",
-        //     color: product.color ?? "",
-        //     category: "Rent",
-        //     image: product.image,
-        //     status: "RENT",
-        //     note:
-        //         `Rent for ${rentInfo.days} day${rentInfo.days > 1 ? "s" : ""} · ` +
-        //         `${formatShortDate(rentInfo.startDate)} → ${formatShortDate(rentInfo.endDate)} · ` +
-        //         (channel === "shipping"
-        //             ? `Ship to: ${resolvedAddress || "Pinned address"} · ${fullName} · ${contactNumber}`
-        //             : `Pickup by: ${fullName} · ${contactNumber}`),
-        // });
 
         // Inside RentNowModal.handleSaveAndAddToCart():
         addToCart({
@@ -2603,6 +2586,10 @@ function RentNowModal({
             status: "RENT",
             fulfillment: channel,
             deliveryFee: resolvedFee,
+            // NEW: carry the refundable deposit through to the cart item so
+            // the cart page's Order Summary can sum real per-item deposits
+            // instead of charging a flat placeholder amount.
+            securityDeposit: securityDeposit,
             pickupArea: channel === "pickup" ? (product.pickupResolvedAddress ?? product.pickupArea ?? undefined) : undefined,
             pickupHours: channel === "pickup"
                 ? `${product.pickupTimeFrom ?? "10:00 AM"} – ${product.pickupTimeTo ?? "6:00 PM"}${
