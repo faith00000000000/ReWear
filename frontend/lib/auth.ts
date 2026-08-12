@@ -11,6 +11,11 @@ export interface AuthUser {
   profilePictureUrl?: string;
 }
 
+export function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("accessToken");
+}
+
 export function saveTokens(tokens: AuthTokens) {
   localStorage.setItem("accessToken", tokens.accessToken);
   localStorage.setItem("refreshToken", tokens.refreshToken);
@@ -18,6 +23,8 @@ export function saveTokens(tokens: AuthTokens) {
   if (tokens.expiresIn) {
     const expiresAt = Date.now() + tokens.expiresIn * 1000;
     localStorage.setItem("expiresAt", String(expiresAt));
+  } else {
+    localStorage.removeItem("expiresAt");
   }
 }
 
@@ -26,6 +33,10 @@ export function clearTokens() {
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("expiresAt");
   localStorage.removeItem("user");
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("auth-changed"));
+  }
 }
 
 export function saveUser(user: AuthUser) {
@@ -42,25 +53,27 @@ export function getUser(): AuthUser | null {
   }
 }
 
-// ── Fixed: now checks expiry, auto-clears stale tokens ──────────────────────
 export function isAuthenticated(): boolean {
   if (typeof window === "undefined") return false;
 
   const token = localStorage.getItem("accessToken");
   if (!token) return false;
 
-  // If we stored an expiry, honour it
   const expiresAt = localStorage.getItem("expiresAt");
   if (expiresAt && Date.now() > Number(expiresAt)) {
-    clearTokens(); // wipe the stale session automatically
+    clearTokens();
     return false;
   }
 
   return true;
 }
+
 export function saveSession(tokens: AuthTokens, user: AuthUser) {
   saveTokens(tokens);
   saveUser(user);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("auth-changed"));
+  }
 }
 
 export function redirectToGoogle(redirectTo: string = "/") {

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
+// import { useAuth } from "@/lib/AuthContext";
+import { fetchProfile } from "@/lib/api/profileApi";
 import {
     AlertTriangle,
     BadgeCheck,
@@ -1946,8 +1948,51 @@ function BuyNowModal({
     };
 
     // TODO: wire these to the real logged-in user's profile data
-    const handleUseProfileName = () => setFullName("");
-    const handleUseProfileNumber = () => setContactNumber("");
+    // const handleUseProfileName = () => setFullName("");
+    // const handleUseProfileNumber = () => setContactNumber("");
+    const { user } = useAuth();
+    const [fetchingProfileName, setFetchingProfileName] = useState(false);
+    const [fetchingProfileNumber, setFetchingProfileNumber] = useState(false);
+
+    const handleUseProfileName = async () => {
+        if (!user?.id) {
+            toast.error("You need to be logged in to do this.");
+            return;
+        }
+        setFetchingProfileName(true);
+        try {
+            const profile = await fetchProfile(user.id);
+            if (!profile?.name) {
+                toast.info("You haven't added a name to your profile yet.");
+                return;
+            }
+            setFullName(profile.name);
+        } catch (err) {
+            toast.error("Couldn't fetch your profile name. Please try again.");
+        } finally {
+            setFetchingProfileName(false);
+        }
+    };
+
+    const handleUseProfileNumber = async () => {
+        if (!user?.id) {
+            toast.error("You need to be logged in to do this.");
+            return;
+        }
+        setFetchingProfileNumber(true);
+        try {
+            const profile = await fetchProfile(user.id);
+            if (!profile?.phone) {
+                toast.info("You haven't added a phone number to your profile yet.");
+                return;
+            }
+            setContactNumber(profile.phone);
+        } catch (err) {
+            toast.error("Couldn't fetch your profile number. Please try again.");
+        } finally {
+            setFetchingProfileNumber(false);
+        }
+    };
 
     const basePrice = product.priceValue;
 
@@ -2269,8 +2314,15 @@ function BuyNowModal({
                                     <div className="flex flex-col gap-1.5">
                                         <div className="flex items-center justify-between">
                                             <label className="text-[12px] font-semibold text-[#3D2B1F]">Full Name *</label>
-                                            <button onClick={handleUseProfileName} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">
-                                                Use profile name
+                                            {/*<button onClick={handleUseProfileName} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">*/}
+                                            {/*    Use profile name*/}
+                                            {/*</button>*/}
+                                            <button
+                                                onClick={handleUseProfileName}
+                                                disabled={fetchingProfileName}
+                                                className="text-[11px] font-semibold text-[#9E2A1B] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+                                            >
+                                                {fetchingProfileName ? "Fetching..." : "Use profile name"}
                                             </button>
                                         </div>
                                         <input
@@ -2283,8 +2335,15 @@ function BuyNowModal({
                                     <div className="flex flex-col gap-1.5">
                                         <div className="flex items-center justify-between">
                                             <label className="text-[12px] font-semibold text-[#3D2B1F]">Contact Number *</label>
-                                            <button onClick={handleUseProfileNumber} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">
-                                                Use profile number
+                                            {/*<button onClick={handleUseProfileNumber} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">*/}
+                                            {/*    Use profile number*/}
+                                            {/*</button>*/}
+                                            <button
+                                                onClick={handleUseProfileNumber}
+                                                disabled={fetchingProfileNumber}
+                                                className="text-[11px] font-semibold text-[#9E2A1B] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+                                            >
+                                                {fetchingProfileNumber ? "Fetching..." : "Use profile number"}
                                             </button>
                                         </div>
                                         <input
@@ -2465,389 +2524,552 @@ function BuyNowModal({
     );
 }
 
-/* ══════════════════════════════════════════════════════════
-   RENT NOW MODAL — mirrors BuyNowModal's Shipping / Pickup /
-   Flex flow, but priced for a rental: Rental Price (rate × days)
-   + Security Deposit + Delivery/Pickup Fee. Success screen shows
-   "Rented for X days" info instead of a plain add-to-cart line.
-══════════════════════════════════════════════════════════ */
-type RentNowStep = "delivery" | "added";
+    /* ══════════════════════════════════════════════════════════
+       RENT NOW MODAL — mirrors BuyNowModal's Shipping / Pickup /
+       Flex flow, but priced for a rental: Rental Price (rate × days)
+       + Security Deposit + Delivery/Pickup Fee. Success screen shows
+       "Rented for X days" info instead of a plain add-to-cart line.
+    ══════════════════════════════════════════════════════════ */
+    type RentNowStep = "delivery" | "added";
+    
+    function RentNowModal({
+                              product,
+                              rentInfo,
+                              onClose,
+                          }: {
+        product: DeliverableProduct;
+        rentInfo: {
+            days: number;
+            startDate: Date;
+            endDate: Date;
+            dailyRateNumber: number;
+            securityDepositNumber: number;
+        };
+        onClose: () => void;
+    }) {
+        const { addToCart } = useCart();
+        const { hasShipping, hasPickup } = deliveryChannelsFor(product);
 
-function RentNowModal({
-                          product,
-                          rentInfo,
-                          onClose,
-                      }: {
-    product: DeliverableProduct;
-    rentInfo: {
-        days: number;
-        startDate: Date;
-        endDate: Date;
-        dailyRateNumber: number;
-        securityDepositNumber: number;
-    };
-    onClose: () => void;
-}) {
-    const { addToCart } = useCart();
-    const { hasShipping, hasPickup } = deliveryChannelsFor(product);
+        const { user } = useAuth();
+        const [fetchingProfileName, setFetchingProfileName] = useState(false);
+        const [fetchingProfileNumber, setFetchingProfileNumber] = useState(false);
 
-    const [step, setStep] = useState<RentNowStep>("delivery");
-    const [channel, setChannel] = useState<"shipping" | "pickup">(hasShipping ? "shipping" : "pickup");
-
-    const [fullName, setFullName] = useState("");
-    const [contactNumber, setContactNumber] = useState("");
-    const [notes, setNotes] = useState("");
-
-    const [addressLat, setAddressLat] = useState<number | null>(null);
-    const [addressLng, setAddressLng] = useState<number | null>(null);
-    const [resolvedAddress, setResolvedAddress] = useState("");
-
-    const reverseGeocode = async (lat: number, lng: number) => {
-        try {
-            const res = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
-                { headers: { Accept: "application/json" } }
-            );
-            if (!res.ok) return;
-            const data = await res.json();
-            if (data?.display_name) setResolvedAddress(data.display_name as string);
-        } catch {
-            // Silent — nice-to-have only.
-        }
-    };
-
-    const handleAddressPin = (lat: number, lng: number) => {
-        setAddressLat(lat);
-        setAddressLng(lng);
-        reverseGeocode(lat, lng);
-    };
-
-    const handleUseCurrentLocation = () => {
-        if (!navigator.geolocation) return;
-        navigator.geolocation.getCurrentPosition((pos) => {
-            handleAddressPin(pos.coords.latitude, pos.coords.longitude);
-        });
-    };
-
-    const handleUseProfileName = () => setFullName("");
-    const handleUseProfileNumber = () => setContactNumber("");
-
-    const rentalPrice = rentInfo.dailyRateNumber * rentInfo.days;
-    const securityDeposit = rentInfo.securityDepositNumber;
-
-    const sellerPickupLat = product.pickupLat ? toNumber(product.pickupLat) : null;
-    const sellerPickupLng = product.pickupLng ? toNumber(product.pickupLng) : null;
-    const hasSellerOrigin = sellerPickupLat !== null && sellerPickupLng !== null;
-
-    const isDynamic =
-        normalizeFulfillment(product.deliveryOption) !== "pickup" &&
-        (product.shippingFeeType ?? "").toUpperCase().replace(/[\s_]/g, "").includes("DYNAMIC");
-
-    const deliveryFee = useMemo(() => {
-        if (channel === "pickup") return 0;
-        if (!isDynamic) return calculateFlexDeliveryFee(product, "shipping", null);
-        if (!addressLat || !addressLng || !hasSellerOrigin) return null;
-        const km = distanceKm(sellerPickupLat as number, sellerPickupLng as number, addressLat, addressLng);
-        const bucket = resolveDistanceBucket(km);
-        return calculateFlexDeliveryFee(product, "shipping", bucket);
-    }, [channel, isDynamic, addressLat, addressLng, hasSellerOrigin, sellerPickupLat, sellerPickupLng, product]);
-
-    const dynamicFeePending = channel === "shipping" && isDynamic && deliveryFee === null;
-    const resolvedFee = deliveryFee ?? 0;
-    const total = rentalPrice + securityDeposit + (channel === "shipping" ? resolvedFee : 0);
-
-    const fmt = (n: number) => `Rs. ${n.toLocaleString("en-IN")}`;
-
-    const pickupMapUrl =
-        sellerPickupLat && sellerPickupLng
-            ? `https://www.google.com/maps?q=${sellerPickupLat},${sellerPickupLng}`
-            : null;
-
-    const canSubmit =
-        fullName.trim() &&
-        contactNumber.trim() &&
-        (channel === "pickup" || (addressLat && addressLng)) &&
-        !(channel === "shipping" && dynamicFeePending);
-
-    const handleSaveAndAddToCart = () => {
-        if (!canSubmit) return;
-
-        // Inside RentNowModal.handleSaveAndAddToCart():
-        addToCart({
-            id: product.id,
-            brand: product.brand ?? "",
-            name: product.name,
-            price: `${fmt(rentInfo.dailyRateNumber)} / day`,
-            size: product.size ?? "",
-            condition: product.condition ?? "",
-            color: product.color ?? "",
-            category: "Rent",
-            image: product.image,
-            status: "RENT",
-            fulfillment: channel,
-            deliveryFee: resolvedFee,
-            // NEW: carry the refundable deposit through to the cart item so
-            // the cart page's Order Summary can sum real per-item deposits
-            // instead of charging a flat placeholder amount.
-            securityDeposit: securityDeposit,
-            pickupArea: channel === "pickup" ? (product.pickupResolvedAddress ?? product.pickupArea ?? undefined) : undefined,
-            pickupHours: channel === "pickup"
-                ? `${product.pickupTimeFrom ?? "10:00 AM"} – ${product.pickupTimeTo ?? "6:00 PM"}${
-                    product.pickupDays ? ` (${formatPickupDays(product.pickupDays)})` : ""
-                }`
-                : undefined,
-            rentalDays: rentInfo.days,
-            rentalStart: formatShortDate(rentInfo.startDate),
-            rentalEnd: formatShortDate(rentInfo.endDate),
-            returnDeadline: `${rentInfo.endDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} (by 6:00 PM)`,
-            note:
-                channel === "shipping"
-                    ? `Ship to: ${resolvedAddress || "Pinned address"} · ${fullName} · ${contactNumber}`
-                    : `Pickup by: ${fullName} · ${contactNumber}`,
-        });
-        setStep("added");
-    };
-
-    const subtitle = hasShipping && hasPickup
-        ? "This item is available with both shipping and pickup."
-        : hasShipping
-            ? "This item is available with shipping."
-            : "This item is available with pickup.";
-
-    return (
-        <div
-            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-            onClick={onClose}
-        >
+        const [step, setStep] = useState<RentNowStep>("delivery");
+        const [channel, setChannel] = useState<"shipping" | "pickup">(hasShipping ? "shipping" : "pickup");
+    
+        const [fullName, setFullName] = useState("");
+        const [contactNumber, setContactNumber] = useState("");
+        const [notes, setNotes] = useState("");
+    
+        const [addressLat, setAddressLat] = useState<number | null>(null);
+        const [addressLng, setAddressLng] = useState<number | null>(null);
+        const [resolvedAddress, setResolvedAddress] = useState("");
+    
+        const reverseGeocode = async (lat: number, lng: number) => {
+            try {
+                const res = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+                    { headers: { Accept: "application/json" } }
+                );
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data?.display_name) setResolvedAddress(data.display_name as string);
+            } catch {
+                // Silent — nice-to-have only.
+            }
+        };
+    
+        const handleAddressPin = (lat: number, lng: number) => {
+            setAddressLat(lat);
+            setAddressLng(lng);
+            reverseGeocode(lat, lng);
+        };
+    
+        const handleUseCurrentLocation = () => {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition((pos) => {
+                handleAddressPin(pos.coords.latitude, pos.coords.longitude);
+            });
+        };
+    
+        // const handleUseProfileName = () => setFullName("");
+        // const handleUseProfileNumber = () => setContactNumber("");
+    
+        const handleUseProfileName = async () => {
+            if (!user?.id) {
+                toast.error("You need to be logged in to do this.");
+                return;
+            }
+            setFetchingProfileName(true);
+            try {
+                const profile = await fetchProfile(user.id);
+                if (!profile?.name) {
+                    toast.info("You haven't added a name to your profile yet.");
+                    return;
+                }
+                setFullName(profile.name);
+            } catch (err) {
+                toast.error("Couldn't fetch your profile name. Please try again.");
+            } finally {
+                setFetchingProfileName(false);
+            }
+        };
+    
+        const handleUseProfileNumber = async () => {
+            if (!user?.id) {
+                toast.error("You need to be logged in to do this.");
+                return;
+            }
+            setFetchingProfileNumber(true);
+            try {
+                const profile = await fetchProfile(user.id);
+                if (!profile?.phone) {
+                    toast.info("You haven't added a phone number to your profile yet.");
+                    return;
+                }
+                setContactNumber(profile.phone);
+            } catch (err) {
+                toast.error("Couldn't fetch your profile number. Please try again.");
+            } finally {
+                setFetchingProfileNumber(false);
+            }
+        };
+    
+        const rentalPrice = rentInfo.dailyRateNumber * rentInfo.days;
+        const securityDeposit = rentInfo.securityDepositNumber;
+    
+        const sellerPickupLat = product.pickupLat ? toNumber(product.pickupLat) : null;
+        const sellerPickupLng = product.pickupLng ? toNumber(product.pickupLng) : null;
+        const hasSellerOrigin = sellerPickupLat !== null && sellerPickupLng !== null;
+    
+        const isDynamic =
+            normalizeFulfillment(product.deliveryOption) !== "pickup" &&
+            (product.shippingFeeType ?? "").toUpperCase().replace(/[\s_]/g, "").includes("DYNAMIC");
+    
+        const deliveryFee = useMemo(() => {
+            if (channel === "pickup") return 0;
+            if (!isDynamic) return calculateFlexDeliveryFee(product, "shipping", null);
+            if (!addressLat || !addressLng || !hasSellerOrigin) return null;
+            const km = distanceKm(sellerPickupLat as number, sellerPickupLng as number, addressLat, addressLng);
+            const bucket = resolveDistanceBucket(km);
+            return calculateFlexDeliveryFee(product, "shipping", bucket);
+        }, [channel, isDynamic, addressLat, addressLng, hasSellerOrigin, sellerPickupLat, sellerPickupLng, product]);
+    
+        const dynamicFeePending = channel === "shipping" && isDynamic && deliveryFee === null;
+        const resolvedFee = deliveryFee ?? 0;
+        const total = rentalPrice + securityDeposit + (channel === "shipping" ? resolvedFee : 0);
+    
+        const fmt = (n: number) => `Rs. ${n.toLocaleString("en-IN")}`;
+    
+        const pickupMapUrl =
+            sellerPickupLat && sellerPickupLng
+                ? `https://www.google.com/maps?q=${sellerPickupLat},${sellerPickupLng}`
+                : null;
+    
+        const canSubmit =
+            fullName.trim() &&
+            contactNumber.trim() &&
+            (channel === "pickup" || (addressLat && addressLng)) &&
+            !(channel === "shipping" && dynamicFeePending);
+    
+        const handleSaveAndAddToCart = () => {
+            if (!canSubmit) return;
+    
+            // Inside RentNowModal.handleSaveAndAddToCart():
+            addToCart({
+                id: product.id,
+                brand: product.brand ?? "",
+                name: product.name,
+                price: `${fmt(rentInfo.dailyRateNumber)} / day`,
+                size: product.size ?? "",
+                condition: product.condition ?? "",
+                color: product.color ?? "",
+                category: "Rent",
+                image: product.image,
+                status: "RENT",
+                fulfillment: channel,
+                deliveryFee: resolvedFee,
+                // NEW: carry the refundable deposit through to the cart item so
+                // the cart page's Order Summary can sum real per-item deposits
+                // instead of charging a flat placeholder amount.
+                securityDeposit: securityDeposit,
+                pickupArea: channel === "pickup" ? (product.pickupResolvedAddress ?? product.pickupArea ?? undefined) : undefined,
+                pickupHours: channel === "pickup"
+                    ? `${product.pickupTimeFrom ?? "10:00 AM"} – ${product.pickupTimeTo ?? "6:00 PM"}${
+                        product.pickupDays ? ` (${formatPickupDays(product.pickupDays)})` : ""
+                    }`
+                    : undefined,
+                rentalDays: rentInfo.days,
+                rentalStart: formatShortDate(rentInfo.startDate),
+                rentalEnd: formatShortDate(rentInfo.endDate),
+                returnDeadline: `${rentInfo.endDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} (by 6:00 PM)`,
+                note:
+                    channel === "shipping"
+                        ? `Ship to: ${resolvedAddress || "Pinned address"} · ${fullName} · ${contactNumber}`
+                        : `Pickup by: ${fullName} · ${contactNumber}`,
+            });
+            setStep("added");
+        };
+    
+        const subtitle = hasShipping && hasPickup
+            ? "This item is available with both shipping and pickup."
+            : hasShipping
+                ? "This item is available with shipping."
+                : "This item is available with pickup.";
+    
+        return (
             <div
-                className="relative w-full max-w-[620px] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
+                className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+                onClick={onClose}
             >
-                <button
-                    onClick={onClose}
-                    className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+                <div
+                    className="relative w-full max-w-[620px] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
                 >
-                    <X size={16} />
-                </button>
-
-                {step === "added" ? (
-                    <div className="flex flex-col items-center px-8 py-8 text-center">
-                        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#4A6B3A] bg-[#F0F6ED]">
-                            <Check size={30} strokeWidth={2.2} className="text-[#4A6B3A]" />
-                        </div>
-                        <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
-                            Added to Cart!
-                        </h2>
-                        <p className="mt-2 max-w-[380px] text-[13px] leading-relaxed text-[#6E6053]">
-                            <span className="font-semibold text-[#1A130E]">{product.name}</span> has been added to
-                            your cart — rented for{" "}
-                            <span className="font-semibold text-[#1A130E]">
-                                {rentInfo.days} day{rentInfo.days > 1 ? "s" : ""}
-                            </span>{" "}
-                            ({formatShortDate(rentInfo.startDate)} → {formatShortDate(rentInfo.endDate)}) with{" "}
-                            {channel === "shipping" ? "shipping" : "pickup"} selected.
-                        </p>
-
-                        <div className="mt-5 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
-                            <div className="flex items-center gap-4">
-                                <div className="relative h-[64px] w-[52px] shrink-0 overflow-hidden rounded-lg border border-[#EBE3D5] bg-[#F5F0E8]">
-                                    <Image src={product.image} alt={product.name} fill className="object-cover" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="truncate text-[13px] font-semibold text-[#1A130E]">{product.name}</p>
-                                    <p className="text-[11px] text-[#6E6053]">
-                                        {product.brand} {product.size ? `· Size ${product.size}` : ""}
-                                    </p>
-                                    <p className="mt-0.5 text-[11px] text-[#8C7E74]">
-                                        {formatShortDate(rentInfo.startDate)} → {formatShortDate(rentInfo.endDate)}
-                                    </p>
-                                </div>
-                                <p className="shrink-0 text-[15px] font-bold text-[#9E2A1B]">
-                                    {fmt(rentInfo.dailyRateNumber)}/day
-                                </p>
+                    <button
+                        onClick={onClose}
+                        className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+                    >
+                        <X size={16} />
+                    </button>
+    
+                    {step === "added" ? (
+                        <div className="flex flex-col items-center px-8 py-8 text-center">
+                            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#4A6B3A] bg-[#F0F6ED]">
+                                <Check size={30} strokeWidth={2.2} className="text-[#4A6B3A]" />
                             </div>
-                        </div>
-
-                        <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] px-5 py-4 text-left overflow-hidden">
-                            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                                {channel === "shipping" ? <Truck size={12} /> : <MapPin size={12} />}
-                                {channel === "shipping" ? "Shipping Details" : "Pickup Details"}
+                            <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
+                                Added to Cart!
+                            </h2>
+                            <p className="mt-2 max-w-[380px] text-[13px] leading-relaxed text-[#6E6053]">
+                                <span className="font-semibold text-[#1A130E]">{product.name}</span> has been added to
+                                your cart — rented for{" "}
+                                <span className="font-semibold text-[#1A130E]">
+                                    {rentInfo.days} day{rentInfo.days > 1 ? "s" : ""}
+                                </span>{" "}
+                                ({formatShortDate(rentInfo.startDate)} → {formatShortDate(rentInfo.endDate)}) with{" "}
+                                {channel === "shipping" ? "shipping" : "pickup"} selected.
                             </p>
-
-                            {channel === "shipping" ? (
-                                <div className="mt-2 space-y-1.5">
-                                    <div className="flex items-start gap-1.5">
-                                        <MapPin size={13} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
-                                        <p className="text-[12px] text-[#4F4338]">{resolvedAddress || "Pinned address"}</p>
+    
+                            <div className="mt-5 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
+                                <div className="flex items-center gap-4">
+                                    <div className="relative h-[64px] w-[52px] shrink-0 overflow-hidden rounded-lg border border-[#EBE3D5] bg-[#F5F0E8]">
+                                        <Image src={product.image} alt={product.name} fill className="object-cover" />
                                     </div>
-                                    <p className="text-[12px] text-[#4F4338]">
-                                        <span className="font-semibold">{fullName}</span> · {contactNumber}
-                                    </p>
-                                    {notes && <p className="text-[11px] italic text-[#8C7E74]">"{notes}"</p>}
-                                </div>
-                            ) : (
-                                <div className="mt-2 space-y-1.5">
-                                    <div className="flex items-start gap-1.5">
-                                        <MapPin size={13} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
-                                        <p className="text-[12px] text-[#4F4338]">
-                                            {product.pickupResolvedAddress ?? product.pickupArea ?? "Shared after booking"}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="truncate text-[13px] font-semibold text-[#1A130E]">{product.name}</p>
+                                        <p className="text-[11px] text-[#6E6053]">
+                                            {product.brand} {product.size ? `· Size ${product.size}` : ""}
+                                        </p>
+                                        <p className="mt-0.5 text-[11px] text-[#8C7E74]">
+                                            {formatShortDate(rentInfo.startDate)} → {formatShortDate(rentInfo.endDate)}
                                         </p>
                                     </div>
-                                    <p className="text-[12px] text-[#4F4338]">
-                                        <span className="font-semibold">{fullName}</span> · {contactNumber}
+                                    <p className="shrink-0 text-[15px] font-bold text-[#9E2A1B]">
+                                        {fmt(rentInfo.dailyRateNumber)}/day
                                     </p>
-                                    <p className="text-[11px] text-[#8C7E74]">
-                                        Pickup hours: {product.pickupTimeFrom && product.pickupTimeTo
-                                        ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
-                                        : "10:00 AM – 6:00 PM"}
-                                        {product.pickupContactNumber ? ` · Seller: ${product.pickupContactNumber}` : ""}
-                                    </p>
-                                    {notes && <p className="text-[11px] italic text-[#8C7E74]">"{notes}"</p>}
                                 </div>
-                            )}
-                        </div>
-
-                        <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
-                            <div className="flex items-center justify-between text-[12px] text-[#6E6053]">
-                                <span>Rental Price ({fmt(rentInfo.dailyRateNumber)} × {rentInfo.days} days)</span>
-                                <span className="font-semibold text-[#1A130E]">{fmt(rentalPrice)}</span>
                             </div>
-                            <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
-                                <span>Security Deposit (Refundable)</span>
-                                <span className="font-semibold text-[#1A130E]">{fmt(securityDeposit)}</span>
+    
+                            <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] px-5 py-4 text-left overflow-hidden">
+                                <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                    {channel === "shipping" ? <Truck size={12} /> : <MapPin size={12} />}
+                                    {channel === "shipping" ? "Shipping Details" : "Pickup Details"}
+                                </p>
+    
+                                {channel === "shipping" ? (
+                                    <div className="mt-2 space-y-1.5">
+                                        <div className="flex items-start gap-1.5">
+                                            <MapPin size={13} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
+                                            <p className="text-[12px] text-[#4F4338]">{resolvedAddress || "Pinned address"}</p>
+                                        </div>
+                                        <p className="text-[12px] text-[#4F4338]">
+                                            <span className="font-semibold">{fullName}</span> · {contactNumber}
+                                        </p>
+                                        {notes && <p className="text-[11px] italic text-[#8C7E74]">"{notes}"</p>}
+                                    </div>
+                                ) : (
+                                    <div className="mt-2 space-y-1.5">
+                                        <div className="flex items-start gap-1.5">
+                                            <MapPin size={13} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
+                                            <p className="text-[12px] text-[#4F4338]">
+                                                {product.pickupResolvedAddress ?? product.pickupArea ?? "Shared after booking"}
+                                            </p>
+                                        </div>
+                                        <p className="text-[12px] text-[#4F4338]">
+                                            <span className="font-semibold">{fullName}</span> · {contactNumber}
+                                        </p>
+                                        <p className="text-[11px] text-[#8C7E74]">
+                                            Pickup hours: {product.pickupTimeFrom && product.pickupTimeTo
+                                            ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
+                                            : "10:00 AM – 6:00 PM"}
+                                            {product.pickupContactNumber ? ` · Seller: ${product.pickupContactNumber}` : ""}
+                                        </p>
+                                        {notes && <p className="text-[11px] italic text-[#8C7E74]">"{notes}"</p>}
+                                    </div>
+                                )}
                             </div>
-                            <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
-                                <span>{channel === "shipping" ? "Delivery Fee" : "Pickup Fee"}</span>
-                                <span className={`font-semibold ${resolvedFee === 0 ? "text-[#4A6B3A]" : "text-[#1A130E]"}`}>
-                                    {resolvedFee === 0 ? "Free" : fmt(resolvedFee)}
-                                </span>
+    
+                            <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
+                                <div className="flex items-center justify-between text-[12px] text-[#6E6053]">
+                                    <span>Rental Price ({fmt(rentInfo.dailyRateNumber)} × {rentInfo.days} days)</span>
+                                    <span className="font-semibold text-[#1A130E]">{fmt(rentalPrice)}</span>
+                                </div>
+                                <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
+                                    <span>Security Deposit (Refundable)</span>
+                                    <span className="font-semibold text-[#1A130E]">{fmt(securityDeposit)}</span>
+                                </div>
+                                <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
+                                    <span>{channel === "shipping" ? "Delivery Fee" : "Pickup Fee"}</span>
+                                    <span className={`font-semibold ${resolvedFee === 0 ? "text-[#4A6B3A]" : "text-[#1A130E]"}`}>
+                                        {resolvedFee === 0 ? "Free" : fmt(resolvedFee)}
+                                    </span>
+                                </div>
+                                <div className="mt-2 flex items-center justify-between border-t border-[#EBE3D5] pt-2">
+                                    <span className="text-[13px] font-bold text-[#1A130E]">Total Payable</span>
+                                    <span className="text-[16px] font-bold text-[#9E2A1B]">{fmt(total)}</span>
+                                </div>
                             </div>
-                            <div className="mt-2 flex items-center justify-between border-t border-[#EBE3D5] pt-2">
-                                <span className="text-[13px] font-bold text-[#1A130E]">Total Payable</span>
-                                <span className="text-[16px] font-bold text-[#9E2A1B]">{fmt(total)}</span>
+    
+                            <div className="mt-5 w-full grid grid-cols-2 gap-2.5">
+                                <Link
+                                    href="/cart"
+                                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#9E2A1B] py-3.5 text-[14px] font-bold text-white transition hover:bg-[#832215]"
+                                >
+                                    <ShoppingBag size={15} />
+                                    Go to Cart
+                                </Link>
+                                <button
+                                    onClick={onClose}
+                                    className="w-full rounded-xl border border-[#DDD5C8] bg-white py-3.5 text-[14px] font-semibold text-[#9E2A1B] transition hover:bg-[#FAF6F0]"
+                                >
+                                    Continue Browsing
+                                </button>
                             </div>
-                        </div>
-
-                        <div className="mt-5 w-full grid grid-cols-2 gap-2.5">
-                            <Link
-                                href="/cart"
-                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#9E2A1B] py-3.5 text-[14px] font-bold text-white transition hover:bg-[#832215]"
-                            >
-                                <ShoppingBag size={15} />
-                                Go to Cart
-                            </Link>
-                            <button
-                                onClick={onClose}
-                                className="w-full rounded-xl border border-[#DDD5C8] bg-white py-3.5 text-[14px] font-semibold text-[#9E2A1B] transition hover:bg-[#FAF6F0]"
-                            >
-                                Continue Browsing
-                            </button>
-                        </div>
-
-                        <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#8C7E74]">
-                            <ShieldCheck size={12} strokeWidth={1.6} className="text-[#A89E94]" />
-                            Secure checkout. Your payment information is safe with us.
-                        </p>
-                    </div>
-                ) : (
-                    <div className="px-6 pt-7 pb-6">
-                        <div className="text-center">
-                            <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
-                                Choose Delivery Method
-                            </h2>
-                            <p className="mt-1 text-[13px] text-[#6E6053]">{subtitle}</p>
-                            <p className="mt-1 text-[11px] font-semibold text-[#9E2A1B]">
-                                Renting for {rentInfo.days} day{rentInfo.days > 1 ? "s" : ""} ·{" "}
-                                {formatShortDate(rentInfo.startDate)} → {formatShortDate(rentInfo.endDate)}
+    
+                            <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#8C7E74]">
+                                <ShieldCheck size={12} strokeWidth={1.6} className="text-[#A89E94]" />
+                                Secure checkout. Your payment information is safe with us.
                             </p>
                         </div>
-
-                        {hasShipping && hasPickup && (
-                            <div className="mt-5 grid grid-cols-2 gap-2.5">
-                                <button
-                                    onClick={() => setChannel("shipping")}
-                                    className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
-                                        channel === "shipping"
-                                            ? "border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]"
-                                            : "border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]"
-                                    }`}
-                                >
-                                    <Truck size={15} /> Shipping
-                                </button>
-                                <button
-                                    onClick={() => setChannel("pickup")}
-                                    className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
-                                        channel === "pickup"
-                                            ? "border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]"
-                                            : "border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]"
-                                    }`}
-                                >
-                                    <MapPin size={15} /> Pickup
-                                </button>
+                    ) : (
+                        <div className="px-6 pt-7 pb-6">
+                            <div className="text-center">
+                                <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
+                                    Choose Delivery Method
+                                </h2>
+                                <p className="mt-1 text-[13px] text-[#6E6053]">{subtitle}</p>
+                                <p className="mt-1 text-[11px] font-semibold text-[#9E2A1B]">
+                                    Renting for {rentInfo.days} day{rentInfo.days > 1 ? "s" : ""} ·{" "}
+                                    {formatShortDate(rentInfo.startDate)} → {formatShortDate(rentInfo.endDate)}
+                                </p>
                             </div>
-                        )}
-
-                        {channel === "shipping" && (
-                            <div className="mt-5 space-y-4">
-                                <div className="flex items-center rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] divide-x divide-[#EBE3D5]">
-                                    <div className="flex flex-1 items-center gap-3 px-4 py-3.5">
-                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white text-[#9E2A1B]">
-                                            <Truck size={15} />
+    
+                            {hasShipping && hasPickup && (
+                                <div className="mt-5 grid grid-cols-2 gap-2.5">
+                                    <button
+                                        onClick={() => setChannel("shipping")}
+                                        className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
+                                            channel === "shipping"
+                                                ? "border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]"
+                                                : "border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]"
+                                        }`}
+                                    >
+                                        <Truck size={15} /> Shipping
+                                    </button>
+                                    <button
+                                        onClick={() => setChannel("pickup")}
+                                        className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
+                                            channel === "pickup"
+                                                ? "border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]"
+                                                : "border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]"
+                                        }`}
+                                    >
+                                        <MapPin size={15} /> Pickup
+                                    </button>
+                                </div>
+                            )}
+    
+                            {channel === "shipping" && (
+                                <div className="mt-5 space-y-4">
+                                    <div className="flex items-center rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] divide-x divide-[#EBE3D5]">
+                                        <div className="flex flex-1 items-center gap-3 px-4 py-3.5">
+                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white text-[#9E2A1B]">
+                                                <Truck size={15} />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Shipping Availability</p>
+                                                <p className="text-[13px] font-bold text-[#1A130E]">
+                                                    {product.shippingAvailability ?? "Nationwide"}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Shipping Availability</p>
-                                            <p className="text-[13px] font-bold text-[#1A130E]">
-                                                {product.shippingAvailability ?? "Nationwide"}
+                                        <div className="flex-1 px-4 py-3.5 text-right">
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Delivery Fee</p>
+                                            <p className="text-[15px] font-bold text-[#9E2A1B]">
+                                                {dynamicFeePending ? "Pin address" : resolvedFee === 0 ? "Free" : fmt(resolvedFee)}
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="flex-1 px-4 py-3.5 text-right">
-                                        <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Delivery Fee</p>
-                                        <p className="text-[15px] font-bold text-[#9E2A1B]">
-                                            {dynamicFeePending ? "Pin address" : resolvedFee === 0 ? "Free" : fmt(resolvedFee)}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {isDynamic && (
-                                    <div className="flex items-start gap-2 rounded-xl border border-[#D9E2F1] bg-[#F0F4FC] px-3.5 py-2.5 text-[11px] text-[#3A537D]">
-                                        <Info size={13} className="mt-0.5 shrink-0" />
-                                        Dynamic shipping uses the distance between your location and the
-                                        seller's delivery location to calculate the delivery fee.
-                                    </div>
-                                )}
-
-                                <div>
-                                    <p className="text-[13px] font-bold text-[#1A130E] mb-2">Delivery Address</p>
-                                    <div className="relative rounded-xl overflow-hidden border border-[#EBE3D5]">
-                                        <PickupLocationMap
-                                            lat={addressLat}
-                                            lng={addressLng}
-                                            onLocationSelect={handleAddressPin}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={handleUseCurrentLocation}
-                                            className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 rounded-lg bg-white/95 border border-[#DDD5C8] px-3 py-2 text-[12px] font-semibold text-[#9E2A1B] shadow-sm hover:bg-white transition"
-                                        >
-                                            <MapPin size={13} /> Use current location
-                                        </button>
-                                    </div>
-                                    {addressLat && addressLng && (
-                                        <div className="mt-2 flex items-start gap-2 rounded-xl border border-[#BFD0B3] bg-[#F0F6ED] px-3 py-2.5">
-                                            <Check size={13} className="mt-0.5 shrink-0 text-[#4A6B3A]" />
-                                            <div>
-                                                <p className="text-[11px] font-bold text-[#2E7D52]">Location pinned successfully</p>
-                                                {resolvedAddress && (
-                                                    <p className="mt-0.5 text-[11px] leading-relaxed text-[#4F4338]">{resolvedAddress}</p>
-                                                )}
-                                                <p className="mt-0.5 text-[10px] text-[#8C7E74]">(Tap on map to change location)</p>
-                                            </div>
+    
+                                    {isDynamic && (
+                                        <div className="flex items-start gap-2 rounded-xl border border-[#D9E2F1] bg-[#F0F4FC] px-3.5 py-2.5 text-[11px] text-[#3A537D]">
+                                            <Info size={13} className="mt-0.5 shrink-0" />
+                                            Dynamic shipping uses the distance between your location and the
+                                            seller's delivery location to calculate the delivery fee.
                                         </div>
                                     )}
+    
+                                    <div>
+                                        <p className="text-[13px] font-bold text-[#1A130E] mb-2">Delivery Address</p>
+                                        <div className="relative rounded-xl overflow-hidden border border-[#EBE3D5]">
+                                            <PickupLocationMap
+                                                lat={addressLat}
+                                                lng={addressLng}
+                                                onLocationSelect={handleAddressPin}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleUseCurrentLocation}
+                                                className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 rounded-lg bg-white/95 border border-[#DDD5C8] px-3 py-2 text-[12px] font-semibold text-[#9E2A1B] shadow-sm hover:bg-white transition"
+                                            >
+                                                <MapPin size={13} /> Use current location
+                                            </button>
+                                        </div>
+                                        {addressLat && addressLng && (
+                                            <div className="mt-2 flex items-start gap-2 rounded-xl border border-[#BFD0B3] bg-[#F0F6ED] px-3 py-2.5">
+                                                <Check size={13} className="mt-0.5 shrink-0 text-[#4A6B3A]" />
+                                                <div>
+                                                    <p className="text-[11px] font-bold text-[#2E7D52]">Location pinned successfully</p>
+                                                    {resolvedAddress && (
+                                                        <p className="mt-0.5 text-[11px] leading-relaxed text-[#4F4338]">{resolvedAddress}</p>
+                                                    )}
+                                                    <p className="mt-0.5 text-[10px] text-[#8C7E74]">(Tap on map to change location)</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+    
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[12px] font-semibold text-[#3D2B1F]">Full Name *</label>
+                                                {/*<button onClick={handleUseProfileName} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">*/}
+                                                {/*    Use profile name*/}
+                                                {/*</button>*/}
+                                                <button
+                                                    onClick={handleUseProfileName}
+                                                    disabled={fetchingProfileName}
+                                                    className="text-[11px] font-semibold text-[#9E2A1B] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+                                                >
+                                                    {fetchingProfileName ? "Fetching..." : "Use profile name"}
+                                                </button>
+                                            </div>
+                                            <input
+                                                value={fullName}
+                                                onChange={(e) => setFullName(e.target.value)}
+                                                placeholder="Your full name"
+                                                className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[12px] font-semibold text-[#3D2B1F]">Contact Number *</label>
+                                                {/*<button onClick={handleUseProfileNumber} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">*/}
+                                                {/*    Use profile number*/}
+                                                {/*</button>*/}
+                                                <button
+                                                    onClick={handleUseProfileNumber}
+                                                    disabled={fetchingProfileNumber}
+                                                    className="text-[11px] font-semibold text-[#9E2A1B] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+                                                >
+                                                    {fetchingProfileNumber ? "Fetching..." : "Use profile number"}
+                                                </button>
+                                            </div>
+                                            <input
+                                                value={contactNumber}
+                                                onChange={(e) => setContactNumber(e.target.value)}
+                                                placeholder="+977 98XXXXXXXX"
+                                                className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                            />
+                                        </div>
+                                    </div>
+    
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-[12px] font-semibold text-[#3D2B1F]">Delivery Notes (Optional)</label>
+                                        <textarea
+                                            value={notes}
+                                            onChange={(e) => setNotes(e.target.value)}
+                                            placeholder="E.g. Please ring the bell. Gate code 1234."
+                                            maxLength={200}
+                                            rows={2}
+                                            className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                        />
+                                        <span className="self-end text-[10px] text-[#A6998E]">{notes.length} / 200</span>
+                                    </div>
                                 </div>
-
-                                <div className="grid grid-cols-2 gap-3">
+                            )}
+    
+                            {channel === "pickup" && (
+                                <div className="mt-5 space-y-4">
+                                    <div className="rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] p-4">
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex items-start gap-2.5">
+                                                <MapPin size={15} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
+                                                <div>
+                                                    <p className="text-[11px] font-bold text-[#1A130E]">
+                                                        Pickup Details <span className="font-normal text-[#8C7E74]">(Provided by Seller)</span>
+                                                    </p>
+                                                    <p className="mt-0.5 text-[13px] font-semibold text-[#1A130E]">
+                                                        {product.pickupResolvedAddress ?? product.pickupArea ?? "Shared after booking"}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {pickupMapUrl && (
+                                                <a
+                                                href={pickupMapUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="shrink-0 text-[12px] font-bold text-[#9E2A1B] hover:underline"
+                                                >
+                                                View on Map
+                                                </a>
+                                                )}
+                                        </div>
+    
+                                        <div className="mt-3.5 grid grid-cols-3 gap-3 border-t border-[#EBE3D5] pt-3.5">
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Pickup Hours</p>
+                                                <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
+                                                    {product.pickupTimeFrom && product.pickupTimeTo
+                                                        ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
+                                                        : "10:00 AM – 6:00 PM"}
+                                                </p>
+                                                <p className="text-[10px] text-[#8C7E74]">
+                                                    ({formatPickupDays(product.pickupDays)}
+                                                    {product.sameDayPickup ? " · Same-day OK" : ""})
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Instructions</p>
+                                                <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E] line-clamp-2">
+                                                    {product.pickupInstructions ?? "Call before arriving."}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Contact Number</p>
+                                                <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
+                                                    {product.pickupContactNumber ?? "Shared after booking"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+    
+                                    <div>
+                                        <p className="text-[13px] font-bold text-[#1A130E]">Your Pickup Information</p>
+                                        <p className="text-[11px] text-[#8C7E74]">This information will be shared with the seller to coordinate pickup.</p>
+                                    </div>
+    
                                     <div className="flex flex-col gap-1.5">
                                         <div className="flex items-center justify-between">
                                             <label className="text-[12px] font-semibold text-[#3D2B1F]">Full Name *</label>
@@ -2862,6 +3084,7 @@ function RentNowModal({
                                             className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
                                         />
                                     </div>
+    
                                     <div className="flex flex-col gap-1.5">
                                         <div className="flex items-center justify-between">
                                             <label className="text-[12px] font-semibold text-[#3D2B1F]">Contact Number *</label>
@@ -2876,165 +3099,59 @@ function RentNowModal({
                                             className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
                                         />
                                     </div>
-                                </div>
-
-                                <div className="flex flex-col gap-1.5">
-                                    <label className="text-[12px] font-semibold text-[#3D2B1F]">Delivery Notes (Optional)</label>
-                                    <textarea
-                                        value={notes}
-                                        onChange={(e) => setNotes(e.target.value)}
-                                        placeholder="E.g. Please ring the bell. Gate code 1234."
-                                        maxLength={200}
-                                        rows={2}
-                                        className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                                    />
-                                    <span className="self-end text-[10px] text-[#A6998E]">{notes.length} / 200</span>
-                                </div>
-                            </div>
-                        )}
-
-                        {channel === "pickup" && (
-                            <div className="mt-5 space-y-4">
-                                <div className="rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] p-4">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex items-start gap-2.5">
-                                            <MapPin size={15} className="mt-0.5 shrink-0 text-[#9E2A1B]" />
-                                            <div>
-                                                <p className="text-[11px] font-bold text-[#1A130E]">
-                                                    Pickup Details <span className="font-normal text-[#8C7E74]">(Provided by Seller)</span>
-                                                </p>
-                                                <p className="mt-0.5 text-[13px] font-semibold text-[#1A130E]">
-                                                    {product.pickupResolvedAddress ?? product.pickupArea ?? "Shared after booking"}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        {pickupMapUrl && (
-                                            <a
-                                            href={pickupMapUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="shrink-0 text-[12px] font-bold text-[#9E2A1B] hover:underline"
-                                            >
-                                            View on Map
-                                            </a>
-                                            )}
-                                    </div>
-
-                                    <div className="mt-3.5 grid grid-cols-3 gap-3 border-t border-[#EBE3D5] pt-3.5">
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Pickup Hours</p>
-                                            <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
-                                                {product.pickupTimeFrom && product.pickupTimeTo
-                                                    ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
-                                                    : "10:00 AM – 6:00 PM"}
-                                            </p>
-                                            <p className="text-[10px] text-[#8C7E74]">
-                                                ({formatPickupDays(product.pickupDays)}
-                                                {product.sameDayPickup ? " · Same-day OK" : ""})
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Instructions</p>
-                                            <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E] line-clamp-2">
-                                                {product.pickupInstructions ?? "Call before arriving."}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">Contact Number</p>
-                                            <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
-                                                {product.pickupContactNumber ?? "Shared after booking"}
-                                            </p>
-                                        </div>
+    
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-[12px] font-semibold text-[#3D2B1F]">Pickup Notes (Optional)</label>
+                                        <textarea
+                                            value={notes}
+                                            onChange={(e) => setNotes(e.target.value)}
+                                            placeholder="E.g. I will come with a friend."
+                                            maxLength={200}
+                                            rows={2}
+                                            className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                        />
+                                        <span className="self-end text-[10px] text-[#A6998E]">{notes.length} / 200</span>
                                     </div>
                                 </div>
-
-                                <div>
-                                    <p className="text-[13px] font-bold text-[#1A130E]">Your Pickup Information</p>
-                                    <p className="text-[11px] text-[#8C7E74]">This information will be shared with the seller to coordinate pickup.</p>
+                            )}
+    
+                            <div className="mt-5 rounded-xl bg-white border border-[#EBE3D5] px-4 py-3.5 space-y-1.5">
+                                <div className="flex items-center justify-between text-[12px]">
+                                    <span className="text-[#6E6053]">Rental Price ({fmt(rentInfo.dailyRateNumber)} × {rentInfo.days} days)</span>
+                                    <span className="font-bold text-[#1A130E]">{fmt(rentalPrice)}</span>
                                 </div>
-
-                                <div className="flex flex-col gap-1.5">
-                                    <div className="flex items-center justify-between">
-                                        <label className="text-[12px] font-semibold text-[#3D2B1F]">Full Name *</label>
-                                        <button onClick={handleUseProfileName} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">
-                                            Use profile name
-                                        </button>
-                                    </div>
-                                    <input
-                                        value={fullName}
-                                        onChange={(e) => setFullName(e.target.value)}
-                                        placeholder="Your full name"
-                                        className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                                    />
+                                <div className="flex items-center justify-between text-[12px]">
+                                    <span className="text-[#6E6053]">Security Deposit (Refundable)</span>
+                                    <span className="font-bold text-[#1A130E]">{fmt(securityDeposit)}</span>
                                 </div>
-
-                                <div className="flex flex-col gap-1.5">
-                                    <div className="flex items-center justify-between">
-                                        <label className="text-[12px] font-semibold text-[#3D2B1F]">Contact Number *</label>
-                                        <button onClick={handleUseProfileNumber} className="text-[11px] font-semibold text-[#9E2A1B] hover:underline">
-                                            Use profile number
-                                        </button>
-                                    </div>
-                                    <input
-                                        value={contactNumber}
-                                        onChange={(e) => setContactNumber(e.target.value)}
-                                        placeholder="+977 98XXXXXXXX"
-                                        className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                                    />
+                                <div className="flex items-center justify-between text-[12px]">
+                                    <span className="text-[#6E6053]">{channel === "shipping" ? "Delivery Fee" : "Pickup Fee"}</span>
+                                    <span className={`font-bold ${channel === "shipping" && dynamicFeePending ? "text-[#8C7E74]" : resolvedFee === 0 ? "text-[#4A6B3A]" : "text-[#1A130E]"}`}>
+                                        {channel === "shipping" && dynamicFeePending ? "—" : resolvedFee === 0 ? "Free" : fmt(resolvedFee)}
+                                    </span>
                                 </div>
-
-                                <div className="flex flex-col gap-1.5">
-                                    <label className="text-[12px] font-semibold text-[#3D2B1F]">Pickup Notes (Optional)</label>
-                                    <textarea
-                                        value={notes}
-                                        onChange={(e) => setNotes(e.target.value)}
-                                        placeholder="E.g. I will come with a friend."
-                                        maxLength={200}
-                                        rows={2}
-                                        className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                                    />
-                                    <span className="self-end text-[10px] text-[#A6998E]">{notes.length} / 200</span>
+                                <div className="flex items-center justify-between border-t border-[#EBE3D5] pt-1.5">
+                                    <span className="text-[13px] font-bold text-[#1A130E]">Total Payable</span>
+                                    <span className="text-[16px] font-bold text-[#9E2A1B]">
+                                        {channel === "shipping" && dynamicFeePending ? "—" : fmt(total)}
+                                    </span>
                                 </div>
                             </div>
-                        )}
-
-                        <div className="mt-5 rounded-xl bg-white border border-[#EBE3D5] px-4 py-3.5 space-y-1.5">
-                            <div className="flex items-center justify-between text-[12px]">
-                                <span className="text-[#6E6053]">Rental Price ({fmt(rentInfo.dailyRateNumber)} × {rentInfo.days} days)</span>
-                                <span className="font-bold text-[#1A130E]">{fmt(rentalPrice)}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-[12px]">
-                                <span className="text-[#6E6053]">Security Deposit (Refundable)</span>
-                                <span className="font-bold text-[#1A130E]">{fmt(securityDeposit)}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-[12px]">
-                                <span className="text-[#6E6053]">{channel === "shipping" ? "Delivery Fee" : "Pickup Fee"}</span>
-                                <span className={`font-bold ${channel === "shipping" && dynamicFeePending ? "text-[#8C7E74]" : resolvedFee === 0 ? "text-[#4A6B3A]" : "text-[#1A130E]"}`}>
-                                    {channel === "shipping" && dynamicFeePending ? "—" : resolvedFee === 0 ? "Free" : fmt(resolvedFee)}
-                                </span>
-                            </div>
-                            <div className="flex items-center justify-between border-t border-[#EBE3D5] pt-1.5">
-                                <span className="text-[13px] font-bold text-[#1A130E]">Total Payable</span>
-                                <span className="text-[16px] font-bold text-[#9E2A1B]">
-                                    {channel === "shipping" && dynamicFeePending ? "—" : fmt(total)}
-                                </span>
-                            </div>
+    
+                            <button
+                                onClick={handleSaveAndAddToCart}
+                                disabled={!canSubmit}
+                                className={`mt-4 w-full rounded-xl py-3.5 text-[14px] font-bold transition ${
+                                    canSubmit
+                                        ? "bg-[#9E2A1B] text-white hover:bg-[#832215]"
+                                        : "cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]"
+                                }`}
+                            >
+                                Save & Add to Cart
+                            </button>
                         </div>
-
-                        <button
-                            onClick={handleSaveAndAddToCart}
-                            disabled={!canSubmit}
-                            className={`mt-4 w-full rounded-xl py-3.5 text-[14px] font-bold transition ${
-                                canSubmit
-                                    ? "bg-[#9E2A1B] text-white hover:bg-[#832215]"
-                                    : "cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]"
-                            }`}
-                        >
-                            Save & Add to Cart
-                        </button>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
-        </div>
-    );
-}
+        );
+    }

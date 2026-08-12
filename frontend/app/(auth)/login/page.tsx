@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter,useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Mail, AlertCircle, Loader2 } from "lucide-react";
 import api from "@/lib/axios";
-import {saveTokens, saveUser, isAuthenticated, saveSession, redirectToGoogle} from "@/lib/auth";
+import { saveTokens, saveSession, redirectToGoogle } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
 
 const inputClass =
@@ -31,13 +31,13 @@ function Label({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function LoginPage() {
-  // const router = useRouter();
-  // const { refreshAuth } = useAuth();
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/";
-  const { refreshAuth } = useAuth();
+
+  // Consume synced AuthContext states
+  const { authed, isMounted, refreshAuth } = useAuth();
 
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
@@ -46,20 +46,21 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Guard: only redirect if token is valid AND not expired ────────────────
+  // ── Guard: Prevent flicker by waiting for AuthContext hydration ──────────
   useEffect(() => {
-    if (isAuthenticated()) {
+    if (!isMounted) return; // Wait until AuthContext finishes localStorage check
+
+    if (authed) {
       router.replace(redirectTo);
     }
-  }, [router, redirectTo]);
+  }, [isMounted, authed, router, redirectTo]);
 
   // ── OAuth error param ─────────────────────────────────────────────────────
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("error") === "oauth_failed") {
+    if (searchParams.get("error") === "oauth_failed") {
       setError("Google sign-in failed. Please try again.");
     }
-  }, []);
+  }, [searchParams]);
 
   // ── Login handler ─────────────────────────────────────────────────────────
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -85,7 +86,6 @@ export default function LoginPage() {
         return;
       }
 
-      // If backend didn't return user, fetch from /me
       if (!user) {
         const { data: meData } = await api.get("/api/auth/me");
         user = meData?.data ?? meData;
@@ -97,8 +97,6 @@ export default function LoginPage() {
         saveTokens({ accessToken, refreshToken, expiresIn });
       }
 
-      // refreshAuth();
-      // router.push("/");
       refreshAuth();
       router.push(redirectTo);
 
@@ -119,6 +117,15 @@ export default function LoginPage() {
     }
   };
 
+  // Withhold UI until AuthContext is ready OR if authenticated (prevents form flash before redirect)
+  if (!isMounted || authed) {
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-[#FAF6F0]">
+          <Loader2 className="h-8 w-8 animate-spin text-[#A23A16]" />
+        </div>
+    );
+  }
+
   return (
       <div className="flex min-h-screen flex-col bg-[#FAF6F0] text-[#211714]">
         <main className="relative flex flex-1 items-center justify-center px-4 py-16 overflow-hidden">
@@ -138,7 +145,6 @@ export default function LoginPage() {
           <div className="relative z-10 w-full max-w-[500px] rounded-[28px] bg-white px-8 py-10 shadow-[0_12px_60px_rgba(33,23,20,0.03)] border border-[#F2ECE4] sm:px-10 sm:py-10">
 
             <button
-                // onClick={() => router.push("/browse-finds")}
                 onClick={() => router.push(redirectTo !== "/" ? redirectTo : "/browse-finds")}
                 className="group mb-5 flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.2em] text-[#8A8177] transition hover:text-[#A23A16]"
             >
@@ -244,14 +250,6 @@ export default function LoginPage() {
               <div className="h-px flex-1 bg-[#E2D4C5] opacity-60" />
             </div>
 
-            {/*<button*/}
-            {/*    type="button"*/}
-            {/*    onClick={redirectToGoogle}*/}
-            {/*    className="flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-[#E2D4C5] bg-[#FFFFFF] text-[14px] font-bold text-[#211714] transition hover:bg-[#FAF6F0]"*/}
-            {/*>*/}
-            {/*  <GoogleIcon />*/}
-            {/*  Continue with Google*/}
-            {/*</button>*/}
             <button
                 type="button"
                 onClick={() => redirectToGoogle(redirectTo)}
@@ -273,5 +271,19 @@ export default function LoginPage() {
           </div>
         </main>
       </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+      <Suspense
+          fallback={
+            <div className="flex min-h-screen items-center justify-center bg-[#FAF6F0]">
+              <Loader2 className="h-8 w-8 animate-spin text-[#A23A16]" />
+            </div>
+          }
+      >
+        <LoginContent />
+      </Suspense>
   );
 }

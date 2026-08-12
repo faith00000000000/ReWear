@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { toast } from "react-toastify";
-import { XCircle, RefreshCw } from "lucide-react";
+import { XCircle, RefreshCw, Loader2 } from "lucide-react";
 
-export default function CheckoutFailurePage() {
+function FailureContent() {
     const hasRun = useRef(false);
 
     useEffect(() => {
@@ -44,5 +44,19 @@ export default function CheckoutFailurePage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function CheckoutFailurePage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="flex min-h-screen items-center justify-center bg-[#FAF6F0]">
+                    <Loader2 size={40} className="animate-spin text-[#9E2A1B]" />
+                </div>
+            }
+        >
+            <FailureContent />
+        </Suspense>
     );
 }

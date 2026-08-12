@@ -1,25 +1,27 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import api from "@/lib/axios";
 import { useCart } from "@/lib/CartContext";
+import { useAuth } from "@/lib/AuthContext";
 
 type VerifyState = "verifying" | "success" | "failed";
 
 const RESERVATION_STORAGE_KEY = "cartReservationStartedAt";
 
-export default function CheckoutSuccessPage() {
+function SuccessContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { clearCart } = useCart();
+    const { isMounted } = useAuth(); // Wait for Auth context to re-hydrate from localStorage
     const [state, setState] = useState<VerifyState>("verifying");
-    const hasRun = useRef(false); // guard against React StrictMode double-invoke
+    const hasRun = useRef(false);
 
     useEffect(() => {
-        if (hasRun.current) return;
+        if (!isMounted || hasRun.current) return;
         hasRun.current = true;
 
         async function verify() {
@@ -63,8 +65,6 @@ export default function CheckoutSuccessPage() {
 
                 if (data.status === "SUCCESS") {
                     setState("success");
-                    // Cart's job is done — order is confirmed server-side and
-                    // will now show up via /api/orders → order-history.
                     clearCart();
                     localStorage.removeItem(RESERVATION_STORAGE_KEY);
                     toast.success("Payment successful! Your order is confirmed.");
@@ -75,7 +75,7 @@ export default function CheckoutSuccessPage() {
                     setTimeout(() => router.push("/cart/checkout/failure"), 1800);
                 }
             } catch (err) {
-                console.error(err);
+                console.error("Verification error:", err);
                 setState("failed");
                 toast.error("Something went wrong verifying your payment.");
                 setTimeout(() => router.push("/cart/checkout/failure"), 1800);
@@ -83,8 +83,7 @@ export default function CheckoutSuccessPage() {
         }
 
         verify();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [isMounted, router, searchParams, clearCart]);
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-[#FAF6F0] px-4">
@@ -112,5 +111,19 @@ export default function CheckoutSuccessPage() {
                 )}
             </div>
         </div>
+    );
+}
+
+export default function CheckoutSuccessPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="flex min-h-screen items-center justify-center bg-[#FAF6F0]">
+                    <Loader2 size={40} className="animate-spin text-[#9E2A1B]" />
+                </div>
+            }
+        >
+            <SuccessContent />
+        </Suspense>
     );
 }

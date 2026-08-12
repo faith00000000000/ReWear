@@ -1,7 +1,10 @@
 import axios from "axios";
+import { clearTokens, getAccessToken, saveTokens } from "@/lib/auth";
+
+const baseURL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080",
+  baseURL,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -12,81 +15,140 @@ const PUBLIC_AUTH_PATHS = [
   "/api/auth/forgot-password",
   "/api/auth/verify-otp",
   "/api/auth/reset-password",
+  // "/api/payments/verify",
 ];
 
 function isPublicAuthRequest(url?: string) {
   if (!url) return false;
-  const path = url.startsWith("http") ? new URL(url).pathname : url;
-  return PUBLIC_AUTH_PATHS.some((publicPath) => path === publicPath);
+  // Strip origin, base URL, and query params for flexible matching
+  const cleanedUrl = url.replace(baseURL, "");
+  const pathname = cleanedUrl.split("?")[0].replace(/\/$/, ""); // remove trailing slash
+
+  return PUBLIC_AUTH_PATHS.some((publicPath) => {
+    const normalizedPublic = publicPath.replace(/\/$/, "");
+    return pathname === normalizedPublic || pathname.startsWith(normalizedPublic);
+  });
 }
 
-// Attach JWT access token only where authentication is required.
-// api.interceptors.request.use((config) => {
-//   if (isPublicAuthRequest(config.url)) {
-//     delete config.headers.Authorization;
-//     return config;
-//   }
-//
-//   const token = localStorage.getItem("accessToken");
-//   if (token) config.headers.Authorization = `Bearer ${token}`;
-//   return config;
-// });
+// Track refresh state to prevent multiple simultaneous refresh requests
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (err: unknown) => void;
+}> = [];
 
+const processQueue = (error: unknown, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else if (token) {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+// Request Interceptor: Attach JWT token safely
 api.interceptors.request.use((config) => {
   if (isPublicAuthRequest(config.url)) {
     delete config.headers.Authorization;
     return config;
   }
 
+  // Get token safely
+  let token: string | null = null;
+
   if (typeof window !== "undefined") {
-    const token = localStorage.getItem("accessToken");
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    token = getAccessToken();
+  } else if (config.headers.Authorization) {
+    return config;
   }
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
   return config;
 });
 
-// Auto-refresh on 401 using refresh token
+// Response Interceptor: Handle 401 & Auto-Refresh Token
 api.interceptors.response.use(
-  (res) => res,
-  async (error) => {
-    const original = error.config;
+    (res) => res,
+    async (error) => {
+      const originalRequest = error.config;
 
-    if (!original || isPublicAuthRequest(original.url)) {
-      return Promise.reject(error);
-    }
-
-    if (error.response?.status === 401 && !original._retry) {
-      original._retry = true;
-
-      if (typeof window === "undefined") {
-        return Promise.reject(error); // no browser session to refresh on the server
-      }
-      
-      const refreshToken = localStorage.getItem("refreshToken");
-
-      if (!refreshToken) {
-        localStorage.clear();
-        // window.location.href = "/login";
+      // Skip public auth endpoints or unformed requests
+      if (!originalRequest || isPublicAuthRequest(originalRequest.url)) {
         return Promise.reject(error);
       }
 
-      try {
-        const { data } = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}/api/auth/refresh`,
-          { refreshToken },
-        );
-        localStorage.setItem("accessToken", data.accessToken);
-        localStorage.setItem("refreshToken", data.refreshToken);
-        original.headers.Authorization = `Bearer ${data.accessToken}`;
-        return api(original);
-      } catch {
-        localStorage.clear();
-        // window.location.href = "/login";
-      }
-    }
+      if (error.response?.status === 401 && !originalRequest._retry) {
+        if (typeof window === "undefined") {
+          return Promise.reject(error);
+        }
 
-    return Promise.reject(error);
-  },
+        if (isRefreshing) {
+          return new Promise<string>((resolve, reject) => {
+            failedQueue.push({ resolve, reject });
+          })
+              .then((token) => {
+                originalRequest.headers.Authorization = `Bearer ${token}`;
+                return api(originalRequest);
+              })
+              .catch((err) => Promise.reject(err));
+        }
+
+        originalRequest._retry = true;
+        isRefreshing = true;
+
+        const refreshToken = localStorage.getItem("refreshToken");
+
+        if (!refreshToken) {
+          // Safe clear that triggers "auth-changed" custom event for Context
+          clearTokens();
+          if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
+            const currentPath = window.location.pathname + window.location.search;
+            window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+          }
+          return Promise.reject(error);
+        }
+
+        try {
+          const { data } = await axios.post(`${baseURL}/api/auth/refresh`, {
+            refreshToken,
+          });
+
+          const newAccessToken = data.accessToken;
+          const newRefreshToken = data.refreshToken ?? refreshToken;
+
+          // Uses central helper to dispatch "auth-changed" event and store accurately
+          saveTokens({
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken,
+            expiresIn: data.expiresIn,
+          });
+
+          api.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+          processQueue(null, newAccessToken);
+          return api(originalRequest);
+        } catch (refreshError) {
+          processQueue(refreshError, null);
+          clearTokens();
+
+          if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
+            const currentPath = window.location.pathname + window.location.search;
+            window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+          }
+          return Promise.reject(refreshError);
+        } finally {
+          isRefreshing = false;
+        }
+      }
+
+      return Promise.reject(error);
+    }
 );
 
 export default api;
