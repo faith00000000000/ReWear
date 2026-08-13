@@ -1,5 +1,6 @@
 package com.rewear.backend.user.service;
 
+import com.rewear.backend.storage.SupabaseStorageService;
 import com.rewear.backend.user.dto.request.UserUpdateRequestDto;
 import com.rewear.backend.user.dto.response.UserResponseDto;
 import com.rewear.backend.exception.ResourceNotFoundException;
@@ -11,7 +12,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 @Slf4j
@@ -22,6 +26,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final SupabaseStorageService storageService; // NEW — for profile picture upload
 
     @Transactional(readOnly = true)
     public List<UserResponseDto> getAllUsers() {
@@ -105,6 +110,55 @@ public class UserService {
 
         User updatedUser = userRepository.save(user);
         log.info("User {} successfully updated", id);
+        return userMapper.toResponseDto(updatedUser);
+    }
+
+    /**
+     * Uploads a new profile picture to Supabase Storage (under
+     * users/{id}/photos/) and persists the resulting public URL on the user
+     * row, replacing whatever was there before. If the previous picture was
+     * itself a Supabase-hosted file, it's deleted after the new one is saved
+     * successfully — if it was an external OAuth photo URL (Google, etc.),
+     * deleteByUrl() silently no-ops since it can't be parsed as a Supabase
+     * object path.
+     *
+     * @param id   user ID
+     * @param file the new profile picture
+     * @return updated UserResponseDto
+     */
+    @Transactional
+    public UserResponseDto updateProfilePicture(Long id, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Profile picture file must not be empty");
+        }
+
+        String contentType = file.getContentType();
+        if (!StringUtils.hasText(contentType) || !contentType.startsWith("image/")) {
+            throw new IllegalArgumentException("Profile picture must be an image file");
+        }
+
+        log.info("Updating profile picture for user: {}", id);
+        User user = findUserById(id);
+        String previousUrl = user.getProfilePictureUrl();
+
+        String newUrl;
+        try {
+            newUrl = storageService.uploadPhoto(file, "users/" + id);
+        } catch (IOException e) {
+            log.error("Failed to upload profile picture for user: {}", id, e);
+            throw new RuntimeException("Failed to upload profile picture", e);
+        }
+
+        user.setProfilePictureUrl(newUrl);
+        User updatedUser = userRepository.save(user);
+
+        // Best-effort cleanup — don't fail the request if the old file can't
+        // be removed, the new picture is already saved either way.
+        if (StringUtils.hasText(previousUrl)) {
+            storageService.deleteByUrl(previousUrl);
+        }
+
+        log.info("Profile picture updated for user: {}", id);
         return userMapper.toResponseDto(updatedUser);
     }
 

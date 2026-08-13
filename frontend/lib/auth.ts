@@ -53,6 +53,24 @@ export function getUser(): AuthUser | null {
   }
 }
 
+// NEW — merges partial updates (e.g. a new profilePictureUrl after an
+// avatar upload) into whatever's currently stored, persists it, and
+// dispatches "auth-changed" so AuthContext (and anything else listening,
+// like the Navbar's avatar) picks up the change without a full page reload.
+export function updateStoredUser(updates: Partial<AuthUser>): AuthUser | null {
+  const current = getUser();
+  if (!current) return null;
+
+  const updated: AuthUser = { ...current, ...updates };
+  saveUser(updated);
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("auth-changed"));
+  }
+
+  return updated;
+}
+
 export function isAuthenticated(): boolean {
   if (typeof window === "undefined") return false;
 

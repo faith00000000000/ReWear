@@ -7,6 +7,7 @@ import com.rewear.backend.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -16,7 +17,9 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.security.Principal;
 import java.util.List;
@@ -31,7 +34,7 @@ public class UserController {
 
     /**
      * Get current authenticated user's profile
-     * 
+     *
      * @param principal the authenticated user principal
      * @return UserResponseDto
      */
@@ -53,7 +56,7 @@ public class UserController {
 
     /**
      * Get all users (Admin endpoint)
-     * 
+     *
      * @return List of all users
      */
     @GetMapping
@@ -64,7 +67,7 @@ public class UserController {
 
     /**
      * Get user by ID
-     * 
+     *
      * @param id user ID
      * @return UserResponseDto
      */
@@ -89,7 +92,7 @@ public class UserController {
 
     /**
      * Update user profile information
-     * 
+     *
      * @param id user ID
      * @param requestDto update request
      * @param principal authenticated user
@@ -118,6 +121,32 @@ public class UserController {
         }
         log.info("Updating user: {} by {}", id, principal.getName());
         return ResponseEntity.ok(userService.updateUser(id, requestDto));
+    }
+
+    /**
+     * Update the authenticated user's profile picture. Accepts a single
+     * multipart file, uploads it to Supabase Storage via SupabaseStorageService,
+     * and persists the resulting public URL. Own-account only, same
+     * owner-check pattern as updateUser/deactivateUser/deleteUser below.
+     *
+     * @param id        user ID
+     * @param file      the new profile picture (multipart/form-data, field name "file")
+     * @param principal authenticated user
+     * @return UserResponseDto with the updated profilePictureUrl
+     */
+    @PatchMapping(value = "/{id}/profile-picture", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<UserResponseDto> updateProfilePicture(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            Principal principal
+    ) {
+        UserResponseDto caller = userService.getUserByEmail(principal.getName());
+        if (!caller.getId().equals(id)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "You may only update your own profile picture.");
+        }
+        log.info("Updating profile picture for user: {} by {}", id, principal.getName());
+        return ResponseEntity.ok(userService.updateProfilePicture(id, file));
     }
 
     @PatchMapping("/{id}/deactivate")

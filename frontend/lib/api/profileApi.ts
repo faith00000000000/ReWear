@@ -76,6 +76,32 @@ export async function updateUserPhone(userId: string | number, phone: string): P
     await api.patch(`/api/users/${userId}`, { phone });
 }
 
+/* ── Profile picture upload — sends the raw File as multipart/form-data
+   to the backend, which uploads it to Supabase Storage and persists the
+   resulting public URL against the user row (same `profilePictureUrl`
+   field that mapUserResponseToProfile already reads on GET /api/users/{id}).
+   Frontend never talks to Supabase directly — it only ever sees the URL
+   the backend hands back, same as any other field on the user record.
+
+   NOTE: endpoint path/method assumed as PATCH /api/users/{id}/profile-picture
+   to mirror the existing PATCH /api/users/{id} pattern above — adjust the
+   path here if the actual backend controller uses a different route. */
+export async function updateUserAvatar(
+    userId: string | number,
+    file: File
+): Promise<{ avatarUrl: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const { data } = await api.patch<{ profilePictureUrl: string }>(
+        `/api/users/${userId}/profile-picture`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+    );
+
+    return { avatarUrl: data.profilePictureUrl };
+}
+
 /* ── Active Rentals — derived from real orders, not a separate endpoint
    Filters confirmed orders down to RENT / THRIFT+RENT line items.
    `userId` is unused now (kept for call-site compatibility / possible
