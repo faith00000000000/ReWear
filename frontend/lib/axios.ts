@@ -65,7 +65,7 @@ api.interceptors.request.use((config) => {
   }
 
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    config.headers.Authorization = Bearer ${token};
   }
 
   return config;
@@ -92,7 +92,7 @@ api.interceptors.response.use(
             failedQueue.push({ resolve, reject });
           })
               .then((token) => {
-                originalRequest.headers.Authorization = `Bearer ${token}`;
+                originalRequest.headers.Authorization = Bearer ${token};
                 return api(originalRequest);
               })
               .catch((err) => Promise.reject(err));
@@ -108,13 +108,13 @@ api.interceptors.response.use(
           clearTokens();
           if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
             const currentPath = window.location.pathname + window.location.search;
-            window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+            window.location.href = /login?redirect=${encodeURIComponent(currentPath)};
           }
           return Promise.reject(error);
         }
 
         try {
-          const { data } = await axios.post(`${baseURL}/api/auth/refresh`, {
+          const { data } = await axios.post(${baseURL}/api/auth/refresh, {
             refreshToken,
           });
 
@@ -128,8 +128,8 @@ api.interceptors.response.use(
             expiresIn: data.expiresIn,
           });
 
-          api.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          api.defaults.headers.common.Authorization = Bearer ${newAccessToken};
+          originalRequest.headers.Authorization = Bearer ${newAccessToken};
 
           processQueue(null, newAccessToken);
           return api(originalRequest);
@@ -139,7 +139,7 @@ api.interceptors.response.use(
 
           if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
             const currentPath = window.location.pathname + window.location.search;
-            window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+            window.location.href = /login?redirect=${encodeURIComponent(currentPath)};
           }
           return Promise.reject(refreshError);
         } finally {
