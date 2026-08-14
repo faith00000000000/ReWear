@@ -26,7 +26,9 @@ function isPublicAuthRequest(url?: string) {
 
   return PUBLIC_AUTH_PATHS.some((publicPath) => {
     const normalizedPublic = publicPath.replace(/\/$/, "");
-    return pathname === normalizedPublic || pathname.startsWith(normalizedPublic);
+    return (
+      pathname === normalizedPublic || pathname.startsWith(normalizedPublic)
+    );
   });
 }
 
@@ -65,7 +67,7 @@ api.interceptors.request.use((config) => {
   }
 
   if (token) {
-    config.headers.Authorization = Bearer ${token};
+    config.headers.Authorization = `Bearer ${token}`;
   }
 
   return config;
@@ -73,82 +75,88 @@ api.interceptors.request.use((config) => {
 
 // Response Interceptor: Handle 401 & Auto-Refresh Token
 api.interceptors.response.use(
-    (res) => res,
-    async (error) => {
-      const originalRequest = error.config;
+  (res) => res,
+  async (error) => {
+    const originalRequest = error.config;
 
-      // Skip public auth endpoints or unformed requests
-      if (!originalRequest || isPublicAuthRequest(originalRequest.url)) {
+    // Skip public auth endpoints or unformed requests
+    if (!originalRequest || isPublicAuthRequest(originalRequest.url)) {
+      return Promise.reject(error);
+    }
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (typeof window === "undefined") {
         return Promise.reject(error);
       }
 
-      if (error.response?.status === 401 && !originalRequest._retry) {
-        if (typeof window === "undefined") {
-          return Promise.reject(error);
-        }
-
-        if (isRefreshing) {
-          return new Promise<string>((resolve, reject) => {
-            failedQueue.push({ resolve, reject });
+      if (isRefreshing) {
+        return new Promise<string>((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
           })
-              .then((token) => {
-                originalRequest.headers.Authorization = Bearer ${token};
-                return api(originalRequest);
-              })
-              .catch((err) => Promise.reject(err));
-        }
-
-        originalRequest._retry = true;
-        isRefreshing = true;
-
-        const refreshToken = localStorage.getItem("refreshToken");
-
-        if (!refreshToken) {
-          // Safe clear that triggers "auth-changed" custom event for Context
-          clearTokens();
-          if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
-            const currentPath = window.location.pathname + window.location.search;
-            window.location.href = /login?redirect=${encodeURIComponent(currentPath)};
-          }
-          return Promise.reject(error);
-        }
-
-        try {
-          const { data } = await axios.post(${baseURL}/api/auth/refresh, {
-            refreshToken,
-          });
-
-          const newAccessToken = data.accessToken;
-          const newRefreshToken = data.refreshToken ?? refreshToken;
-
-          // Uses central helper to dispatch "auth-changed" event and store accurately
-          saveTokens({
-            accessToken: newAccessToken,
-            refreshToken: newRefreshToken,
-            expiresIn: data.expiresIn,
-          });
-
-          api.defaults.headers.common.Authorization = Bearer ${newAccessToken};
-          originalRequest.headers.Authorization = Bearer ${newAccessToken};
-
-          processQueue(null, newAccessToken);
-          return api(originalRequest);
-        } catch (refreshError) {
-          processQueue(refreshError, null);
-          clearTokens();
-
-          if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
-            const currentPath = window.location.pathname + window.location.search;
-            window.location.href = /login?redirect=${encodeURIComponent(currentPath)};
-          }
-          return Promise.reject(refreshError);
-        } finally {
-          isRefreshing = false;
-        }
+          .catch((err) => Promise.reject(err));
       }
 
-      return Promise.reject(error);
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      const refreshToken = localStorage.getItem("refreshToken");
+
+      if (!refreshToken) {
+        // Safe clear that triggers "auth-changed" custom event for Context
+        clearTokens();
+        if (
+          typeof window !== "undefined" &&
+          !window.location.pathname.includes("/login")
+        ) {
+          const currentPath = window.location.pathname + window.location.search;
+          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+        }
+        return Promise.reject(error);
+      }
+
+      try {
+        const { data } = await axios.post(`${baseURL}/api/auth/refresh`, {
+          refreshToken,
+        });
+
+        const newAccessToken = data.accessToken;
+        const newRefreshToken = data.refreshToken ?? refreshToken;
+
+        // Uses central helper to dispatch "auth-changed" event and store accurately
+        saveTokens({
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken,
+          expiresIn: data.expiresIn,
+        });
+
+        api.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+        processQueue(null, newAccessToken);
+        return api(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        clearTokens();
+
+        if (
+          typeof window !== "undefined" &&
+          !window.location.pathname.includes("/login")
+        ) {
+          const currentPath = window.location.pathname + window.location.search;
+          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+        }
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
+
+    return Promise.reject(error);
+  },
 );
 
 export default api;
