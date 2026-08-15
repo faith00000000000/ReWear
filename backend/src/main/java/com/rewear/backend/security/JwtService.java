@@ -34,16 +34,41 @@ public class JwtService {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpiry = accessTokenExpiry;
         this.refreshTokenExpiry = refreshTokenExpiry;
-        log.info("JwtService initialized with access token expiry: {}ms, refresh token expiry: {}ms", 
+        log.info("JwtService initialized with access token expiry: {}ms, refresh token expiry: {}ms",
                 accessTokenExpiry, refreshTokenExpiry);
     }
 
+    /**
+     * Generates an access token for the given email, embedding any extra
+     * claims passed in (e.g. "role", "userId"). Callers building claims for
+     * an authenticated user should always include role and userId so
+     * downstream role checks (hasRole("ADMIN")) and extractUserId() work.
+     */
     public String generateAccessToken(String email, Map<String, Object> extraClaims) {
         return buildToken(email, extraClaims, accessTokenExpiry);
     }
 
+    /**
+     * Refresh tokens intentionally carry no extra claims — they're only
+     * used to mint a new access token via re-authentication against the
+     * DB, not to authorize requests directly.
+     */
     public String generateRefreshToken(String email) {
         return buildToken(email, Map.of(), refreshTokenExpiry);
+    }
+
+    /**
+     * Convenience overload for building a token directly off a
+     * UserPrincipal — pulls role and userId automatically so callers
+     * (e.g. AuthService, OAuth2SuccessHandler) don't have to assemble
+     * the claims map by hand every time.
+     */
+    public String generateAccessToken(UserPrincipal principal) {
+        Map<String, Object> claims = Map.of(
+                "role", principal.getAuthorities().iterator().next().getAuthority(),
+                "userId", principal.getId()
+        );
+        return buildToken(principal.getUsername(), claims, accessTokenExpiry);
     }
 
     private String buildToken(String subject, Map<String, Object> claims, long expiry) {
@@ -88,6 +113,26 @@ public class JwtService {
         } catch (Exception e) {
             log.warn("Error extracting userId from token", e);
             return null;
+        }
+    }
+
+    /**
+     * Extracts the "ROLE_XXX" authority claim (e.g. "ROLE_ADMIN") embedded
+     * at token creation. Returns null if the token predates role claims
+     * being added, or if the claim is otherwise absent — callers should
+     * treat null as "no elevated role", not throw on it.
+     */
+    public String extractRole(String token) {
+        try {
+            Claims claims = parseClaims(token);
+            Object role = claims.get("role");
+            return role != null ? role.toString() : null;
+        } catch (ExpiredJwtException e) {
+            log.warn("Token has expired");
+            throw new InvalidTokenException("Token has expired");
+        } catch (JwtException e) {
+            log.warn("Invalid JWT token: {}", e.getMessage());
+            throw new InvalidTokenException("Invalid token: " + e.getMessage());
         }
     }
 

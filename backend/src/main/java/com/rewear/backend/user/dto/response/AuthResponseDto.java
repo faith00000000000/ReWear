@@ -14,5 +14,6 @@ public class AuthResponseDto {
     private String refreshToken;
     private UserResponseDto user;
     private Long expiresIn; // Token expiry time in seconds
+    private String role;
 }
 

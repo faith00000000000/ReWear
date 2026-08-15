@@ -9,6 +9,7 @@ export interface AuthUser {
   fullName: string;
   email: string;
   profilePictureUrl?: string;
+  role?: "USER" | "ADMIN"; // NEW
 }
 
 export function getAccessToken(): string | null {

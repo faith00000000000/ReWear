@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Tag,
   Clock,
@@ -11,186 +11,158 @@ import {
   XCircle,
   Eye,
   Trash2,
-  Star,
-  ShieldAlert,
   Shirt,
   MoreVertical,
   Check,
   Ban,
-  ArrowUpDown,
-} from "lucide-react";
+  Loader2,
+  FileClock,
+} from 'lucide-react';
+import {
+  AdminListingItem,
+  BackendListingStatus,
+} from '@/lib/types/admin-listing';
+import { mapListingsToAdminItems } from '@/lib/mappers/adminListingMapper';
+import {
+  approveListing,
+  deleteListingById,
+  fetchAdminListings,
+  rejectListing,
+} from '@/lib/api/adminListings';
 
-type ListingType = "thrift" | "rent";
-type ListingStatus = "active" | "pending" | "flagged" | "removed";
-
-interface ListingItem {
-  id: string;
-  title: string;
-  image: string;
-  type: ListingType;
-  category: string;
-  price: number;
-  sellerName: string;
-  sellerAvatar: string;
-  status: ListingStatus;
-  isFeatured: boolean;
-  condition: string;
-  size: string;
-  reportsCount: number;
-  createdAt: string;
-}
-
-// Mock listings data
-const INITIAL_LISTINGS: ListingItem[] = [
-  {
-    id: "LST-882",
-    title: "Vintage Denim Jacket - Oversized",
-    image: "https://images.unsplash.com/photo-1544441893-675973e31985?w=300",
-    type: "thrift",
-    category: "Outerwear",
-    price: 45.0,
-    sellerName: "RetroWardrobe",
-    sellerAvatar:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100",
-    status: "flagged",
-    isFeatured: false,
-    condition: "Good",
-    size: "L",
-    reportsCount: 3,
-    createdAt: "2026-08-10",
-  },
-  {
-    id: "LST-409",
-    title: "Silk Evening Gown - Crimson Red",
-    image: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=300",
-    type: "rent",
-    category: "Dresses",
-    price: 25.0, // per day
-    sellerName: "GlamRentals",
-    sellerAvatar:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100",
-    status: "active",
-    isFeatured: true,
-    condition: "Like New",
-    size: "S",
-    reportsCount: 1,
-    createdAt: "2026-08-09",
-  },
-  {
-    id: "LST-114",
-    title: "North Face Puffer Jacket - Black",
-    image: "https://images.unsplash.com/photo-1548883354-7622d03aca27?w=300",
-    type: "thrift",
-    category: "Outerwear",
-    price: 110.0,
-    sellerName: "HimalayanThrift",
-    sellerAvatar:
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100",
-    status: "pending",
-    isFeatured: false,
-    condition: "Used - Fair",
-    size: "M",
-    reportsCount: 0,
-    createdAt: "2026-08-08",
-  },
-  {
-    id: "LST-903",
-    title: "Traditional Cultural Lehenga",
-    image: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=300",
-    type: "rent",
-    category: "Ethnic Wear",
-    price: 40.0,
-    sellerName: "HeritageWear",
-    sellerAvatar:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100",
-    status: "active",
-    isFeatured: true,
-    condition: "New with tags",
-    size: "M",
-    reportsCount: 0,
-    createdAt: "2026-08-07",
-  },
-  {
-    id: "LST-551",
-    title: "Classic Leather Trench Coat",
-    image: "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=300",
-    type: "thrift",
-    category: "Outerwear",
-    price: 85.0,
-    sellerName: "UrbanArchive",
-    sellerAvatar:
-      "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=100",
-    status: "removed",
-    isFeatured: false,
-    condition: "Good",
-    size: "XL",
-    reportsCount: 5,
-    createdAt: "2026-08-05",
-  },
-];
+type TypeFilter = 'all' | 'thrift' | 'rent';
+type StatusFilter = 'all' | BackendListingStatus;
 
 export default function ListingsManagementPage() {
-  const [listings, setListings] = useState<ListingItem[]>(INITIAL_LISTINGS);
-  const [typeFilter, setTypeFilter] = useState<"all" | ListingType>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [selectedListing, setSelectedListing] = useState<ListingItem | null>(
-    null,
-  );
+  const [listings, setListings] = useState<AdminListingItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Filtered dataset
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [selectedListing, setSelectedListing] =
+    useState<AdminListingItem | null>(null);
+
+  // Which row's quick-action dropdown is open, if any
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Tracks in-flight approve/reject/delete calls per listing id so we can
+  // disable buttons and show a spinner without blocking the whole page.
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
+
+  // ── Initial load ─────────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const dtos = await fetchAdminListings();
+        if (!cancelled) setListings(mapListingsToAdminItems(dtos));
+      } catch (err) {
+        console.error(err);
+        if (!cancelled)
+          setLoadError("Couldn't load listings. Please try again.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ── Close quick-action dropdown on outside click ────────────────────
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // ── Filtering ────────────────────────────────────────────────────────
   const filteredListings = useMemo(() => {
     return listings.filter((item) => {
-      const matchesType = typeFilter === "all" || item.type === typeFilter;
+      const matchesType = typeFilter === 'all' || item.type === typeFilter;
       const matchesStatus =
-        statusFilter === "all" || item.status === statusFilter;
+        statusFilter === 'all' || item.status === statusFilter;
+      const q = searchQuery.toLowerCase();
       const matchesSearch =
-        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.sellerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.id.toLowerCase().includes(searchQuery.toLowerCase());
-
+        item.title.toLowerCase().includes(q) ||
+        item.sellerName.toLowerCase().includes(q);
       return matchesType && matchesStatus && matchesSearch;
     });
   }, [listings, typeFilter, statusFilter, searchQuery]);
 
-  // Moderation Handlers
-  const handleUpdateStatus = (id: string, newStatus: ListingStatus) => {
-    setListings((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, status: newStatus } : item,
-      ),
-    );
-    if (selectedListing?.id === id) {
-      setSelectedListing((prev) =>
-        prev ? { ...prev, status: newStatus } : null,
+  // ── Moderation actions ───────────────────────────────────────────────
+  async function handleApprove(id: number) {
+    setActionLoadingId(id);
+    try {
+      await approveListing(id);
+      setListings((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: 'PUBLISHED' } : l)),
       );
-    }
-  };
-
-  const handleToggleFeature = (id: string) => {
-    setListings((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, isFeatured: !item.isFeatured } : item,
-      ),
-    );
-    if (selectedListing?.id === id) {
       setSelectedListing((prev) =>
-        prev ? { ...prev, isFeatured: !prev.isFeatured } : null,
+        prev && prev.id === id ? { ...prev, status: 'PUBLISHED' } : prev,
       );
+    } catch (err) {
+      console.error(err);
+      alert('Failed to approve listing. Please try again.');
+    } finally {
+      setActionLoadingId(null);
+      setOpenMenuId(null);
     }
-  };
+  }
 
-  const handleDeleteListing = (id: string) => {
+  async function handleReject(id: number) {
+    setActionLoadingId(id);
+    try {
+      await rejectListing(id);
+      setListings((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: 'REJECTED' } : l)),
+      );
+      setSelectedListing((prev) =>
+        prev && prev.id === id ? { ...prev, status: 'REJECTED' } : prev,
+      );
+    } catch (err) {
+      console.error(err);
+      alert('Failed to reject listing. Please try again.');
+    } finally {
+      setActionLoadingId(null);
+      setOpenMenuId(null);
+    }
+  }
+
+  async function handleDelete(id: number) {
     if (
-      confirm(
-        `Are you sure you want to permanently delete listing ${id}? This action cannot be reversed.`,
+      !confirm(
+        'Are you sure you want to permanently delete this listing? This action cannot be reversed.',
       )
     ) {
-      setListings((prev) => prev.filter((item) => item.id !== id));
-      if (selectedListing?.id === id) setSelectedListing(null);
+      return;
     }
-  };
+    setActionLoadingId(id);
+    try {
+      await deleteListingById(id);
+      setListings((prev) => prev.filter((l) => l.id !== id));
+      setSelectedListing((prev) => (prev?.id === id ? null : prev));
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete listing. Please try again.');
+    } finally {
+      setActionLoadingId(null);
+      setOpenMenuId(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -202,53 +174,51 @@ export default function ListingsManagementPage() {
             Listings Management
           </h1>
           <p className="text-sm font-medium text-[#1C1C1C]/70 mt-1">
-            Review, approve, flag, and curate all Thrift & Rent apparel items
-            across ReWear.
+            Review, approve, reject, and remove apparel listings across ReWear.
           </p>
         </div>
 
-        {/* Counter Pills */}
         <div className="flex items-center gap-2">
-          <div className="px-3 py-1 bg-[#1C1C1C] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider rounded-sm">
+          <div className="px-3 py-1 bg-[#A33214] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider rounded-sm">
             Total: {listings.length}
           </div>
           <div className="px-3 py-1 bg-[#A33214] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider rounded-sm">
-            Flagged: {listings.filter((l) => l.status === "flagged").length}
+            Pending:{' '}
+            {listings.filter((l) => l.status === 'PENDING_REVIEW').length}
           </div>
         </div>
       </div>
 
-      {/* Filter and Control Toolbar */}
+      {/* Filter Toolbar */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-        {/* Type Filter Buttons */}
-        <div className="flex items-center bg-[#FDF6EC] border border-[#1C1C1C]/20 p-1 self-start rounded-sm shadow-sm">
+        <div className="flex items-center bg-[#A33214] border border-[#1C1C1C]/20 p-1 self-start rounded-sm shadow-sm">
           <button
-            onClick={() => setTypeFilter("all")}
+            onClick={() => setTypeFilter('all')}
             className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm ${
-              typeFilter === "all"
-                ? "bg-[#1C1C1C] text-[#FDF6EC]"
-                : "text-[#1C1C1C]/80 hover:text-[#1C1C1C] hover:bg-[#1C1C1C]/5"
+              typeFilter === 'all'
+                ? 'bg-[#1C1C1C] text-[#FDF6EC]'
+                : 'text-[#1C1C1C]/80 hover:text-[#1C1C1C] hover:bg-[#1C1C1C]/5'
             }`}
           >
             All Items
           </button>
           <button
-            onClick={() => setTypeFilter("thrift")}
+            onClick={() => setTypeFilter('thrift')}
             className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm flex items-center gap-1.5 ${
-              typeFilter === "thrift"
-                ? "bg-[#A33214] text-[#FDF6EC]"
-                : "text-[#1C1C1C]/80 hover:text-[#A33214] hover:bg-[#A33214]/5"
+              typeFilter === 'thrift'
+                ? 'bg-[#A33214] text-[#FDF6EC]'
+                : 'text-[#1C1C1C]/80 hover:text-[#A33214] hover:bg-[#A33214]/5'
             }`}
           >
             <Tag size={13} />
             Thrift
           </button>
           <button
-            onClick={() => setTypeFilter("rent")}
+            onClick={() => setTypeFilter('rent')}
             className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm flex items-center gap-1.5 ${
-              typeFilter === "rent"
-                ? "bg-[#A33214] text-[#FDF6EC]"
-                : "text-[#1C1C1C]/80 hover:text-[#A33214] hover:bg-[#A33214]/5"
+              typeFilter === 'rent'
+                ? 'bg-[#A33214] text-[#FDF6EC]'
+                : 'text-[#1C1C1C]/80 hover:text-[#A33214] hover:bg-[#A33214]/5'
             }`}
           >
             <Clock size={13} />
@@ -256,7 +226,6 @@ export default function ListingsManagementPage() {
           </button>
         </div>
 
-        {/* Search & Status Filters */}
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="relative w-full sm:w-64">
             <Search
@@ -265,7 +234,7 @@ export default function ListingsManagementPage() {
             />
             <input
               type="text"
-              placeholder="Search by title, seller, category..."
+              placeholder="Search by title or seller..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-sm pl-9 pr-3 py-1.5 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
@@ -276,36 +245,55 @@ export default function ListingsManagementPage() {
             <Filter size={16} className="text-[#1C1C1C]/70 shrink-0" />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
               className="w-full sm:w-auto bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-sm px-3 py-1.5 text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-[#A33214]"
             >
               <option value="all">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="pending">Pending Approval</option>
-              <option value="flagged">Flagged</option>
-              <option value="removed">Removed</option>
+              <option value="DRAFT">Draft</option>
+              <option value="PENDING_REVIEW">Pending Review</option>
+              <option value="PUBLISHED">Published</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="REMOVED">Removed</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Main Full Listings Table */}
+      {/* Table */}
       <div className="border border-[#1C1C1C]/15 bg-[#FDF6EC] overflow-x-auto shadow-sm">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-[#1C1C1C] text-[#FDF6EC] text-xs uppercase font-bold tracking-wider border-b border-[#1C1C1C]">
               <th className="p-3">Item</th>
               <th className="p-3">Type</th>
-              <th className="p-3">Category / Specs</th>
               <th className="p-3">Seller</th>
               <th className="p-3">Price</th>
               <th className="p-3">Status</th>
-              <th className="p-3 text-center">Featured</th>
-              <th className="p-3 text-right">Moderation Actions</th>
+              <th className="p-3 text-center">Reports</th>
+              <th className="p-3">Listed</th>
+              <th className="p-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#1C1C1C]/10 font-medium text-xs">
-            {filteredListings.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={8} className="text-center py-10">
+                  <Loader2
+                    size={20}
+                    className="animate-spin inline-block text-[#A33214]"
+                  />
+                </td>
+              </tr>
+            ) : loadError ? (
+              <tr>
+                <td
+                  colSpan={8}
+                  className="text-center py-10 text-[#A33214] font-semibold"
+                >
+                  {loadError}
+                </td>
+              </tr>
+            ) : filteredListings.length === 0 ? (
               <tr>
                 <td
                   colSpan={8}
@@ -320,7 +308,6 @@ export default function ListingsManagementPage() {
                   key={item.id}
                   className="hover:bg-[#1C1C1C]/5 transition-colors"
                 >
-                  {/* Item Image & Title */}
                   <td className="p-3">
                     <div className="flex items-center gap-3">
                       <img
@@ -328,41 +315,24 @@ export default function ListingsManagementPage() {
                         alt={item.title}
                         className="w-12 h-12 object-cover border border-[#1C1C1C]/20 rounded-sm shrink-0"
                       />
-                      <div>
-                        <p className="font-bold text-[#1C1C1C] line-clamp-1">
-                          {item.title}
-                        </p>
-                        <p className="text-[11px] font-mono text-[#A33214]">
-                          {item.id}
-                        </p>
-                      </div>
+                      <p className="font-bold text-[#1C1C1C] line-clamp-1">
+                        {item.title}
+                      </p>
                     </div>
                   </td>
 
-                  {/* Type Badge */}
                   <td className="p-3">
                     <span
                       className={`inline-block px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border rounded-xs ${
-                        item.type === "thrift"
-                          ? "bg-stone-100 text-[#1C1C1C] border-[#1C1C1C]/30"
-                          : "bg-amber-50 text-amber-900 border-amber-300"
+                        item.type === 'thrift'
+                          ? 'bg-stone-100 text-[#1C1C1C] border-[#1C1C1C]/30'
+                          : 'bg-amber-50 text-amber-900 border-amber-300'
                       }`}
                     >
                       {item.type}
                     </span>
                   </td>
 
-                  {/* Category / Specs */}
-                  <td className="p-3">
-                    <span className="font-bold text-[#1C1C1C] block">
-                      {item.category}
-                    </span>
-                    <span className="text-[11px] text-[#1C1C1C]/60">
-                      Size: {item.size} • {item.condition}
-                    </span>
-                  </td>
-
-                  {/* Seller info */}
                   <td className="p-3">
                     <div className="flex items-center gap-2">
                       <img
@@ -376,97 +346,87 @@ export default function ListingsManagementPage() {
                     </div>
                   </td>
 
-                  {/* Price */}
                   <td className="p-3 font-bold text-[#1C1C1C]">
-                    ${item.price.toFixed(2)}
-                    {item.type === "rent" && (
+                    Rs. {item.price.toLocaleString('en-IN')}
+                    {item.type === 'rent' && (
                       <span className="text-[10px] font-normal text-[#1C1C1C]/60">
                         /day
                       </span>
                     )}
                   </td>
 
-                  {/* Status */}
                   <td className="p-3">
-                    <ListingStatusBadge
-                      status={item.status}
-                      reportsCount={item.reportsCount}
-                    />
+                    <ListingStatusBadge status={item.status} />
                   </td>
 
-                  {/* Featured Toggle */}
                   <td className="p-3 text-center">
-                    <button
-                      onClick={() => handleToggleFeature(item.id)}
-                      className={`p-1.5 rounded-xs transition-colors border ${
-                        item.isFeatured
-                          ? "bg-amber-400 text-amber-950 border-amber-500"
-                          : "bg-stone-100 text-stone-400 border-stone-200 hover:text-amber-600"
+                    <span
+                      className={`font-bold ${
+                        item.reportsCount > 0
+                          ? 'text-[#A33214]'
+                          : 'text-[#1C1C1C]/40'
                       }`}
-                      title={
-                        item.isFeatured ? "Unfeature Item" : "Mark as Featured"
-                      }
                     >
-                      <Star
-                        size={14}
-                        fill={item.isFeatured ? "currentColor" : "none"}
-                      />
-                    </button>
+                      {item.reportsCount}
+                    </span>
                   </td>
 
-                  {/* Actions */}
+                  <td className="p-3 text-[#1C1C1C]/70">
+                    {formatDate(item.createdAt)}
+                  </td>
+
                   <td className="p-3 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {/* Approve Button */}
-                      {item.status !== "active" && (
-                        <button
-                          onClick={() => handleUpdateStatus(item.id, "active")}
-                          className="p-1.5 bg-emerald-700 text-[#FDF6EC] hover:bg-emerald-800 transition-colors rounded-sm"
-                          title="Approve / Activate Listing"
-                        >
-                          <Check size={14} />
-                        </button>
-                      )}
-
-                      {/* Flag Button */}
-                      {item.status !== "flagged" && (
-                        <button
-                          onClick={() => handleUpdateStatus(item.id, "flagged")}
-                          className="p-1.5 bg-amber-600 text-[#FDF6EC] hover:bg-amber-700 transition-colors rounded-sm"
-                          title="Flag Listing"
-                        >
-                          <AlertTriangle size={14} />
-                        </button>
-                      )}
-
-                      {/* Remove Button */}
-                      {item.status !== "removed" && (
-                        <button
-                          onClick={() => handleUpdateStatus(item.id, "removed")}
-                          className="p-1.5 bg-[#A33214] text-[#FDF6EC] hover:bg-[#A33214]/80 transition-colors rounded-sm"
-                          title="Restrict / Remove Listing"
-                        >
-                          <Ban size={14} />
-                        </button>
-                      )}
-
-                      {/* View Detail Modal */}
+                    <div className="flex items-center justify-end gap-1.5 relative">
                       <button
                         onClick={() => setSelectedListing(item)}
                         className="p-1.5 bg-[#1C1C1C] text-[#FDF6EC] hover:bg-[#A33214] transition-colors rounded-sm"
-                        title="View Full Details"
+                        title="View Details"
                       >
                         <Eye size={14} />
                       </button>
 
-                      {/* Permanent Delete */}
                       <button
-                        onClick={() => handleDeleteListing(item.id)}
-                        className="p-1.5 bg-transparent text-[#1C1C1C]/40 hover:text-[#A33214] transition-colors rounded-sm"
-                        title="Delete Permanently"
+                        onClick={() =>
+                          setOpenMenuId(openMenuId === item.id ? null : item.id)
+                        }
+                        className="p-1.5 bg-stone-200 text-[#1C1C1C] hover:bg-stone-300 transition-colors rounded-sm"
+                        title="Quick Actions"
+                        disabled={actionLoadingId === item.id}
                       >
-                        <Trash2 size={14} />
+                        {actionLoadingId === item.id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <MoreVertical size={14} />
+                        )}
                       </button>
+
+                      {openMenuId === item.id && (
+                        <div
+                          ref={menuRef}
+                          className="absolute right-0 top-full mt-1 w-40 bg-[#FDF6EC] border border-[#1C1C1C]/20 shadow-lg rounded-sm z-10 overflow-hidden text-left"
+                        >
+                          <button
+                            onClick={() => handleApprove(item.id)}
+                            disabled={item.status === 'PUBLISHED'}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <Check size={13} /> Approve
+                          </button>
+                          <button
+                            onClick={() => handleReject(item.id)}
+                            disabled={item.status === 'REJECTED'}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <Ban size={13} /> Reject
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-[#A33214] hover:bg-red-50"
+                          >
+                            <Trash2 size={13} /> Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -476,16 +436,15 @@ export default function ListingsManagementPage() {
         </table>
       </div>
 
-      {/* Item Detail Modal */}
+      {/* Detail Modal */}
       {selectedListing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1C1C]/50 backdrop-blur-xs">
-          <div className="bg-[#FDF6EC] border border-[#1C1C1C]/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-xl rounded-sm">
-            {/* Modal Header */}
+          <div className="bg-[#FDF6EC] border border-[#1C1C1C]/20 w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-xl rounded-sm">
             <div className="flex items-center justify-between border-b border-[#1C1C1C]/15 pb-3">
               <div className="flex items-center gap-2">
                 <Shirt className="text-[#A33214]" size={20} />
                 <h2 className="text-lg font-black text-[#1C1C1C] uppercase tracking-wide">
-                  Listing Detail: {selectedListing.id}
+                  Listing Detail
                 </h2>
               </div>
               <button
@@ -496,118 +455,88 @@ export default function ListingsManagementPage() {
               </button>
             </div>
 
-            {/* Main Listing View */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <img
-                src={selectedListing.image}
-                alt={selectedListing.title}
-                className="w-full h-48 md:h-full object-cover border border-[#1C1C1C]/20 rounded-sm"
-              />
+            <img
+              src={selectedListing.image}
+              alt={selectedListing.title}
+              className="w-full h-56 object-cover border border-[#1C1C1C]/20 rounded-sm"
+            />
 
-              <div className="md:col-span-2 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold text-[#A33214]">
-                    {selectedListing.id}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <ListingStatusBadge status={selectedListing.status} />
+                {selectedListing.reportsCount > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#A33214]">
+                    <AlertTriangle size={12} />
+                    {selectedListing.reportsCount} report
+                    {selectedListing.reportsCount > 1 ? 's' : ''}
                   </span>
-                  <ListingStatusBadge
-                    status={selectedListing.status}
-                    reportsCount={selectedListing.reportsCount}
-                  />
-                </div>
+                )}
+              </div>
 
-                <h3 className="font-black text-lg text-[#1C1C1C]">
-                  {selectedListing.title}
-                </h3>
+              <h3 className="font-black text-lg text-[#1C1C1C]">
+                {selectedListing.title}
+              </h3>
 
-                <div className="grid grid-cols-2 gap-2 text-xs font-medium text-[#1C1C1C] bg-[#1C1C1C]/5 p-3 rounded-sm border border-[#1C1C1C]/10">
-                  <div>
-                    <span className="text-[#1C1C1C]/60 block text-[10px] uppercase font-bold">
-                      Price
-                    </span>
-                    <span className="font-bold">
-                      ${selectedListing.price.toFixed(2)}{" "}
-                      {selectedListing.type === "rent" ? "/day" : ""}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#1C1C1C]/60 block text-[10px] uppercase font-bold">
-                      Category
-                    </span>
-                    <span className="font-bold">
-                      {selectedListing.category}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#1C1C1C]/60 block text-[10px] uppercase font-bold">
-                      Size & Condition
-                    </span>
-                    <span className="font-bold">
-                      {selectedListing.size} • {selectedListing.condition}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#1C1C1C]/60 block text-[10px] uppercase font-bold">
-                      Listing Type
-                    </span>
-                    <span className="font-bold uppercase">
-                      {selectedListing.type}
-                    </span>
-                  </div>
+              <div className="grid grid-cols-2 gap-2 text-xs font-medium text-[#1C1C1C] bg-[#1C1C1C]/5 p-3 rounded-sm border border-[#1C1C1C]/10">
+                <div>
+                  <span className="text-[#1C1C1C]/60 block text-[10px] uppercase font-bold">
+                    Price
+                  </span>
+                  <span className="font-bold">
+                    Rs. {selectedListing.price.toLocaleString('en-IN')}
+                    {selectedListing.type === 'rent' ? '/day' : ''}
+                  </span>
                 </div>
+                <div>
+                  <span className="text-[#1C1C1C]/60 block text-[10px] uppercase font-bold">
+                    Listing Type
+                  </span>
+                  <span className="font-bold uppercase">
+                    {selectedListing.type}
+                  </span>
+                </div>
+                <div className="col-span-2 flex items-center gap-1 text-[11px] text-[#1C1C1C]/60">
+                  <FileClock size={12} />
+                  Listed on {formatDate(selectedListing.createdAt)}
+                </div>
+              </div>
 
-                <div className="flex items-center gap-3 pt-2">
-                  <img
-                    src={selectedListing.sellerAvatar}
-                    alt={selectedListing.sellerName}
-                    className="w-8 h-8 rounded-full border border-[#1C1C1C]/20 object-cover"
-                  />
-                  <div>
-                    <p className="text-xs font-bold text-[#1C1C1C]">
-                      Seller: {selectedListing.sellerName}
-                    </p>
-                    <p className="text-[10px] text-[#1C1C1C]/60">
-                      Listed on {selectedListing.createdAt}
-                    </p>
-                  </div>
-                </div>
+              <div className="flex items-center gap-3 pt-2">
+                <img
+                  src={selectedListing.sellerAvatar}
+                  alt={selectedListing.sellerName}
+                  className="w-8 h-8 rounded-full border border-[#1C1C1C]/20 object-cover"
+                />
+                <p className="text-xs font-bold text-[#1C1C1C]">
+                  Seller: {selectedListing.sellerName}
+                </p>
               </div>
             </div>
 
-            {/* Moderation Controls in Modal */}
             <div className="border-t border-[#1C1C1C]/15 pt-4 space-y-3">
               <p className="text-xs font-extrabold uppercase tracking-wider text-[#1C1C1C]/70">
                 Moderation Actions
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() =>
-                    handleUpdateStatus(selectedListing.id, "active")
+                  onClick={() => handleApprove(selectedListing.id)}
+                  disabled={
+                    selectedListing.status === 'PUBLISHED' ||
+                    actionLoadingId === selectedListing.id
                   }
-                  className="px-3 py-2 bg-emerald-700 text-[#FDF6EC] font-bold text-xs uppercase tracking-wider hover:bg-emerald-800 transition-colors rounded-sm"
+                  className="px-3 py-2 bg-emerald-700 text-[#FDF6EC] font-bold text-xs uppercase tracking-wider hover:bg-emerald-800 transition-colors rounded-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                 >
-                  Approve
+                  <Check size={13} /> Approve
                 </button>
                 <button
-                  onClick={() =>
-                    handleUpdateStatus(selectedListing.id, "flagged")
+                  onClick={() => handleReject(selectedListing.id)}
+                  disabled={
+                    selectedListing.status === 'REJECTED' ||
+                    actionLoadingId === selectedListing.id
                   }
-                  className="px-3 py-2 bg-amber-600 text-[#FDF6EC] font-bold text-xs uppercase tracking-wider hover:bg-amber-700 transition-colors rounded-sm"
+                  className="px-3 py-2 bg-amber-600 text-[#FDF6EC] font-bold text-xs uppercase tracking-wider hover:bg-amber-700 transition-colors rounded-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                 >
-                  Flag Item
-                </button>
-                <button
-                  onClick={() =>
-                    handleUpdateStatus(selectedListing.id, "removed")
-                  }
-                  className="px-3 py-2 bg-[#A33214] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider hover:bg-[#A33214]/90 transition-colors rounded-sm"
-                >
-                  Remove
-                </button>
-                <button
-                  onClick={() => handleToggleFeature(selectedListing.id)}
-                  className="px-3 py-2 bg-[#1C1C1C] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider hover:bg-[#1C1C1C]/80 transition-colors rounded-sm"
-                >
-                  {selectedListing.isFeatured ? "Unfeature" : "Feature"}
+                  <Ban size={13} /> Reject
                 </button>
               </div>
             </div>
@@ -618,37 +547,50 @@ export default function ListingsManagementPage() {
   );
 }
 
-// Helper Badge Component
-function ListingStatusBadge({
-  status,
-  reportsCount,
-}: {
-  status: ListingStatus;
-  reportsCount: number;
-}) {
+// ── Helpers ────────────────────────────────────────────────────────────
+
+function formatDate(iso: string) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function ListingStatusBadge({ status }: { status: BackendListingStatus }) {
   switch (status) {
-    case "active":
+    case 'PUBLISHED':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xs">
-          <CheckCircle2 size={11} /> Active
+          <CheckCircle2 size={11} /> Published
         </span>
       );
-    case "pending":
+    case 'PENDING_REVIEW':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-sky-100 text-sky-900 border border-sky-300 rounded-xs">
           <Clock size={11} /> Pending
         </span>
       );
-    case "flagged":
+    case 'REJECTED':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 rounded-xs">
-          <AlertTriangle size={11} /> Flagged ({reportsCount})
+          <AlertTriangle size={11} /> Rejected
         </span>
       );
-    case "removed":
+    case 'REMOVED':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-red-100 text-red-900 border border-red-300 rounded-xs">
           <XCircle size={11} /> Removed
+        </span>
+      );
+    case 'DRAFT':
+    default:
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-stone-100 text-stone-700 border border-stone-300 rounded-xs">
+          <Tag size={11} /> Draft
         </span>
       );
   }

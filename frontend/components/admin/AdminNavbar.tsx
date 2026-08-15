@@ -98,7 +98,7 @@ export default function AdminNavbar({
   ];
 
   return (
-    <header className="sticky top-0 z-30 bg-[#FDF6EC] border-b-2 border-[#1C1C1C]/15 px-4 sm:px-6 py-3 transition-all">
+    <header className="sticky top-0 z-30 bg-[#FDF6EC] border-b-2 border-[#1C1C1C]/15 px-4 sm:px-6 py-4 transition-all">
       <div className="flex items-center justify-between gap-4">
         {/* Left: Mobile Menu Toggle & Title */}
         <div className="flex items-center gap-3 min-w-0">
@@ -119,25 +119,22 @@ export default function AdminNavbar({
                 {title}
               </h1>
             </div>
-            <p className="text-[10px] uppercase font-bold tracking-[0.15em] text-[#1C1C1C]/60">
-              ReWear Governance Console
-            </p>
           </div>
         </div>
 
         {/* Center: Desktop Global Search Bar */}
         <div className="hidden md:flex flex-1 max-w-md mx-4">
           <div className="relative w-full">
-            <div className="flex items-center w-full gap-2 border-2 border-[#1C1C1C]/20 bg-white/70 px-3.5 py-1.5 focus-within:border-[#A33214] focus-within:bg-white focus-within:ring-1 focus-within:ring-[#A33214] transition-all rounded-xs">
+            <div className="flex items-center w-full gap-2 border-2 border-[#1C1C1C]/20 bg-white/70 px-3.5 py-1.5 focus-within:border-[#A33214] focus-within:bg-white focus-within:ring-1 focus-within:ring-[#A33214] transition-all rounded-2xl">
               <Search size={16} className="text-[#1C1C1C]/50 shrink-0" />
               <input
                 type="text"
                 placeholder="Search listings, flagged users, transactions..."
-                className="w-full bg-transparent text-xs font-semibold text-[#1C1C1C] placeholder:text-[#1C1C1C]/40 outline-none"
+                className="w-full bg-transparent text-xs font-medium text-[#1C1C1C] placeholder:text-[#1C1C1C]/40 outline-none"
               />
-              <kbd className="hidden lg:inline-block px-1.5 py-0.5 text-[9px] font-mono text-[#1C1C1C]/50 bg-[#1C1C1C]/5 border border-[#1C1C1C]/15 rounded-xs">
+              {/* <kbd className="hidden lg:inline-block px-1.5 py-0.5 text-[9px] font-mono text-[#1C1C1C]/50 bg-[#1C1C1C]/5 border border-[#1C1C1C]/15 rounded-xs">
                 ⌘K
-              </kbd>
+              </kbd> */}
             </div>
           </div>
         </div>
@@ -160,7 +157,7 @@ export default function AdminNavbar({
                 setNotificationsOpen((v) => !v);
                 setProfileOpen(false);
               }}
-              className={`relative flex items-center justify-center h-10 w-10 border-2 transition-colors rounded-xs ${
+              className={`relative flex items-center justify-center h-10 w-10 transition-colors rounded-xs ${
                 notificationsOpen
                   ? "border-[#A33214] bg-[#A33214]/10 text-[#A33214]"
                   : "border-[#1C1C1C]/15 text-[#1C1C1C] hover:border-[#A33214] hover:text-[#A33214]"
@@ -235,7 +232,7 @@ export default function AdminNavbar({
                 setProfileOpen((v) => !v);
                 setNotificationsOpen(false);
               }}
-              className={`flex items-center gap-2.5 border-2 pl-1.5 pr-3 py-1 transition-colors rounded-xs ${
+              className={`flex items-center gap-2.5  pl-1.5 pr-3 py-1 transition-colors rounded-xs ${
                 profileOpen
                   ? "border-[#A33214] bg-[#A33214]/5"
                   : "border-[#1C1C1C]/15 hover:border-[#A33214]"

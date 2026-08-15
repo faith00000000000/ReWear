@@ -2,14 +2,14 @@ package com.rewear.backend.security;
 
 import com.rewear.backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserDetailsServiceImpl implements UserDetailsService {
@@ -18,9 +18,17 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        com.rewear.backend.user.model.User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
+        com.rewear.backend.user.model.User user = userRepository.findByEmail(email.toLowerCase().trim())
+                .orElseThrow(() -> {
+                    log.warn("Authentication failed — no account for email: {}", email);
+                    return new UsernameNotFoundException("Invalid credentials");
+                });
 
-        return new User(user.getEmail(), user.getPassword(), Collections.emptyList());
+        return User.builder()
+                .username(user.getEmail())
+                .password(user.getPassword())
+                .disabled(!Boolean.TRUE.equals(user.getIsActive()))
+                .authorities("ROLE_" + user.getRole().name())
+                .build();
     }
 }

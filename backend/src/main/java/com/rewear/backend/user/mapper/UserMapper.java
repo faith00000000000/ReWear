@@ -15,6 +15,9 @@ public class UserMapper {
                 .password(requestDto.getPassword())
                 .isActive(true)
                 .build();
+        // NOTE: role intentionally not set here — relies on User.role's
+        // @Builder.Default (Role.USER). Public signup must never be able
+        // to self-assign ADMIN, so don't add a role param to this method.
     }
 
     public UserResponseDto toResponseDto(User user) {
@@ -23,7 +26,8 @@ public class UserMapper {
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .profilePictureUrl(user.getProfilePictureUrl()) // Google photo URL or null
-                .phone(user.getPhone())                          // NEW
+                .phone(user.getPhone())
+                .role(user.getRole().name())                     // NEW — "USER" or "ADMIN"
                 .isActive(user.getIsActive())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())

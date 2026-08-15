@@ -35,10 +35,11 @@ public class AuthService {
 
     @Value("${app.jwt.access-token-expiry}")
     private long accessTokenExpiryMs;
+
     @Transactional
     public AuthResponseDto signup(UserRequestDto requestDto) {
         log.info("Processing signup for email: {}", requestDto.getEmail());
-        
+
         String normalizedEmail = normalizeEmail(requestDto.getEmail());
 
         if (userRepository.existsByEmail(normalizedEmail)) {
@@ -47,6 +48,10 @@ public class AuthService {
         }
 
         try {
+            // NOTE: no .role(...) set here — relies on User.role defaulting
+            // to Role.USER via @Builder.Default. Public signup should never
+            // be able to grant itself ADMIN, so this is intentional, not
+            // an oversight — don't add a role field to UserRequestDto.
             User user = User.builder()
                     .fullName(requestDto.getFullName().trim())
                     .email(normalizedEmail)
@@ -67,7 +72,7 @@ public class AuthService {
     @Transactional(readOnly = true)
     public AuthResponseDto login(LoginRequestDto requestDto) {
         log.info("Processing login for email: {}", requestDto.getEmail());
-        
+
         String normalizedEmail = normalizeEmail(requestDto.getEmail());
 
         try {
@@ -97,14 +102,14 @@ public class AuthService {
             throw new InvalidCredentialsException("Your account has been deactivated");
         }
 
-        log.info("Login successful for email: {}", normalizedEmail);
+        log.info("Login successful for email: {} (role={})", normalizedEmail, user.getRole());
         return buildAuthResponse(user);
     }
 
     @Transactional(readOnly = true)
     public AuthResponseDto refreshToken(String refreshToken) {
         log.info("Processing token refresh");
-        
+
         if (refreshToken == null || refreshToken.isBlank()) {
             log.warn("Refresh token is missing");
             throw new InvalidTokenException("Refresh token is required");
@@ -141,10 +146,21 @@ public class AuthService {
         }
     }
 
+    /**
+     * Builds the token pair + response for an authenticated user. The
+     * access token embeds "role" as "ROLE_<NAME>" (e.g. "ROLE_ADMIN") to
+     * match the authority format Spring Security expects for hasRole(...)
+     * checks, and to stay consistent with UserDetailsServiceImpl, which
+     * builds authorities the same way. If this format ever changes, it
+     * must change in both places together.
+     */
     private AuthResponseDto buildAuthResponse(User user) {
         String accessToken = jwtService.generateAccessToken(
                 user.getEmail(),
-                Map.of("userId", user.getId())
+                Map.of(
+                        "userId", user.getId(),
+                        "role", "ROLE_" + user.getRole().name()
+                )
         );
         String refreshToken = jwtService.generateRefreshToken(user.getEmail());
         long expiresIn = jwtService.getTokenExpiryTime(accessToken);

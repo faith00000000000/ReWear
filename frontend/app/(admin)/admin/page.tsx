@@ -12,9 +12,7 @@ import AdminStatCard from "@/components/admin/AdminStatCard";
 // TODO: replace with live data from GET /api/admin/dashboard/summary
 const STATS = {
   totalListings: "1,284",
-  activeOrders: "96",
   totalUsers: "3,410",
-  pendingReports: "12",
   totalDonations: "217",
   totalEarnings: "Rs 482,300",
 };
@@ -101,54 +99,42 @@ function statusBadgeClasses(status: string) {
 
 export default function AdminDashboardPage() {
   return (
-    <div className="flex flex-col gap-8 max-w-[1400px]">
+    <div className="flex flex-col gap-5 max-w-[1400px]">
       {/* Stat cards */}
       <section>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          <AdminStatCard
-            label="Total Listings"
-            value={STATS.totalListings}
-            icon={ClipboardList}
-            trend={{ value: "8.2%", direction: "up" }}
-          />
-          <AdminStatCard
-            label="Active Orders"
-            value={STATS.activeOrders}
-            icon={ShoppingBag}
-            trend={{ value: "3.1%", direction: "up" }}
-          />
-          <AdminStatCard
-            label="Total Users"
-            value={STATS.totalUsers}
-            icon={Users}
-            trend={{ value: "5.4%", direction: "up" }}
-          />
-          <AdminStatCard
-            label="Pending Reports"
-            value={STATS.pendingReports}
-            icon={Flag}
-            trend={{ value: "2.0%", direction: "down" }}
-          />
-          <AdminStatCard
-            label="Total Donations"
-            value={STATS.totalDonations}
-            icon={HeartHandshake}
-            trend={{ value: "11.6%", direction: "up" }}
-          />
-          <AdminStatCard
-            label="Total Earnings"
-            value={STATS.totalEarnings}
-            icon={Wallet}
-            trend={{ value: "6.7%", direction: "up" }}
-            accent
-          />
-        </div>
-      </section>
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <AdminStatCard
+      label="Total Listings"
+      value={STATS.totalListings}
+      icon={ClipboardList}
+      trend={{ value: "8.2%", direction: "up" }}
+    />          
+    <AdminStatCard
+      label="Total Users"
+      value={STATS.totalUsers}
+      icon={Users}
+      trend={{ value: "5.4%", direction: "up" }}
+    />
+    <AdminStatCard
+      label="Total Donations"
+      value={STATS.totalDonations}
+      icon={HeartHandshake}
+      trend={{ value: "11.6%", direction: "up" }}
+    />
+    <AdminStatCard
+      label="Total Earnings"
+      value={STATS.totalEarnings}
+      icon={Wallet}
+      trend={{ value: "6.7%", direction: "up" }}
+      accent
+    />
+  </div>
+</section>
 
       {/* Recent Listings + Recent Reports */}
       <section className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         {/* Recent Listings */}
-        <div className="xl:col-span-3 bg-white/60 border-2 border-[#1C1C1C]/15">
+        <div className="xl:col-span-3 bg-white/60 border-2 rounded-lg border-[#1C1C1C]/15">
           <div className="flex items-center justify-between px-5 py-4 border-b-2 border-[#1C1C1C]/15">
             <h2
               className="text-lg text-[#1C1C1C]"
@@ -209,7 +195,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Recent Reports */}
-        <div className="xl:col-span-2 bg-white/60 border-2 border-[#1C1C1C]/15">
+        <div className="xl:col-span-2 bg-white/60 border-2 rounded-lg border-[#1C1C1C]/15">
           <div className="flex items-center justify-between px-5 py-4 border-b-2 border-[#1C1C1C]/15">
             <h2
               className="text-lg text-[#1C1C1C]"
@@ -253,7 +239,7 @@ export default function AdminDashboardPage() {
 
       {/* Donation & Earnings quick summary */}
       <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div className="border-2 border-[#1C1C1C]/15 bg-white/60 p-5">
+        <div className="border-2 border-[#1C1C1C]/15 rounded-xl bg-white/60 p-5">
           <div className="flex items-center gap-2 mb-3">
             <HeartHandshake size={16} className="text-[#A33214]" />
             <h3 className="text-[11px] uppercase tracking-[0.14em] text-[#1C1C1C]/60">
@@ -297,7 +283,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="border-2 border-[#1C1C1C]/15 bg-white/60 p-5">
+        <div className="border-2 border-[#1C1C1C]/15 rounded-xl bg-white/60 p-5">
           <div className="flex items-center gap-2 mb-3">
             <Wallet size={16} className="text-[#A33214]" />
             <h3 className="text-[11px] uppercase tracking-[0.14em] text-[#1C1C1C]/60">

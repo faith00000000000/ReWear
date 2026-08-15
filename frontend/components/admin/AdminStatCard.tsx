@@ -20,7 +20,7 @@ export default function AdminStatCard({
 }: AdminStatCardProps) {
   return (
     <div
-      className={`border-2 p-5 flex flex-col gap-4 ${
+      className={`rounded-lg border p-5 flex flex-col gap-4 ${
         accent
           ? "bg-[#A33214] border-[#A33214] text-[#FDF6EC]"
           : "bg-white/60 border-[#1C1C1C]/15 text-[#1C1C1C]"
@@ -28,7 +28,7 @@ export default function AdminStatCard({
     >
       <div className="flex items-center justify-between">
         <span
-          className={`flex h-10 w-10 items-center justify-center ${
+          className={`flex h-10 w-10 rounded-sm items-center justify-center ${
             accent
               ? "bg-[#FDF6EC] text-[#A33214]"
               : "bg-[#A33214] text-[#FDF6EC]"
