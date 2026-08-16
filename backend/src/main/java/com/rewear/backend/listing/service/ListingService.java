@@ -36,4 +36,6 @@ public interface ListingService {
 
     // Delete a listing and remove its associated Supabase media
     void deleteListing(Long id);
+
+    Page<ListingResponseDTO> getAllListingsForAdmin(Pageable pageable);
 }

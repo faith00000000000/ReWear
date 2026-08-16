@@ -23,10 +23,9 @@ import { BackendListingStatus } from '@/lib/types/admin-listing';
  * URL below the moment the admin endpoint exists.
  */
 export async function fetchAdminListings(page = 0, size = 50) {
-  const { data } = await api.get('/api/listings', {
+  const { data } = await api.get('/api/admin/listings', {
     params: { page, size, sortBy: 'createdAt', direction: 'desc' },
   });
-  // Spring's Page<T> JSON wraps the array in `content`
   return data.content as ListingResponseDTO[];
 }
 

@@ -29,17 +29,12 @@ export function mapListingToAdminItem(
     sellerAvatar:
       dto.seller?.profilePictureUrl ?? '/images/avatar-placeholder.png',
     status: dto.status as AdminListingItem['status'],
-    // ⚠️ ListingResponseDTO has no `reportsCount` field on the backend today.
-    // Defaulting to 0 until a reports/flags feature exists there. The cast
-    // is a stopgap — add `private Integer reportsCount;` to
-    // ListingResponseDTO (and the entity + mapper) once that lands, then
-    // drop this cast and read dto.reportsCount directly.
     reportsCount:
       (dto as unknown as { reportsCount?: number }).reportsCount ?? 0,
     createdAt: dto.createdAt as unknown as string,
+    raw: dto,
   };
 }
-
 export function mapListingsToAdminItems(
   dtos: ListingResponseDTO[],
 ): AdminListingItem[] {

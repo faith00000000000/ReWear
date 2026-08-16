@@ -50,9 +50,10 @@ public class ListingServiceImpl implements ListingService {
         String folder = "seller-" + seller.getId();
         uploadMedia(listing, request, folder);
 
-        // 3. System auto-publishes — no admin moderation step.
+
+        // 3. Submissions require admin moderation — do NOT auto-publish.
         if (request.isPublish()) {
-            listing.setStatus(ListingStatus.PUBLISHED);
+            listing.setStatus(ListingStatus.PENDING_REVIEW);
         }
 
         Listing saved = listingRepository.save(listing);
@@ -116,13 +117,21 @@ public class ListingServiceImpl implements ListingService {
         String folder = "seller-" + existing.getSeller().getId();
         replaceMediaIfProvided(existing, request, folder);
 
+        // updateListing()
         if (request.isPublish() && existing.getStatus() == ListingStatus.DRAFT) {
-            existing.setStatus(ListingStatus.PUBLISHED);
+            existing.setStatus(ListingStatus.PENDING_REVIEW);
         }
         Listing updated = listingRepository.save(existing);
         log.info("Listing updated [id={}]", updated.getId());
 
         return listingMapper.toResponseDTO(updated);
+    }
+
+        @Override
+    @Transactional(readOnly = true)
+    public Page<ListingResponseDTO> getAllListingsForAdmin(Pageable pageable) {
+        // No status filter — admin needs DRAFT/PENDING_REVIEW/PUBLISHED/REJECTED/ARCHIVED all visible
+        return listingRepository.findAll(pageable).map(listingMapper::toResponseDTO);
     }
 
     @Override

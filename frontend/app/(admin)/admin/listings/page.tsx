@@ -191,12 +191,12 @@ export default function ListingsManagementPage() {
 
       {/* Filter Toolbar */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-        <div className="flex items-center bg-[#A33214] border border-[#1C1C1C]/20 p-1 self-start rounded-sm shadow-sm">
+        <div className="flex items-center bg-[#FDF6EC] border border-[#1C1C1C]/20 p-1 self-start rounded-sm shadow-sm">
           <button
             onClick={() => setTypeFilter('all')}
             className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm ${
               typeFilter === 'all'
-                ? 'bg-[#1C1C1C] text-[#FDF6EC]'
+                ? 'bg-[#A33214] text-[#FDF6EC]'
                 : 'text-[#1C1C1C]/80 hover:text-[#1C1C1C] hover:bg-[#1C1C1C]/5'
             }`}
           >
@@ -253,7 +253,7 @@ export default function ListingsManagementPage() {
               <option value="PENDING_REVIEW">Pending Review</option>
               <option value="PUBLISHED">Published</option>
               <option value="REJECTED">Rejected</option>
-              <option value="REMOVED">Removed</option>
+              <option value="ARCHIVED">Archived</option>
             </select>
           </div>
         </div>
@@ -263,7 +263,7 @@ export default function ListingsManagementPage() {
       <div className="border border-[#1C1C1C]/15 bg-[#FDF6EC] overflow-x-auto shadow-sm">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-[#1C1C1C] text-[#FDF6EC] text-xs uppercase font-bold tracking-wider border-b border-[#1C1C1C]">
+            <tr className="bg-[#A33214] text-[#FDF6EC] text-xs uppercase font-bold tracking-wider border-b border-[#1C1C1C]">
               <th className="p-3">Item</th>
               <th className="p-3">Type</th>
               <th className="p-3">Seller</th>
@@ -439,7 +439,7 @@ export default function ListingsManagementPage() {
       {/* Detail Modal */}
       {selectedListing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1C1C]/50 backdrop-blur-xs">
-          <div className="bg-[#FDF6EC] border border-[#1C1C1C]/20 w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-xl rounded-sm">
+          <div className="bg-[#FDF6EC] border border-[#1C1C1C]/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-xl rounded-sm">
             <div className="flex items-center justify-between border-b border-[#1C1C1C]/15 pb-3">
               <div className="flex items-center gap-2">
                 <Shirt className="text-[#A33214]" size={20} />
@@ -455,11 +455,43 @@ export default function ListingsManagementPage() {
               </button>
             </div>
 
-            <img
-              src={selectedListing.image}
-              alt={selectedListing.title}
-              className="w-full h-56 object-cover border border-[#1C1C1C]/20 rounded-sm"
-            />
+            {/* Photo gallery */}
+            {(() => {
+              const raw = selectedListing.raw;
+              const gallery = [
+                raw.photoFrontUrl,
+                raw.photoBackUrl,
+                raw.photoLabelUrl,
+                raw.photoDetailUrl,
+              ].filter((u): u is string => Boolean(u));
+
+              return gallery.length > 0 ? (
+                <div className="grid grid-cols-4 gap-2">
+                  {gallery.map((url, i) => (
+                    <img
+                      key={i}
+                      src={url}
+                      alt={`${selectedListing.title} ${i + 1}`}
+                      className="w-full h-24 object-cover border border-[#1C1C1C]/20 rounded-sm"
+                    />
+                  ))}
+                </div>
+              ) : (
+                <img
+                  src={selectedListing.image}
+                  alt={selectedListing.title}
+                  className="w-full h-56 object-cover border border-[#1C1C1C]/20 rounded-sm"
+                />
+              );
+            })()}
+
+            {selectedListing.raw.videoUrl && (
+              <video
+                src={selectedListing.raw.videoUrl}
+                controls
+                className="w-full h-56 object-cover border border-[#1C1C1C]/20 rounded-sm bg-black"
+              />
+            )}
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -476,32 +508,123 @@ export default function ListingsManagementPage() {
               <h3 className="font-black text-lg text-[#1C1C1C]">
                 {selectedListing.title}
               </h3>
+              {selectedListing.raw.brand && (
+                <p className="text-xs text-[#1C1C1C]/60 -mt-2">
+                  {selectedListing.raw.brand}
+                </p>
+              )}
 
-              <div className="grid grid-cols-2 gap-2 text-xs font-medium text-[#1C1C1C] bg-[#1C1C1C]/5 p-3 rounded-sm border border-[#1C1C1C]/10">
-                <div>
-                  <span className="text-[#1C1C1C]/60 block text-[10px] uppercase font-bold">
-                    Price
+              {/* Price row */}
+              <div className="flex items-baseline gap-3">
+                {selectedListing.raw.thriftPrice != null && (
+                  <span className="text-xl font-black text-[#A33214]">
+                    Rs {selectedListing.raw.thriftPrice.toLocaleString('en-IN')}
                   </span>
-                  <span className="font-bold">
-                    Rs. {selectedListing.price.toLocaleString('en-IN')}
-                    {selectedListing.type === 'rent' ? '/day' : ''}
+                )}
+                {selectedListing.raw.rentPerDay != null && (
+                  <span className="text-xl font-black text-[#A33214]">
+                    Rs {selectedListing.raw.rentPerDay.toLocaleString('en-IN')}
+                    <span className="text-xs font-normal text-[#1C1C1C]/60 ml-1">
+                      / day
+                    </span>
                   </span>
-                </div>
-                <div>
-                  <span className="text-[#1C1C1C]/60 block text-[10px] uppercase font-bold">
-                    Listing Type
+                )}
+                {selectedListing.raw.originalPrice != null && (
+                  <span className="text-xs text-[#1C1C1C]/40 line-through">
+                    Rs{' '}
+                    {selectedListing.raw.originalPrice.toLocaleString('en-IN')}
                   </span>
-                  <span className="font-bold uppercase">
-                    {selectedListing.type}
-                  </span>
-                </div>
-                <div className="col-span-2 flex items-center gap-1 text-[11px] text-[#1C1C1C]/60">
-                  <FileClock size={12} />
-                  Listed on {formatDate(selectedListing.createdAt)}
-                </div>
+                )}
               </div>
 
-              <div className="flex items-center gap-3 pt-2">
+              {/* Attribute pills */}
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  selectedListing.raw.size &&
+                    `Size ${selectedListing.raw.size}`,
+                  selectedListing.raw.condition,
+                  selectedListing.raw.color,
+                  selectedListing.raw.material,
+                  selectedListing.raw.gender,
+                  selectedListing.raw.clothingType,
+                ]
+                  .filter(Boolean)
+                  .map((label) => (
+                    <span
+                      key={label}
+                      className="text-[10px] bg-[#1C1C1C]/5 border border-[#1C1C1C]/15 text-[#1C1C1C] px-2 py-0.5 rounded-full font-semibold"
+                    >
+                      {label}
+                    </span>
+                  ))}
+              </div>
+
+              {/* Description */}
+              {selectedListing.raw.description && (
+                <div className="bg-[#1C1C1C]/5 border border-[#1C1C1C]/10 rounded-sm px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase text-[#1C1C1C]/60 mb-1">
+                    Description
+                  </p>
+                  <p className="text-xs text-[#1C1C1C] leading-relaxed">
+                    {selectedListing.raw.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Flaws */}
+              {selectedListing.raw.defectFlaws && (
+                <div className="bg-[#A33214]/5 border border-[#A33214]/20 rounded-sm px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase text-[#A33214] mb-1">
+                    Noted Flaws
+                  </p>
+                  <p className="text-xs text-[#1C1C1C] leading-relaxed">
+                    {selectedListing.raw.defectFlaws}
+                  </p>
+                </div>
+              )}
+
+              {/* Delivery */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase text-[#1C1C1C]/60">
+                  Delivery
+                </p>
+                {(selectedListing.raw.deliveryOption === 'SHIPPING' ||
+                  selectedListing.raw.deliveryOption === 'FLEX') && (
+                  <div className="text-xs bg-[#1C1C1C]/5 border border-[#1C1C1C]/10 rounded-sm px-3 py-2">
+                    <p className="font-bold">
+                      Shipping — {selectedListing.raw.shippingAvailability}
+                    </p>
+                    <p className="text-[#1C1C1C]/60 mt-0.5">
+                      {selectedListing.raw.shippingFeeType?.replace(/_/g, ' ')}
+                      {selectedListing.raw.fixedShippingFee != null &&
+                        ` · Rs ${selectedListing.raw.fixedShippingFee}`}
+                      {' · Dispatch: '}
+                      {selectedListing.raw.dispatchTime}
+                    </p>
+                  </div>
+                )}
+                {(selectedListing.raw.deliveryOption === 'PICKUP' ||
+                  selectedListing.raw.deliveryOption === 'FLEX') && (
+                  <div className="text-xs bg-[#1C1C1C]/5 border border-[#1C1C1C]/10 rounded-sm px-3 py-2">
+                    <p className="font-bold">
+                      Pickup — {selectedListing.raw.pickupArea}
+                    </p>
+                    <p className="text-[#1C1C1C]/60 mt-0.5">
+                      {selectedListing.raw.pickupTimeFrom} –{' '}
+                      {selectedListing.raw.pickupTimeTo}
+                      {selectedListing.raw.pickupDays &&
+                        ` (${selectedListing.raw.pickupDays})`}
+                    </p>
+                    {selectedListing.raw.pickupContactNumber && (
+                      <p className="text-[#1C1C1C]/60">
+                        Contact: {selectedListing.raw.pickupContactNumber}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 pt-2 border-t border-[#1C1C1C]/10">
                 <img
                   src={selectedListing.sellerAvatar}
                   alt={selectedListing.sellerName}
