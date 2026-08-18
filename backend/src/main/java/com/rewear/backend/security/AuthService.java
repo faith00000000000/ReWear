@@ -19,6 +19,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
+import com.rewear.backend.user.enums.UserStatus;
 
 import java.util.Map;
 
@@ -102,9 +104,16 @@ public class AuthService {
             throw new InvalidCredentialsException("Your account has been deactivated");
         }
 
+        if (user.getStatus() == UserStatus.BANNED) {
+    throw new AccessDeniedException("This account has been banned. Contact support for details.");
+    // swap AccessDeniedException for whatever exception type your
+    // @ExceptionHandler already maps to 403 in this codebase
+}
+
         log.info("Login successful for email: {} (role={})", normalizedEmail, user.getRole());
         return buildAuthResponse(user);
     }
+
 
     @Transactional(readOnly = true)
     public AuthResponseDto refreshToken(String refreshToken) {

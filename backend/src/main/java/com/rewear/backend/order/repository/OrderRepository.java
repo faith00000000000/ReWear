@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findByBuyer_EmailOrderByCreatedAtDesc(String email);
+    // in OrderRepository
+long countByBuyerId(Long buyerId);
 }

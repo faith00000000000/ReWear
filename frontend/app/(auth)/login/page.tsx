@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import { useEffect, useState, Suspense } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, Mail, AlertCircle, Loader2 } from "lucide-react";
-import api from "@/lib/axios";
-import { saveTokens, saveSession, redirectToGoogle } from "@/lib/auth";
-import { useAuth } from "@/lib/AuthContext";
+import { useEffect, useState, Suspense } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Eye, EyeOff, Mail, AlertCircle, Loader2 } from 'lucide-react';
+import api from '@/lib/axios';
+import { saveTokens, saveSession, redirectToGoogle } from '@/lib/auth';
+import { useAuth } from '@/lib/AuthContext';
 
 const inputClass =
-  "h-12 w-full rounded-lg border border-[#E2D4C5] bg-[#FFFFFF] px-4 text-[14px] font-medium text-[#211714] outline-none transition placeholder:text-[#A49B90] focus:border-[#A23A16] focus:ring-1 focus:ring-[#A23A16]";
+  'h-12 w-full rounded-lg border border-[#E2D4C5] bg-[#FFFFFF] px-4 text-[14px] font-medium text-[#211714] outline-none transition placeholder:text-[#A49B90] focus:border-[#A23A16] focus:ring-1 focus:ring-[#A23A16]';
 
 function GoogleIcon() {
   return (
@@ -56,20 +56,20 @@ function Label({ children }: { children: React.ReactNode }) {
  * an admin account.
  */
 function destinationFor(role: string | undefined, redirectTo: string): string {
-  return role === "ADMIN" ? "/admin" : redirectTo;
+  return role === 'ADMIN' ? '/admin' : redirectTo;
 }
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/";
+  const redirectTo = searchParams.get('redirect') || '/';
 
   // Consume synced AuthContext state
   const { authed, user, isMounted, refreshAuth } = useAuth();
 
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,8 +89,8 @@ function LoginContent() {
 
   // ── OAuth error param ─────────────────────────────────────────────────────
   useEffect(() => {
-    if (searchParams.get("error") === "oauth_failed") {
-      setError("Google sign-in failed. Please try again.");
+    if (searchParams.get('error') === 'oauth_failed') {
+      setError('Google sign-in failed. Please try again.');
     }
   }, [searchParams]);
 
@@ -101,7 +101,7 @@ function LoginContent() {
     setError(null);
 
     try {
-      const { data } = await api.post("/api/auth/login", {
+      const { data } = await api.post('/api/auth/login', {
         email: email.trim().toLowerCase(),
         password,
       });
@@ -114,12 +114,12 @@ function LoginContent() {
       let loggedInUser = payload.user ?? null;
 
       if (!accessToken) {
-        setError("Login failed — server returned no token. Please try again.");
+        setError('Login failed — server returned no token. Please try again.');
         return;
       }
 
       if (!loggedInUser) {
-        const { data: meData } = await api.get("/api/auth/me");
+        const { data: meData } = await api.get('/api/auth/me');
         loggedInUser = meData?.data ?? meData;
       }
 
@@ -134,16 +134,19 @@ function LoginContent() {
       // Admins -> /admin, everyone else -> redirectTo (or "/" by default)
       router.push(destinationFor(loggedInUser?.role, redirectTo));
     } catch (err: any) {
-      console.error("Login error:", err.response?.status, err.response?.data);
+      console.error('Login error:', err.response?.status, err.response?.data);
 
       if (err.response?.status === 401) {
-        setError("Incorrect email or password.");
+        setError('Incorrect email or password.');
       } else if (err.response?.status === 403) {
-        setError("Account suspended or not yet verified.");
+        setError(
+          err.response?.data?.message ??
+            'Your account has been banned. Contact support for details.',
+        );
       } else if (err.response?.data?.message) {
         setError(err.response.data.message);
       } else {
-        setError("Something went wrong. Please try again.");
+        setError('Something went wrong. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -189,13 +192,13 @@ function LoginContent() {
         <div className="relative z-10 w-full max-w-[500px] rounded-[28px] bg-white px-8 py-10 shadow-[0_12px_60px_rgba(33,23,20,0.03)] border border-[#F2ECE4] sm:px-10 sm:py-10">
           <button
             onClick={() =>
-              router.push(redirectTo !== "/" ? redirectTo : "/browse-finds")
+              router.push(redirectTo !== '/' ? redirectTo : '/browse-finds')
             }
             className="group mb-5 flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.2em] text-[#8A8177] transition hover:text-[#A23A16]"
           >
             <span className="text-[14px] transition-transform group-hover:-translate-x-1">
               ←
-            </span>{" "}
+            </span>{' '}
             BACK
           </button>
 
@@ -246,7 +249,7 @@ function LoginContent() {
               <Label>Password</Label>
               <div className="relative">
                 <input
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   required
                   placeholder="••••••••••••••••"
                   value={password}
@@ -258,7 +261,7 @@ function LoginContent() {
                   type="button"
                   onClick={() => setShowPassword((p) => !p)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A49B90] transition hover:text-[#A23A16]"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -293,7 +296,7 @@ function LoginContent() {
                   <Loader2 size={16} className="animate-spin" /> Signing in…
                 </>
               ) : (
-                "Sign In"
+                'Sign In'
               )}
             </button>
           </form>
@@ -316,9 +319,9 @@ function LoginContent() {
           </button>
 
           <p className="mt-6 text-center text-[13.5px] font-medium text-[#5F5048]">
-            New here?{" "}
+            New here?{' '}
             <Link
-              href={`/signup${redirectTo !== "/" ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`}
+              href={`/signup${redirectTo !== '/' ? `?redirect=${encodeURIComponent(redirectTo)}` : ''}`}
               className="font-bold text-[#A23A16] transition hover:text-[#211714]"
             >
               Create an account

@@ -57,4 +57,8 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
 
     // Count active listings per seller (useful for dashboard)
     long countBySeller_IdAndStatus(Long sellerId, ListingStatus status);
+
+    // in ListingRepository
+        long countBySellerId(Long sellerId);
+
 }

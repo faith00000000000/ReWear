@@ -1,37 +1,97 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import Link from "next/link";
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   ArrowLeft,
   Check,
   Package,
   UserRound,
   ChevronDown,
-  Gift,
   Heart,
   Truck,
   ShieldCheck,
   Sparkles,
   Info,
-} from "lucide-react";
+  Gift,
+  Building2,
+  AlertTriangle,
+  Tag,
+} from 'lucide-react';
 
 const categories = [
-  "Tops",
-  "Bottoms",
-  "Dresses",
-  "Outerwear",
-  "Shoes",
-  "Bags",
-  "Accessories",
+  'Tops',
+  'Bottoms',
+  'Dresses',
+  'Outerwear',
+  'Shoes',
+  'Bags',
+  'Accessories',
 ];
 
-export default function ShippingLabelPage() {
+const ngos = [
+  {
+    id: 'sajha-foundation',
+    name: 'Sajha Foundation Nepal',
+    type: 'NGO',
+    description: 'Supporting families and communities in need.',
+  },
+  {
+    id: 'women-support',
+    name: 'Women & Children Support Network',
+    type: 'NGO',
+    description: 'Supporting women and children through essential resources.',
+  },
+];
+
+const ingos = [
+  {
+    id: 'red-cross',
+    name: 'International Relief & Aid Network',
+    type: 'INGO',
+    description: 'Providing humanitarian support to vulnerable communities.',
+  },
+  {
+    id: 'global-clothing',
+    name: 'Global Clothing Relief',
+    type: 'INGO',
+    description: 'Connecting usable clothing with communities in need.',
+  },
+];
+
+export default function DonationFormPage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [creditPreference, setCreditPreference] = useState<"store" | "donate">(
-    "store",
+  const [organizationType, setOrganizationType] = useState<'NGO' | 'INGO'>(
+    'NGO',
   );
-  const [boxCount, setBoxCount] = useState<string>("1 Box / Bag");
+  const [organization, setOrganization] = useState('');
+  const [boxCount, setBoxCount] = useState('1 Box / Bag');
+  const [weight, setWeight] = useState('');
+  const [agreedToDisclaimer, setAgreedToDisclaimer] = useState(false);
+
+  /*
+   * Replace this with the user's actual cumulative donation weight
+   * retrieved from your backend.
+   *
+   * Example:
+   * const previousDonationWeight = user.totalDonationWeightKg;
+   */
+  const previousDonationWeight = 0;
+
+  const currentWeight = Number(weight) || 0;
+
+  const totalDonationWeight = previousDonationWeight + currentWeight;
+
+  const rewardEligible = totalDonationWeight >= 50;
+
+  const remainingWeight = Math.max(50 - totalDonationWeight, 0);
+
+  const progress = Math.min((totalDonationWeight / 50) * 100, 100);
+
+  const organizations = useMemo(
+    () => (organizationType === 'NGO' ? ngos : ingos),
+    [organizationType],
+  );
 
   const toggleCategory = (category: string) => {
     setSelectedCategories((prev) =>
@@ -43,7 +103,7 @@ export default function ShippingLabelPage() {
 
   return (
     <main className="min-h-screen bg-[#FAF2E6] text-[#211714] antialiased">
-      {/* Top Header Navigation */}
+      {/* HEADER */}
       <header className="border-b border-[#E3D7C7] bg-[#F5ECDF] py-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 sm:px-8 lg:px-12">
           <Link
@@ -55,118 +115,121 @@ export default function ShippingLabelPage() {
               strokeWidth={2.5}
               className="transition-transform group-hover:-translate-x-1"
             />
-            <span>Back to overview</span>
+            <span>Back to donation</span>
           </Link>
+
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#7E7469]">
             <ShieldCheck size={16} className="text-[#5E6B52]" />
-            <span>Free USPS Drop-off</span>
+            <span>Secure Donation</span>
           </div>
         </div>
       </header>
 
       <section className="mx-auto max-w-7xl px-6 py-10 sm:px-8 lg:px-12 lg:py-14">
-        {/* Progress Stepper Bar */}
-        <div className="mb-10 mx-auto max-w-3xl">
-          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-[#7E7469]">
-            <span className="flex items-center gap-2 text-[#AC1B18]">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#AC1B18] text-white text-[10px]">
-                1
-              </span>
-              Contact Info
-            </span>
-            <span className="h-px flex-1 bg-[#D8CFC2] mx-4" />
-            <span className="flex items-center gap-2 text-[#AC1B18]">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#AC1B18] text-white text-[10px]">
-                2
-              </span>
-              Package Details
-            </span>
-            <span className="h-px flex-1 bg-[#D8CFC2] mx-4" />
-            <span className="flex items-center gap-2 text-[#AC1B18]">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#AC1B18] text-white text-[10px]">
-                3
-              </span>
-              Rewards
-            </span>
+        {/* PAGE INTRO */}
+        <div className="mx-auto mb-10 max-w-3xl text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#AC1B18]/10 text-[#AC1B18]">
+            <Heart size={22} />
+          </div>
+
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#AC1B18]">
+            Give Clothes A Second Life
+          </p>
+
+          <h1 className="mt-3 font-serif text-4xl font-black text-[#130D0B] sm:text-5xl">
+            Make Your Donation Count
+          </h1>
+
+          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-[#6F665C]">
+            Donate usable clothing to a verified NGO or INGO through ReWear.
+            Your contribution helps keep clothing in use while supporting
+            communities that need it.
+          </p>
+        </div>
+
+        {/* PROGRESS STEPPER */}
+        <div className="mx-auto mb-10 max-w-4xl">
+          <div className="flex items-center justify-between">
+            <Step number="1" label="Your Details" active />
+            <StepLine />
+            <Step number="2" label="Donation" active />
+            <StepLine />
+            <Step number="3" label="Organization" active />
           </div>
         </div>
 
-        <div className="grid gap-10 lg:grid-cols-12 lg:gap-12 items-start">
-          {/* Main Form Area */}
+        <div className="grid items-start gap-10 lg:grid-cols-12 lg:gap-12">
+          {/* MAIN FORM */}
           <div className="lg:col-span-7">
             <form onSubmit={(e) => e.preventDefault()} className="space-y-8">
-              {/* SECTION 1: Personal Info */}
-              <div className="rounded-2xl border border-[#D8CFC2] bg-[#FFFAF2] p-6 sm:p-8 shadow-sm">
-                <div className="flex items-center gap-3 border-b border-[#EADFD1] pb-4">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#AC1B18]/10 text-[#AC1B18]">
-                    <UserRound size={18} />
-                  </div>
-                  <div>
-                    <h2 className="font-serif text-xl font-bold text-[#130D0B]">
-                      1. Contact & Pickup
-                    </h2>
-                    <p className="text-xs text-[#6F665C]">
-                      Where should we send your prepaid shipping label?
-                    </p>
-                  </div>
-                </div>
+              {/* SECTION 1 */}
+              <section className="rounded-2xl border border-[#D8CFC2] bg-[#FFFAF2] p-6 shadow-sm sm:p-8">
+                <SectionHeader
+                  icon={<UserRound size={18} />}
+                  title="1. Your Information"
+                  description="Tell us where your donation should be collected from."
+                />
 
                 <div className="mt-6 grid gap-5 sm:grid-cols-2">
-                  <Field label="Full Name" placeholder="June Carter" required />
+                  <Field
+                    label="Full Name"
+                    placeholder="Your full name"
+                    required
+                  />
+
                   <Field
                     label="Email Address"
-                    placeholder="you@rewear.studio"
+                    placeholder="you@example.com"
                     type="email"
                     required
                   />
+
                   <Field
                     label="Phone Number"
-                    placeholder="+1 (555) 019-2831"
+                    placeholder="+977 98XXXXXXXX"
                     type="tel"
+                    required
                   />
+
                   <Field
-                    label="Pickup Street Address"
-                    placeholder="123 Atlantic Ave, Brooklyn, NY"
+                    label="Pickup Address"
+                    placeholder="Street, City"
                     required
                   />
                 </div>
-              </div>
+              </section>
 
-              {/* SECTION 2: Package Info */}
-              <div className="rounded-2xl border border-[#D8CFC2] bg-[#FFFAF2] p-6 sm:p-8 shadow-sm">
-                <div className="flex items-center gap-3 border-b border-[#EADFD1] pb-4">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#AC1B18]/10 text-[#AC1B18]">
-                    <Package size={18} />
-                  </div>
-                  <div>
-                    <h2 className="font-serif text-xl font-bold text-[#130D0B]">
-                      2. Package Contents
-                    </h2>
-                    <p className="text-xs text-[#6F665C]">
-                      Help us prepare sorting capacity at our facilities
-                    </p>
-                  </div>
-                </div>
+              {/* SECTION 2 */}
+              <section className="rounded-2xl border border-[#D8CFC2] bg-[#FFFAF2] p-6 shadow-sm sm:p-8">
+                <SectionHeader
+                  icon={<Package size={18} />}
+                  title="2. Donation Details"
+                  description="Tell us what you are donating so we can prepare for your contribution."
+                />
 
+                {/* CATEGORIES */}
                 <div className="mt-6">
                   <label className="mb-3 block text-xs font-bold uppercase tracking-wider text-[#7E7469]">
-                    Select Included Categories
+                    Clothing Categories
+                    <span className="ml-1 text-[#AC1B18]">*</span>
                   </label>
+
                   <div className="flex flex-wrap gap-2">
                     {categories.map((category) => {
-                      const isSelected = selectedCategories.includes(category);
+                      const selected = selectedCategories.includes(category);
+
                       return (
                         <button
                           key={category}
                           type="button"
                           onClick={() => toggleCategory(category)}
-                          className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold tracking-wider transition-all ${
-                            isSelected
-                              ? "bg-[#1B1110] text-white shadow-sm"
-                              : "border border-[#D8CFC2] bg-[#FAF2E6] text-[#5F554C] hover:border-[#AC1B18]"
+                          className={`flex items-center gap-1.5 rounded-full px-4 py-2.5 text-xs font-bold tracking-wide transition-all ${
+                            selected
+                              ? 'bg-[#1B1110] text-white shadow-sm'
+                              : 'border border-[#D8CFC2] bg-[#FAF2E6] text-[#5F554C] hover:border-[#AC1B18]'
                           }`}
                         >
-                          {isSelected && <Check size={12} strokeWidth={3} />}
+                          {selected && <Check size={12} strokeWidth={3} />}
                           {category}
                         </button>
                       );
@@ -174,11 +237,13 @@ export default function ShippingLabelPage() {
                   </div>
                 </div>
 
-                <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                <div className="mt-7 grid gap-5 sm:grid-cols-2">
+                  {/* PACKAGE COUNT */}
                   <div>
                     <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#7E7469]">
                       Package Count
                     </label>
+
                     <div className="relative">
                       <select
                         value={boxCount}
@@ -190,6 +255,7 @@ export default function ShippingLabelPage() {
                         <option>3 Boxes / Bags</option>
                         <option>4+ Boxes / Bags</option>
                       </select>
+
                       <ChevronDown
                         size={16}
                         className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#7E7469]"
@@ -197,155 +263,456 @@ export default function ShippingLabelPage() {
                     </div>
                   </div>
 
+                  {/* WEIGHT */}
                   <Field
-                    label="Est. Total Weight (lbs)"
-                    placeholder="e.g. 8"
+                    label="Estimated Donation Weight (kg)"
+                    placeholder="e.g. 12"
                     type="number"
+                    min="0"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                    required
                   />
                 </div>
 
+                {/* REWARD PROGRESS */}
+                <div className="mt-6 rounded-2xl border border-[#DCCDBB] bg-[#F5ECDF] p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#AC1B18]/10 text-[#AC1B18]">
+                        <Gift size={18} />
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-bold text-[#211714]">
+                          ReWear Donation Reward
+                        </p>
+
+                        {rewardEligible ? (
+                          <p className="mt-1 text-xs leading-relaxed text-[#5E6B52]">
+                            Congratulations! You have reached the 50 kg donation
+                            milestone.
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-xs leading-relaxed text-[#6F665C]">
+                            Donate{' '}
+                            <strong className="text-[#AC1B18]">
+                              {remainingWeight.toFixed(1)} kg
+                            </strong>{' '}
+                            more to unlock your 12% ReWear discount.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <span
+                      className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                        rewardEligible
+                          ? 'bg-[#5E6B52] text-white'
+                          : 'bg-[#E3D7C7] text-[#6F665C]'
+                      }`}
+                    >
+                      {rewardEligible ? 'Unlocked' : '50 KG'}
+                    </span>
+                  </div>
+
+                  {/* PROGRESS BAR */}
+                  <div className="mt-5">
+                    <div className="mb-2 flex justify-between text-[11px] font-bold">
+                      <span className="text-[#7E7469]">
+                        {totalDonationWeight.toFixed(1)} kg donated
+                      </span>
+                      <span className="text-[#AC1B18]">50 kg goal</span>
+                    </div>
+
+                    <div className="h-2 overflow-hidden rounded-full bg-[#E3D7C7]">
+                      <div
+                        className="h-full rounded-full bg-[#AC1B18] transition-all duration-500"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* REWARD MESSAGE */}
+                  {rewardEligible && (
+                    <div className="mt-5 flex gap-3 rounded-xl border border-[#BFCAB6] bg-[#EAF0E7] p-4">
+                      <Tag
+                        size={18}
+                        className="mt-0.5 shrink-0 text-[#5E6B52]"
+                      />
+
+                      <div>
+                        <p className="text-sm font-bold text-[#3F5138]">
+                          12% OFF — One-Time ReWear Purchase
+                        </p>
+
+                        <p className="mt-1 text-xs leading-relaxed text-[#5E6B52]">
+                          You have unlocked a one-time 12% discount on your next
+                          eligible purchase made through ReWear. This discount
+                          is provided by ReWear and does not reduce the earnings
+                          of the seller or clothing owner.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* NOTES */}
+                <div className="mt-6">
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#7E7469]">
+                    Additional Notes
+                    <span className="ml-1 font-normal normal-case tracking-normal text-[#A89E94]">
+                      (Optional)
+                    </span>
+                  </label>
+
+                  <textarea
+                    rows={3}
+                    placeholder="Tell us anything we should know about your donation..."
+                    className="w-full rounded-xl border border-[#D8CFC2] bg-[#FAF2E6] p-4 text-sm font-medium text-[#211714] placeholder:text-[#A89E94] focus:border-[#AC1B18] focus:outline-none"
+                  />
+                </div>
+              </section>
+
+              {/* SECTION 3 */}
+              <section className="rounded-2xl border border-[#D8CFC2] bg-[#FFFAF2] p-6 shadow-sm sm:p-8">
+                <SectionHeader
+                  icon={<Building2 size={18} />}
+                  title="3. Choose Where to Donate"
+                  description="Select the type of organization and your preferred beneficiary."
+                />
+
+                {/* NGO / INGO TOGGLE */}
+                <div className="mt-6 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOrganizationType('NGO');
+                      setOrganization('');
+                    }}
+                    className={`rounded-xl border px-4 py-4 text-left transition-all ${
+                      organizationType === 'NGO'
+                        ? 'border-[#AC1B18] bg-[#AC1B18]/5 ring-1 ring-[#AC1B18]'
+                        : 'border-[#D8CFC2] bg-[#FAF2E6] hover:border-[#A89E94]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-[#211714]">
+                        NGO
+                      </span>
+
+                      {organizationType === 'NGO' && (
+                        <Check size={16} className="text-[#AC1B18]" />
+                      )}
+                    </div>
+
+                    <p className="mt-1 text-xs text-[#6F665C]">
+                      Local / national organizations
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOrganizationType('INGO');
+                      setOrganization('');
+                    }}
+                    className={`rounded-xl border px-4 py-4 text-left transition-all ${
+                      organizationType === 'INGO'
+                        ? 'border-[#AC1B18] bg-[#AC1B18]/5 ring-1 ring-[#AC1B18]'
+                        : 'border-[#D8CFC2] bg-[#FAF2E6] hover:border-[#A89E94]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-[#211714]">
+                        INGO
+                      </span>
+
+                      {organizationType === 'INGO' && (
+                        <Check size={16} className="text-[#AC1B18]" />
+                      )}
+                    </div>
+
+                    <p className="mt-1 text-xs text-[#6F665C]">
+                      International organizations
+                    </p>
+                  </button>
+                </div>
+
+                {/* ORGANIZATION */}
                 <div className="mt-5">
                   <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#7E7469]">
-                    Special Notes or Brands (Optional)
+                    Select {organizationType}
+                    <span className="ml-1 text-[#AC1B18]">*</span>
                   </label>
-                  <textarea
-                    rows={2}
-                    placeholder="E.g., Vintage jackets included, or specific care instructions..."
-                    className="w-full rounded-xl border border-[#D8CFC2] bg-[#FAF2E6] p-3 text-sm font-medium text-[#211714] placeholder:text-[#A89E94] focus:border-[#AC1B18] focus:outline-none"
-                  />
-                </div>
-              </div>
 
-              {/* SECTION 3: Reward Choice */}
-              <div className="rounded-2xl border border-[#D8CFC2] bg-[#FFFAF2] p-6 sm:p-8 shadow-sm">
-                <div className="flex items-center gap-3 border-b border-[#EADFD1] pb-4">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#AC1B18]/10 text-[#AC1B18]">
-                    <Gift size={18} />
-                  </div>
-                  <div>
-                    <h2 className="font-serif text-xl font-bold text-[#130D0B]">
-                      3. Credit Preference
-                    </h2>
-                    <p className="text-xs text-[#6F665C]">
-                      Choose where your earnings go when items sell
-                    </p>
-                  </div>
-                </div>
+                  <div className="relative">
+                    <select
+                      value={organization}
+                      onChange={(e) => setOrganization(e.target.value)}
+                      className="h-14 w-full appearance-none rounded-xl border border-[#D8CFC2] bg-[#FAF2E6] px-4 pr-12 text-sm font-semibold text-[#211714] focus:border-[#AC1B18] focus:outline-none"
+                    >
+                      <option value="">
+                        Choose a {organizationType.toLowerCase()}...
+                      </option>
 
-                <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                  <div
-                    onClick={() => setCreditPreference("store")}
-                    className={`relative cursor-pointer rounded-xl border p-5 transition-all ${
-                      creditPreference === "store"
-                        ? "border-[#AC1B18] bg-[#AC1B18]/5 ring-1 ring-[#AC1B18]"
-                        : "border-[#D8CFC2] bg-[#FAF2E6] hover:border-[#A89E94]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-[#211714]">
-                        Store Credit
-                      </span>
-                      <span className="rounded-full bg-[#5E6B52] px-2 py-0.5 text-[10px] font-bold text-white uppercase">
-                        +10% Bonus
-                      </span>
+                      {organizations.map((org) => (
+                        <option key={org.id} value={org.id}>
+                          {org.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <ChevronDown
+                      size={17}
+                      className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#7E7469]"
+                    />
+                  </div>
+
+                  {organization && (
+                    <div className="mt-3 rounded-xl bg-[#F5ECDF] p-4">
+                      <p className="text-xs leading-relaxed text-[#6F665C]">
+                        {
+                          organizations.find((org) => org.id === organization)
+                            ?.description
+                        }
+                      </p>
                     </div>
-                    <p className="mt-2 text-xs leading-relaxed text-[#6F665C]">
-                      Earn $5 per resold item directly credited to your ReWear
-                      account.
-                    </p>
-                  </div>
+                  )}
+                </div>
 
-                  <div
-                    onClick={() => setCreditPreference("donate")}
-                    className={`relative cursor-pointer rounded-xl border p-5 transition-all ${
-                      creditPreference === "donate"
-                        ? "border-[#AC1B18] bg-[#AC1B18]/5 ring-1 ring-[#AC1B18]"
-                        : "border-[#D8CFC2] bg-[#FAF2E6] hover:border-[#A89E94]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-[#211714]">
-                        Shelter Donation
-                      </span>
-                      <Heart size={16} className="text-[#AC1B18]" />
+                {/* DISCLAIMER */}
+                <div className="mt-7 rounded-2xl border border-[#E2CDBD] bg-[#FBF4EB] p-5">
+                  <div className="flex gap-3">
+                    <AlertTriangle
+                      size={19}
+                      className="mt-0.5 shrink-0 text-[#AC1B18]"
+                    />
+
+                    <div className="font-[Poppins]">
+                      <h3 className="text-sm font-semibold text-[#211714]">
+                        Donation Guidelines
+                      </h3>
+
+                      <ul className="mt-3 space-y-2 text-xs leading-6 text-[#6F665C]">
+                        <li>
+                          • Please donate only clothes that are clean, wearable,
+                          and suitable for use by another person.
+                        </li>
+                        <li>
+                          • Do not donate heavily damaged, wet, moldy, or
+                          contaminated clothing.
+                        </li>
+                        <li>
+                          • Items with severe stains, strong odors, or
+                          structural damage may be rejected during inspection.
+                        </li>
+                        <li>
+                          • ReWear and the selected organization reserve the
+                          right to refuse items that are unsuitable for
+                          redistribution.
+                        </li>
+                        <li>
+                          • Donated items may be sorted, redistributed,
+                          repurposed, or recycled depending on their condition
+                          and the organizations needs.
+                        </li>
+                      </ul>
+
+                      <label className="mt-4 flex cursor-pointer items-start gap-3 border-t border-[#E2D7CA] pt-4">
+                        <input
+                          type="checkbox"
+                          checked={agreedToDisclaimer}
+                          onChange={(e) =>
+                            setAgreedToDisclaimer(e.target.checked)
+                          }
+                          className="mt-1 h-4 w-4 accent-[#AC1B18]"
+                        />
+
+                        <span className="text-xs font-medium leading-5 text-[#52483E]">
+                          I confirm that the clothes I am donating are
+                          reasonably clean, usable, and suitable for another
+                          person.
+                        </span>
+                      </label>
                     </div>
-                    <p className="mt-2 text-xs leading-relaxed text-[#6F665C]">
-                      Direct proceeds to partner women and family shelters
-                      nationwide.
-                    </p>
                   </div>
                 </div>
 
+                {/* SUBMIT */}
                 <button
                   type="submit"
-                  className="mt-8 flex w-full items-center justify-center gap-3 rounded-full bg-[#1B1110] px-8 py-4 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#AC1B18]"
+                  disabled={
+                    !agreedToDisclaimer ||
+                    !organization ||
+                    selectedCategories.length === 0
+                  }
+                  className="mt-8 flex w-full items-center justify-center gap-3 rounded-full bg-[#1B1110] px-8 py-4 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#AC1B18] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Truck size={18} />
-                  <span>Generate Free Shipping Label</span>
+                  <span>Confirm Donation</span>
                 </button>
-              </div>
+              </section>
             </form>
           </div>
 
-          {/* Sticky Summary Sidebar */}
+          {/* SIDEBAR */}
           <aside className="lg:sticky lg:top-8 lg:col-span-5">
-            <div className="rounded-2xl border border-[#D8CFC2] bg-[#F5ECDF] p-6 sm:p-8 shadow-sm">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-[#AC1B18]">
-                <Sparkles size={14} />
-                Shipment Summary
-              </span>
+            <div className="overflow-hidden rounded-2xl border border-[#D8CFC2] bg-[#F5ECDF] shadow-sm">
+              {/* REWARD BANNER */}
+              <div
+                className={`p-6 sm:p-8 ${
+                  rewardEligible ? 'bg-[#EAF0E7]' : 'bg-[#F5ECDF]'
+                }`}
+              >
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-[#AC1B18]">
+                  <Sparkles size={14} />
+                  ReWear Reward
+                </span>
 
-              <h3 className="mt-2 font-serif text-2xl font-black text-[#130D0B]">
-                Zero-Cost Guarantee
-              </h3>
+                <h3 className="mt-2 font-serif text-3xl font-black text-[#130D0B]">
+                  {rewardEligible ? '12% OFF Unlocked' : 'Give More, Save More'}
+                </h3>
 
-              <div className="mt-6 space-y-4 border-t border-[#E3D7C7] pt-6 text-sm">
-                <div className="flex justify-between text-[#52483E]">
-                  <span>USPS Postage</span>
-                  <span className="font-bold text-[#5E6B52]">100% Free</span>
+                <p className="mt-3 text-sm leading-6 text-[#6F665C]">
+                  {rewardEligible
+                    ? 'Your 50 kg donation milestone has been reached. Your one-time ReWear discount is now unlocked.'
+                    : 'Reach a cumulative donation of 50 kg or more to receive a one-time 12% discount on a ReWear purchase.'}
+                </p>
+
+                {/* LARGE PROGRESS */}
+                <div className="mt-6">
+                  <div className="flex items-end justify-between">
+                    <span className="text-xs font-semibold text-[#7E7469]">
+                      Your donation
+                    </span>
+
+                    <span className="text-lg font-black text-[#AC1B18]">
+                      {totalDonationWeight.toFixed(1)}
+                      <span className="ml-1 text-xs font-semibold">kg</span>
+                    </span>
+                  </div>
+
+                  <div className="mt-2 h-3 overflow-hidden rounded-full bg-[#DED4C8]">
+                    <div
+                      className="h-full rounded-full bg-[#AC1B18] transition-all duration-500"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+
+                  <div className="mt-2 flex justify-between text-[10px] font-bold uppercase tracking-wider text-[#8A8076]">
+                    <span>0 kg</span>
+                    <span>50 kg</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-[#52483E]">
-                  <span>Estimated Box Count</span>
-                  <span className="font-bold text-[#211714]">{boxCount}</span>
-                </div>
-                <div className="flex justify-between text-[#52483E]">
-                  <span>Selected Categories</span>
-                  <span className="font-bold text-[#211714]">
-                    {selectedCategories.length > 0
-                      ? `${selectedCategories.length} selected`
-                      : "None"}
+              </div>
+
+              {/* SUMMARY */}
+              <div className="border-t border-[#E3D7C7] p-6 sm:p-8">
+                <div className="flex items-center gap-2">
+                  <Info size={17} className="text-[#AC1B18]" />
+
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#7E7469]">
+                    Donation Summary
                   </span>
                 </div>
-                <div className="flex justify-between text-[#52483E]">
-                  <span>Tax Deduction Receipt</span>
-                  <span className="font-bold text-[#211714]">Included</span>
-                </div>
-              </div>
 
-              <div className="mt-6 rounded-xl bg-[#FAF2E6] p-4 border border-[#E3D7C7]">
-                <div className="flex gap-3">
-                  <Info size={18} className="text-[#AC1B18] shrink-0 mt-0.5" />
-                  <p className="text-xs leading-relaxed text-[#6F665C]">
-                    Once submitted, your digital label will be sent instantly to
-                    your email inbox along with drop-off instructions.
-                  </p>
-                </div>
-              </div>
+                <div className="mt-5 space-y-4 text-sm">
+                  <SummaryRow label="Package" value={boxCount} />
 
-              <ul className="mt-6 space-y-3 text-xs font-semibold text-[#52483E]">
-                <li className="flex items-center gap-2.5">
-                  <Check size={14} className="text-[#5E6B52]" strokeWidth={3} />
-                  <span>No printer? Drop off code scanned at post office</span>
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <Check size={14} className="text-[#5E6B52]" strokeWidth={3} />
-                  <span>$5 credit awarded per eligible resold piece</span>
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <Check size={14} className="text-[#5E6B52]" strokeWidth={3} />
-                  <span>Zero textiles sent to landfills guarantee</span>
-                </li>
-              </ul>
+                  <SummaryRow
+                    label="Estimated Weight"
+                    value={`${currentWeight || 0} kg`}
+                  />
+
+                  <SummaryRow
+                    label="Categories"
+                    value={
+                      selectedCategories.length
+                        ? `${selectedCategories.length} selected`
+                        : 'Not selected'
+                    }
+                  />
+
+                  <SummaryRow
+                    label="Organization"
+                    value={
+                      organization
+                        ? organizations.find((org) => org.id === organization)
+                            ?.name || organizationType
+                        : `Select ${organizationType}`
+                    }
+                  />
+                </div>
+
+                {/* REWARD CARD */}
+                <div
+                  className={`mt-6 rounded-xl border p-4 ${
+                    rewardEligible
+                      ? 'border-[#BFCAB6] bg-[#EAF0E7]'
+                      : 'border-[#E3D7C7] bg-[#FAF2E6]'
+                  }`}
+                >
+                  <div className="flex gap-3">
+                    <Gift
+                      size={18}
+                      className={
+                        rewardEligible
+                          ? 'mt-0.5 shrink-0 text-[#5E6B52]'
+                          : 'mt-0.5 shrink-0 text-[#AC1B18]'
+                      }
+                    />
+
+                    <div>
+                      <p className="text-xs font-bold text-[#211714]">
+                        {rewardEligible
+                          ? '12% ReWear Discount Unlocked'
+                          : '50 kg Donation Milestone'}
+                      </p>
+
+                      <p className="mt-1 text-xs leading-relaxed text-[#6F665C]">
+                        {rewardEligible
+                          ? 'One-time discount on your ReWear purchase. Seller earnings remain unaffected.'
+                          : `${remainingWeight.toFixed(
+                              1,
+                            )} kg remaining to unlock your one-time 12% ReWear purchase discount.`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* TRUST POINTS */}
+                <ul className="mt-6 space-y-3 text-xs font-semibold text-[#52483E]">
+                  <li className="flex items-center gap-2.5">
+                    <Check
+                      size={14}
+                      className="text-[#5E6B52]"
+                      strokeWidth={3}
+                    />
+                    <span>Choose between NGO and INGO partners</span>
+                  </li>
+
+                  <li className="flex items-center gap-2.5">
+                    <Check
+                      size={14}
+                      className="text-[#5E6B52]"
+                      strokeWidth={3}
+                    />
+                    <span>
+                      Donation weight contributes toward your milestone
+                    </span>
+                  </li>
+
+                  <li className="flex items-center gap-2.5">
+                    <Check
+                      size={14}
+                      className="text-[#5E6B52]"
+                      strokeWidth={3}
+                    />
+                    <span>12% reward is funded by ReWear</span>
+                  </li>
+                </ul>
+              </div>
             </div>
           </aside>
         </div>
@@ -354,28 +721,113 @@ export default function ShippingLabelPage() {
   );
 }
 
+/* ============================================================
+   SMALL UI COMPONENTS
+============================================================ */
+
+function SectionHeader({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 border-b border-[#EADFD1] pb-4">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#AC1B18]/10 text-[#AC1B18]">
+        {icon}
+      </div>
+
+      <div>
+        <h2 className="font-serif text-xl font-bold text-[#130D0B]">{title}</h2>
+
+        <p className="mt-0.5 text-xs text-[#6F665C]">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function Step({
+  number,
+  label,
+  active,
+}: {
+  number: string;
+  label: string;
+  active?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${
+        active ? 'text-[#AC1B18]' : 'text-[#7E7469]'
+      }`}
+    >
+      <span
+        className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] ${
+          active
+            ? 'bg-[#AC1B18] text-white'
+            : 'border border-[#D8CFC2] bg-[#F5ECDF]'
+        }`}
+      >
+        {number}
+      </span>
+
+      <span className="hidden sm:inline">{label}</span>
+    </div>
+  );
+}
+
+function StepLine() {
+  return <span className="mx-3 h-px flex-1 bg-[#D8CFC2]" />;
+}
+
 function Field({
   label,
   placeholder,
-  type = "text",
+  type = 'text',
   required = false,
+  min,
+  value,
+  onChange,
 }: {
   label: string;
   placeholder: string;
   type?: string;
   required?: boolean;
+  min?: string;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
     <label className="block">
       <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#7E7469]">
-        {label} {required && <span className="text-[#AC1B18]">*</span>}
+        {label}
+        {required && <span className="ml-1 text-[#AC1B18]">*</span>}
       </span>
+
       <input
         type={type}
         required={required}
+        min={min}
+        value={value}
+        onChange={onChange}
         placeholder={placeholder}
-        className="h-12 w-full rounded-xl border border-[#D8CFC2] bg-[#FAF2E6] px-4 text-sm font-medium text-[#211714] placeholder:text-[#A89E94] focus:border-[#AC1B18] focus:outline-none"
+        className="h-12 w-full rounded-xl border border-[#D8CFC2] bg-[#FAF2E6] px-4 text-sm font-medium text-[#211714] placeholder:text-[#A89E94] focus:border-[#AC1B18] focus:outline-none focus:ring-1 focus:ring-[#AC1B18]/20"
       />
     </label>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-[#E3D7C7] pb-3">
+      <span className="text-[#6F665C]">{label}</span>
+
+      <span className="max-w-[55%] text-right font-bold text-[#211714]">
+        {value}
+      </span>
+    </div>
   );
 }

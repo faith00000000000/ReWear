@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useMemo } from "react";
-import Image from "next/image";
+import { useState, useMemo } from 'react';
+import Image from 'next/image';
 import {
   ShoppingBag,
   Clock,
@@ -17,17 +17,17 @@ import {
   RotateCcw,
   ShieldCheck,
   AlertCircle,
-} from "lucide-react";
+} from 'lucide-react';
 
-type OrderType = "sale" | "rental";
+type OrderType = 'sale' | 'rental';
 type OrderStatus =
-  | "pending"
-  | "processing"
-  | "shipped"
-  | "active_rental"
-  | "returned"
-  | "completed"
-  | "cancelled";
+  | 'pending'
+  | 'processing'
+  | 'shipped'
+  | 'active_rental'
+  | 'returned'
+  | 'completed'
+  | 'cancelled';
 
 interface OrderItem {
   id: string;
@@ -43,78 +43,78 @@ interface OrderItem {
   orderedAt: string;
   rentalStartDate?: string;
   rentalEndDate?: string;
-  returnStatus?: "on_time" | "overdue" | "returned_ok" | "damaged";
+  returnStatus?: 'on_time' | 'overdue' | 'returned_ok' | 'damaged';
 }
 
 // Mock initial order tracking data
 const INITIAL_ORDERS: OrderItem[] = [
   {
-    id: "ORD-9901",
-    type: "sale",
-    itemTitle: "Vintage Denim Jacket - Oversized",
+    id: 'ORD-9901',
+    type: 'sale',
+    itemTitle: 'Vintage Denim Jacket - Oversized',
     itemImage:
-      "https://images.unsplash.com/photo-1544441893-675973e31985?w=300",
-    buyerName: "Siddharth Shrestha",
-    buyerEmail: "siddharth@example.com",
-    sellerName: "RetroWardrobe",
+      'https://images.unsplash.com/photo-1544441893-675973e31985?w=300',
+    buyerName: 'Siddharth Shrestha',
+    buyerEmail: 'siddharth@example.com',
+    sellerName: 'RetroWardrobe',
     totalPrice: 45.0,
-    status: "processing",
-    orderedAt: "2026-08-10 10:15",
+    status: 'processing',
+    orderedAt: '2026-08-10 10:15',
   },
   {
-    id: "ORD-9902",
-    type: "rental",
-    itemTitle: "Silk Evening Gown - Crimson Red",
+    id: 'ORD-9902',
+    type: 'rental',
+    itemTitle: 'Silk Evening Gown - Crimson Red',
     itemImage:
-      "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=300",
-    buyerName: "Aayusha Thapa",
-    buyerEmail: "aayusha@example.com",
-    sellerName: "GlamRentals",
+      'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=300',
+    buyerName: 'Aayusha Thapa',
+    buyerEmail: 'aayusha@example.com',
+    sellerName: 'GlamRentals',
     totalPrice: 75.0, // $25/day for 3 days
     securityDeposit: 50.0,
-    status: "active_rental",
-    orderedAt: "2026-08-08 14:20",
-    rentalStartDate: "2026-08-09",
-    rentalEndDate: "2026-08-12",
-    returnStatus: "on_time",
+    status: 'active_rental',
+    orderedAt: '2026-08-08 14:20',
+    rentalStartDate: '2026-08-09',
+    rentalEndDate: '2026-08-12',
+    returnStatus: 'on_time',
   },
   {
-    id: "ORD-9903",
-    type: "sale",
-    itemTitle: "North Face Puffer Jacket - Black",
+    id: 'ORD-9903',
+    type: 'sale',
+    itemTitle: 'North Face Puffer Jacket - Black',
     itemImage:
-      "https://images.unsplash.com/photo-1548883354-7622d03aca27?w=300",
-    buyerName: "Rohan Adhikari",
-    buyerEmail: "rohan@example.com",
-    sellerName: "HimalayanThrift",
+      'https://images.unsplash.com/photo-1548883354-7622d03aca27?w=300',
+    buyerName: 'Rohan Adhikari',
+    buyerEmail: 'rohan@example.com',
+    sellerName: 'HimalayanThrift',
     totalPrice: 110.0,
-    status: "completed",
-    orderedAt: "2026-08-05 09:00",
+    status: 'completed',
+    orderedAt: '2026-08-05 09:00',
   },
   {
-    id: "ORD-9904",
-    type: "rental",
-    itemTitle: "Traditional Cultural Dress - Lehenga",
+    id: 'ORD-9904',
+    type: 'rental',
+    itemTitle: 'Traditional Cultural Dress - Lehenga',
     itemImage:
-      "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=300",
-    buyerName: "Prashna Basnet",
-    buyerEmail: "prashna@example.com",
-    sellerName: "HeritageWear",
+      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=300',
+    buyerName: 'Prashna Basnet',
+    buyerEmail: 'prashna@example.com',
+    sellerName: 'HeritageWear',
     totalPrice: 120.0,
     securityDeposit: 80.0,
-    status: "returned",
-    orderedAt: "2026-08-01 16:45",
-    rentalStartDate: "2026-08-03",
-    rentalEndDate: "2026-08-07",
-    returnStatus: "returned_ok",
+    status: 'returned',
+    orderedAt: '2026-08-01 16:45',
+    rentalStartDate: '2026-08-03',
+    rentalEndDate: '2026-08-07',
+    returnStatus: 'returned_ok',
   },
 ];
 
 export default function OrdersManagementPage() {
   const [orders, setOrders] = useState<OrderItem[]>(INITIAL_ORDERS);
-  const [typeFilter, setTypeFilter] = useState<"all" | OrderType>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [typeFilter, setTypeFilter] = useState<'all' | OrderType>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
 
   // Filtered dataset
@@ -122,9 +122,9 @@ export default function OrdersManagementPage() {
     const query = searchQuery.toLowerCase().trim();
 
     return orders.filter((item) => {
-      const matchesType = typeFilter === "all" || item.type === typeFilter;
+      const matchesType = typeFilter === 'all' || item.type === typeFilter;
       const matchesStatus =
-        statusFilter === "all" || item.status === statusFilter;
+        statusFilter === 'all' || item.status === statusFilter;
       const matchesSearch =
         !query ||
         item.itemTitle.toLowerCase().includes(query) ||
@@ -169,8 +169,8 @@ export default function OrdersManagementPage() {
             Total Orders: {orders.length}
           </div>
           <div className="px-3 py-1 bg-[#A33214] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider rounded-sm">
-            Active Rentals:{" "}
-            {orders.filter((o) => o.status === "active_rental").length}
+            Active Rentals:{' '}
+            {orders.filter((o) => o.status === 'active_rental').length}
           </div>
         </div>
       </div>
@@ -180,32 +180,32 @@ export default function OrdersManagementPage() {
         {/* Type Toggle Buttons */}
         <div className="flex items-center bg-[#FDF6EC] border border-[#1C1C1C]/20 p-1 self-start rounded-sm shadow-sm">
           <button
-            onClick={() => setTypeFilter("all")}
+            onClick={() => setTypeFilter('all')}
             className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm ${
-              typeFilter === "all"
-                ? "bg-[#1C1C1C] text-[#FDF6EC]"
-                : "text-[#1C1C1C]/80 hover:text-[#1C1C1C] hover:bg-[#1C1C1C]/5"
+              typeFilter === 'all'
+                ? 'bg-[#A33214] text-[#FDF6EC]'
+                : 'text-[#1C1C1C]/80 hover:text-[#1C1C1C] hover:bg-[#1C1C1C]/5'
             }`}
           >
             All Orders ({orders.length})
           </button>
           <button
-            onClick={() => setTypeFilter("sale")}
+            onClick={() => setTypeFilter('sale')}
             className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm flex items-center gap-1.5 ${
-              typeFilter === "sale"
-                ? "bg-[#A33214] text-[#FDF6EC]"
-                : "text-[#1C1C1C]/80 hover:text-[#A33214] hover:bg-[#A33214]/5"
+              typeFilter === 'sale'
+                ? 'bg-[#A33214] text-[#FDF6EC]'
+                : 'text-[#1C1C1C]/80 hover:text-[#A33214] hover:bg-[#A33214]/5'
             }`}
           >
             <Tag size={13} />
             Direct Sales
           </button>
           <button
-            onClick={() => setTypeFilter("rental")}
+            onClick={() => setTypeFilter('rental')}
             className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm flex items-center gap-1.5 ${
-              typeFilter === "rental"
-                ? "bg-[#A33214] text-[#FDF6EC]"
-                : "text-[#1C1C1C]/80 hover:text-[#A33214] hover:bg-[#A33214]/5"
+              typeFilter === 'rental'
+                ? 'bg-[#A33214] text-[#FDF6EC]'
+                : 'text-[#1C1C1C]/80 hover:text-[#A33214] hover:bg-[#A33214]/5'
             }`}
           >
             <Clock size={13} />
@@ -252,7 +252,7 @@ export default function OrdersManagementPage() {
       <div className="border border-[#1C1C1C]/15 bg-[#FDF6EC] overflow-x-auto shadow-sm">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-[#1C1C1C] text-[#FDF6EC] text-xs uppercase font-bold tracking-wider border-b border-[#1C1C1C]">
+            <tr className="bg-[#A33214] text-[#FDF6EC] text-xs uppercase font-bold tracking-wider border-b border-[#1C1C1C]">
               <th className="p-3">Order ID</th>
               <th className="p-3">Item Details</th>
               <th className="p-3">Type</th>
@@ -304,9 +304,9 @@ export default function OrdersManagementPage() {
                   <td className="p-3">
                     <span
                       className={`inline-block px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border rounded-xs ${
-                        order.type === "sale"
-                          ? "bg-stone-100 text-[#1C1C1C] border-[#1C1C1C]/30"
-                          : "bg-amber-50 text-amber-900 border-amber-300"
+                        order.type === 'sale'
+                          ? 'bg-stone-100 text-[#1C1C1C] border-[#1C1C1C]/30'
+                          : 'bg-amber-50 text-amber-900 border-amber-300'
                       }`}
                     >
                       {order.type}
@@ -329,7 +329,7 @@ export default function OrdersManagementPage() {
                     )}
                   </td>
                   <td className="p-3 text-[11px]">
-                    {order.type === "rental" ? (
+                    {order.type === 'rental' ? (
                       <div className="space-y-0.5">
                         <span className="block font-semibold text-[#1C1C1C]">
                           {order.rentalStartDate} → {order.rentalEndDate}
@@ -398,15 +398,15 @@ export default function OrdersManagementPage() {
                 </h3>
                 <div className="text-xs space-y-1 text-[#1C1C1C]">
                   <p>
-                    <span className="font-bold">Buyer:</span>{" "}
+                    <span className="font-bold">Buyer:</span>{' '}
                     {selectedOrder.buyerName} ({selectedOrder.buyerEmail})
                   </p>
                   <p>
-                    <span className="font-bold">Seller:</span>{" "}
+                    <span className="font-bold">Seller:</span>{' '}
                     {selectedOrder.sellerName}
                   </p>
                   <p>
-                    <span className="font-bold">Order Placed:</span>{" "}
+                    <span className="font-bold">Order Placed:</span>{' '}
                     {selectedOrder.orderedAt}
                   </p>
                 </div>
@@ -430,7 +430,7 @@ export default function OrdersManagementPage() {
                 )}
               </div>
 
-              {selectedOrder.type === "rental" && (
+              {selectedOrder.type === 'rental' && (
                 <div className="bg-amber-50 p-3 rounded-sm border border-amber-200 space-y-1">
                   <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-900">
                     Rental Duration Tracking
@@ -453,26 +453,26 @@ export default function OrdersManagementPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <button
                   onClick={() =>
-                    handleUpdateOrderStatus(selectedOrder.id, "shipped")
+                    handleUpdateOrderStatus(selectedOrder.id, 'shipped')
                   }
                   className="px-3 py-2 bg-sky-100 text-sky-950 border border-sky-300 font-bold text-xs uppercase tracking-wider hover:bg-sky-200 transition-colors rounded-sm flex items-center justify-center gap-1.5"
                 >
                   <Truck size={14} /> Shipped
                 </button>
-                {selectedOrder.type === "rental" && (
+                {selectedOrder.type === 'rental' && (
                   <button
                     onClick={() =>
-                      handleUpdateOrderStatus(selectedOrder.id, "active_rental")
+                      handleUpdateOrderStatus(selectedOrder.id, 'active_rental')
                     }
                     className="px-3 py-2 bg-amber-100 text-amber-950 border border-amber-300 font-bold text-xs uppercase tracking-wider hover:bg-amber-200 transition-colors rounded-sm flex items-center justify-center gap-1.5"
                   >
                     <Clock size={14} /> Active Rental
                   </button>
                 )}
-                {selectedOrder.type === "rental" && (
+                {selectedOrder.type === 'rental' && (
                   <button
                     onClick={() =>
-                      handleUpdateOrderStatus(selectedOrder.id, "returned")
+                      handleUpdateOrderStatus(selectedOrder.id, 'returned')
                     }
                     className="px-3 py-2 bg-purple-100 text-purple-950 border border-purple-300 font-bold text-xs uppercase tracking-wider hover:bg-purple-200 transition-colors rounded-sm flex items-center justify-center gap-1.5"
                   >
@@ -481,7 +481,7 @@ export default function OrdersManagementPage() {
                 )}
                 <button
                   onClick={() =>
-                    handleUpdateOrderStatus(selectedOrder.id, "completed")
+                    handleUpdateOrderStatus(selectedOrder.id, 'completed')
                   }
                   className="px-3 py-2 bg-emerald-100 text-emerald-950 border border-emerald-300 font-bold text-xs uppercase tracking-wider hover:bg-emerald-200 transition-colors rounded-sm flex items-center justify-center gap-1.5"
                 >
@@ -489,7 +489,7 @@ export default function OrdersManagementPage() {
                 </button>
                 <button
                   onClick={() =>
-                    handleUpdateOrderStatus(selectedOrder.id, "cancelled")
+                    handleUpdateOrderStatus(selectedOrder.id, 'cancelled')
                   }
                   className="px-3 py-2 bg-stone-200 text-stone-800 border border-stone-300 font-bold text-xs uppercase tracking-wider hover:bg-stone-300 transition-colors rounded-sm flex items-center justify-center gap-1.5"
                 >
@@ -507,37 +507,37 @@ export default function OrdersManagementPage() {
 // Helper badge component for order statuses
 function OrderStatusBadge({ status }: { status: OrderStatus }) {
   switch (status) {
-    case "processing":
+    case 'processing':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-stone-200 text-stone-800 border border-stone-300 rounded-xs">
           <Clock size={11} /> Processing
         </span>
       );
-    case "shipped":
+    case 'shipped':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-sky-100 text-sky-900 border border-sky-300 rounded-xs">
           <Truck size={11} /> Shipped
         </span>
       );
-    case "active_rental":
+    case 'active_rental':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 rounded-xs">
           <Clock size={11} /> Active Rental
         </span>
       );
-    case "returned":
+    case 'returned':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-purple-100 text-purple-900 border border-purple-300 rounded-xs">
           <RotateCcw size={11} /> Returned
         </span>
       );
-    case "completed":
+    case 'completed':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xs">
           <CheckCircle2 size={11} /> Completed
         </span>
       );
-    case "cancelled":
+    case 'cancelled':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-red-100 text-red-900 border border-red-300 rounded-xs">
           <XCircle size={11} /> Cancelled
