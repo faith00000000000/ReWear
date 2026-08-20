@@ -4,7 +4,9 @@ import api from '@/lib/axios';
 import { AdminUser } from '@/lib/types/admin-user';
 
 export async function fetchAdminUsers(): Promise<AdminUser[]> {
-  const { data } = await api.get<AdminUser[]>('/api/admin/users');
+  const { data } = await api.get<AdminUser[]>('/api/admin/users', {
+    params: { excludeRole: 'ADMIN' },
+  });
   return data;
 }
 

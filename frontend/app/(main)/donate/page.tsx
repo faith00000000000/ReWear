@@ -1,80 +1,79 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
+import { useState } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
 import {
-  CircleDollarSign,
   PackageCheck,
   Truck,
-  RefreshCw,
   HeartHandshake,
   Recycle,
+  RefreshCw,
   ArrowRight,
   ShieldCheck,
   Sparkles,
   ChevronDown,
-  Gift,
   Leaf,
-} from "lucide-react";
+  Handshake,
+} from 'lucide-react';
 
 const steps = [
   {
-    step: "01",
-    title: "Pack Your Box",
-    body: "Any clean clothing items you no longer wear. All conditions welcome — no pre-sorting or tags required.",
+    step: '01',
+    title: 'Pack Your Box',
+    body: 'Any clean clothing items you no longer wear. All conditions welcome — no pre-sorting or tags required.',
     icon: PackageCheck,
   },
   {
-    step: "02",
-    title: "Ship For Free",
-    body: "Download your pre-paid USPS label, attach it to your parcel, and drop it off at any mailbox or post office.",
+    step: '02',
+    title: 'Ship For Free',
+    body: 'Download your pre-paid USPS label, attach it to your parcel, and drop it off at any mailbox or post office.',
     icon: Truck,
   },
   {
-    step: "03",
-    title: "Earn & Impact",
-    body: "Receive $5 store credit for each resold item plus an automated tax deduction receipt for donated pieces.",
-    icon: CircleDollarSign,
+    step: '03',
+    title: 'We Handle the Rest',
+    body: 'Your items are sorted and either donated directly to partner organizations or responsibly recycled.',
+    icon: Handshake,
   },
 ];
 
 const impactStats = [
   {
-    metric: "14,200+",
-    label: "Garments Resold",
-    description: "Given a second life with new owners",
+    metric: '14,200+',
+    label: 'Garments Resold',
+    description: 'Given a second life with new owners',
     icon: RefreshCw,
   },
   {
-    metric: "9,800",
-    label: "Direct Donations",
-    description: "Sent to partner shelters in NYC, LA, & Austin",
+    metric: '9,800',
+    label: 'Direct Donations',
+    description: 'Sent to partner shelters in NYC, LA, & Austin',
     icon: HeartHandshake,
   },
   {
-    metric: "4,400 lbs",
-    label: "Fabrics Recycled",
-    description: "Repurposed into eco-friendly housing insulation",
+    metric: '4,400 lbs',
+    label: 'Fabrics Recycled',
+    description: 'Repurposed into eco-friendly housing insulation',
     icon: Recycle,
   },
 ];
 
 const faqs = [
   {
-    question: "What condition should my clothing be in?",
+    question: 'What condition should my clothing be in?',
     answer:
-      "Clothing should be clean and dry. We accept items in all conditions — gently used pieces are resold or donated, while heavily worn items are responsibly recycled.",
+      'Clothing should be clean and dry. We accept items in all conditions — gently used pieces are resold or donated, while heavily worn items are responsibly recycled.',
   },
   {
-    question: "How do I get my $5 store credit?",
+    question: 'What happens to my donation after I ship it?',
     answer:
-      "Once our team receives and scans your package, store credit is automatically deposited into your ReWear account for every resold item.",
+      'Once our team receives and scans your package, items are sorted and sent directly to a verified NGO or INGO partner, or recycled if unsuitable for reuse.',
   },
   {
-    question: "Are shipping costs really 100% free?",
+    question: 'Are shipping costs really 100% free?',
     answer:
-      "Yes! We generate a pre-paid USPS shipping label for you. Simply print it out, attach it to any shipping box or bag, and drop it off.",
+      'Yes! We generate a pre-paid USPS shipping label for you. Simply print it out, attach it to any shipping box or bag, and drop it off.',
   },
 ];
 
@@ -82,7 +81,7 @@ export default function DonatePage() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   const scrollToSection = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -105,8 +104,8 @@ export default function DonatePage() {
 
             <p className="mt-6 text-base leading-relaxed text-[#61554A] sm:text-lg">
               Clear out your closet without creating waste. We provide free
-              pre-paid shipping labels, rewards for resold garments, and
-              zero-landfill processing for everything else.
+              pre-paid shipping labels and zero-landfill processing for
+              everything you send.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -119,7 +118,7 @@ export default function DonatePage() {
               </Link>
 
               <button
-                onClick={() => scrollToSection("how-it-works")}
+                onClick={() => scrollToSection('how-it-works')}
                 className="w-full sm:w-auto rounded-full border border-[#8C7A6B] px-8 py-4 text-sm font-bold text-[#211714] transition-colors hover:border-[#AC1B18] hover:text-[#AC1B18]"
               >
                 How It Works
@@ -223,22 +222,22 @@ export default function DonatePage() {
               Why donate through ReWear?
             </h2>
             <p className="mt-3 text-sm text-[#61554A] sm:text-base">
-              We make decluttering rewarding for you and sustainable for the
-              planet.
+              We make decluttering easy for you and sustainable for the planet.
             </p>
           </div>
 
           <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {/* Replaced the old "Earn Store Rewards" card — no monetary incentive, just direct impact */}
             <div className="rounded-2xl border border-[#D8CFC2] bg-[#FAF2E6] p-8">
               <div className="mb-4 text-[#AC1B18]">
-                <Gift size={28} />
+                <HeartHandshake size={28} />
               </div>
               <h3 className="font-serif text-xl font-bold text-[#130D0B]">
-                Earn Store Rewards
+                Direct Community Impact
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-[#6E6359]">
-                Get $5 in ReWear shopping credit for every resold item to
-                upgrade your wardrobe ethically.
+                Your donation goes straight to verified NGO and INGO partners
+                who redistribute it to people who need it most.
               </p>
             </div>
 
@@ -338,7 +337,7 @@ export default function DonatePage() {
                     <ChevronDown
                       size={18}
                       className={`transition-transform duration-200 text-[#8C7A6B] ${
-                        isOpen ? "rotate-180 text-[#AC1B18]" : ""
+                        isOpen ? 'rotate-180 text-[#AC1B18]' : ''
                       }`}
                     />
                   </button>

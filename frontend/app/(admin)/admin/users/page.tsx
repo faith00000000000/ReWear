@@ -20,10 +20,15 @@ import {
 import { AdminUser, AdminUserStatus } from '@/lib/types/admin-user';
 import { banAdminUser, fetchAdminUsers } from '@/lib/api/adminUsers';
 
-function getAvatarSrc(user: AdminUser) {
+// Defensive: accepts null/undefined so a bad entry in the users array
+// (or an unexpectedly-null selectedUser) never crashes the render.
+function getAvatarSrc(user: AdminUser | null | undefined) {
+  if (!user) {
+    return `https://ui-avatars.com/api/?name=%3F&background=A33214&color=FDF6EC&bold=true`;
+  }
   if (user.profilePictureUrl) return user.profilePictureUrl;
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(
-    user.fullName,
+    user.fullName ?? '?',
   )}&background=A33214&color=FDF6EC&bold=true`;
 }
 
@@ -53,7 +58,18 @@ export default function UsersPage() {
       setLoadError(null);
       try {
         const data = await fetchAdminUsers();
-        if (!cancelled) setUsers(data);
+        // Filter out any null/undefined entries the API might return
+        // so downstream .map()/getAvatarSrc calls never see them.
+        if (!cancelled) {
+          setUsers(
+            (data ?? []).filter(
+              (u): u is AdminUser =>
+                u != null &&
+                u.role !== 'ADMIN' &&
+                u.email !== 'admin@rewear.com',
+            ),
+          );
+        }
       } catch (err) {
         console.error('Failed to load admin users', err);
         if (!cancelled)
@@ -357,12 +373,12 @@ export default function UsersPage() {
                   >
                     <td className="p-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <Image
-                          src={getAvatarSrc(selectedUser)}
-                          alt={selectedUser.fullName}
-                          width={48}
-                          height={48}
-                          className="w-12 h-12 object-cover border border-[#1C1C1C]/20 rounded-xs"
+                        <img
+                          src={getAvatarSrc(user)}
+                          alt={user.fullName}
+                          width={40}
+                          height={40}
+                          className="w-10 h-10 object-cover border border-[#1C1C1C]/20 rounded-xs shrink-0"
                         />
                         <div className="min-w-0">
                           <div className="font-bold truncate">

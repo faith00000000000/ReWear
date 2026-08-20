@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -8,26 +8,13 @@ import {
   Package,
   UserRound,
   ChevronDown,
-  Heart,
   Truck,
   ShieldCheck,
-  Sparkles,
+  Heart,
   Info,
-  Gift,
   Building2,
   AlertTriangle,
-  Tag,
 } from 'lucide-react';
-
-const categories = [
-  'Tops',
-  'Bottoms',
-  'Dresses',
-  'Outerwear',
-  'Shoes',
-  'Bags',
-  'Accessories',
-];
 
 const ngos = [
   {
@@ -60,7 +47,6 @@ const ingos = [
 ];
 
 export default function DonationFormPage() {
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [organizationType, setOrganizationType] = useState<'NGO' | 'INGO'>(
     'NGO',
   );
@@ -69,37 +55,7 @@ export default function DonationFormPage() {
   const [weight, setWeight] = useState('');
   const [agreedToDisclaimer, setAgreedToDisclaimer] = useState(false);
 
-  /*
-   * Replace this with the user's actual cumulative donation weight
-   * retrieved from your backend.
-   *
-   * Example:
-   * const previousDonationWeight = user.totalDonationWeightKg;
-   */
-  const previousDonationWeight = 0;
-
-  const currentWeight = Number(weight) || 0;
-
-  const totalDonationWeight = previousDonationWeight + currentWeight;
-
-  const rewardEligible = totalDonationWeight >= 50;
-
-  const remainingWeight = Math.max(50 - totalDonationWeight, 0);
-
-  const progress = Math.min((totalDonationWeight / 50) * 100, 100);
-
-  const organizations = useMemo(
-    () => (organizationType === 'NGO' ? ngos : ingos),
-    [organizationType],
-  );
-
-  const toggleCategory = (category: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(category)
-        ? prev.filter((c) => c !== category)
-        : [...prev, category],
-    );
-  };
+  const organizations = organizationType === 'NGO' ? ngos : ingos;
 
   return (
     <main className="min-h-screen bg-[#FAF2E6] text-[#211714] antialiased">
@@ -207,37 +163,7 @@ export default function DonationFormPage() {
                   description="Tell us what you are donating so we can prepare for your contribution."
                 />
 
-                {/* CATEGORIES */}
-                <div className="mt-6">
-                  <label className="mb-3 block text-xs font-bold uppercase tracking-wider text-[#7E7469]">
-                    Clothing Categories
-                    <span className="ml-1 text-[#AC1B18]">*</span>
-                  </label>
-
-                  <div className="flex flex-wrap gap-2">
-                    {categories.map((category) => {
-                      const selected = selectedCategories.includes(category);
-
-                      return (
-                        <button
-                          key={category}
-                          type="button"
-                          onClick={() => toggleCategory(category)}
-                          className={`flex items-center gap-1.5 rounded-full px-4 py-2.5 text-xs font-bold tracking-wide transition-all ${
-                            selected
-                              ? 'bg-[#1B1110] text-white shadow-sm'
-                              : 'border border-[#D8CFC2] bg-[#FAF2E6] text-[#5F554C] hover:border-[#AC1B18]'
-                          }`}
-                        >
-                          {selected && <Check size={12} strokeWidth={3} />}
-                          {category}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="mt-7 grid gap-5 sm:grid-cols-2">
+                <div className="mt-6 grid gap-5 sm:grid-cols-2">
                   {/* PACKAGE COUNT */}
                   <div>
                     <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#7E7469]">
@@ -263,7 +189,7 @@ export default function DonationFormPage() {
                     </div>
                   </div>
 
-                  {/* WEIGHT */}
+                  {/* WEIGHT — informational only, no longer tied to any reward calculation */}
                   <Field
                     label="Estimated Donation Weight (kg)"
                     placeholder="e.g. 12"
@@ -273,88 +199,6 @@ export default function DonationFormPage() {
                     onChange={(e) => setWeight(e.target.value)}
                     required
                   />
-                </div>
-
-                {/* REWARD PROGRESS */}
-                <div className="mt-6 rounded-2xl border border-[#DCCDBB] bg-[#F5ECDF] p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#AC1B18]/10 text-[#AC1B18]">
-                        <Gift size={18} />
-                      </div>
-
-                      <div>
-                        <p className="text-sm font-bold text-[#211714]">
-                          ReWear Donation Reward
-                        </p>
-
-                        {rewardEligible ? (
-                          <p className="mt-1 text-xs leading-relaxed text-[#5E6B52]">
-                            Congratulations! You have reached the 50 kg donation
-                            milestone.
-                          </p>
-                        ) : (
-                          <p className="mt-1 text-xs leading-relaxed text-[#6F665C]">
-                            Donate{' '}
-                            <strong className="text-[#AC1B18]">
-                              {remainingWeight.toFixed(1)} kg
-                            </strong>{' '}
-                            more to unlock your 12% ReWear discount.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <span
-                      className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                        rewardEligible
-                          ? 'bg-[#5E6B52] text-white'
-                          : 'bg-[#E3D7C7] text-[#6F665C]'
-                      }`}
-                    >
-                      {rewardEligible ? 'Unlocked' : '50 KG'}
-                    </span>
-                  </div>
-
-                  {/* PROGRESS BAR */}
-                  <div className="mt-5">
-                    <div className="mb-2 flex justify-between text-[11px] font-bold">
-                      <span className="text-[#7E7469]">
-                        {totalDonationWeight.toFixed(1)} kg donated
-                      </span>
-                      <span className="text-[#AC1B18]">50 kg goal</span>
-                    </div>
-
-                    <div className="h-2 overflow-hidden rounded-full bg-[#E3D7C7]">
-                      <div
-                        className="h-full rounded-full bg-[#AC1B18] transition-all duration-500"
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* REWARD MESSAGE */}
-                  {rewardEligible && (
-                    <div className="mt-5 flex gap-3 rounded-xl border border-[#BFCAB6] bg-[#EAF0E7] p-4">
-                      <Tag
-                        size={18}
-                        className="mt-0.5 shrink-0 text-[#5E6B52]"
-                      />
-
-                      <div>
-                        <p className="text-sm font-bold text-[#3F5138]">
-                          12% OFF — One-Time ReWear Purchase
-                        </p>
-
-                        <p className="mt-1 text-xs leading-relaxed text-[#5E6B52]">
-                          You have unlocked a one-time 12% discount on your next
-                          eligible purchase made through ReWear. This discount
-                          is provided by ReWear and does not reduce the earnings
-                          of the seller or clothing owner.
-                        </p>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* NOTES */}
@@ -539,14 +383,10 @@ export default function DonationFormPage() {
                   </div>
                 </div>
 
-                {/* SUBMIT */}
+                {/* SUBMIT — no longer gated on category selection since categories were removed */}
                 <button
                   type="submit"
-                  disabled={
-                    !agreedToDisclaimer ||
-                    !organization ||
-                    selectedCategories.length === 0
-                  }
+                  disabled={!agreedToDisclaimer || !organization}
                   className="mt-8 flex w-full items-center justify-center gap-3 rounded-full bg-[#1B1110] px-8 py-4 text-sm font-bold text-white shadow-lg transition-all hover:bg-[#AC1B18] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Truck size={18} />
@@ -559,55 +399,6 @@ export default function DonationFormPage() {
           {/* SIDEBAR */}
           <aside className="lg:sticky lg:top-8 lg:col-span-5">
             <div className="overflow-hidden rounded-2xl border border-[#D8CFC2] bg-[#F5ECDF] shadow-sm">
-              {/* REWARD BANNER */}
-              <div
-                className={`p-6 sm:p-8 ${
-                  rewardEligible ? 'bg-[#EAF0E7]' : 'bg-[#F5ECDF]'
-                }`}
-              >
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-[#AC1B18]">
-                  <Sparkles size={14} />
-                  ReWear Reward
-                </span>
-
-                <h3 className="mt-2 font-serif text-3xl font-black text-[#130D0B]">
-                  {rewardEligible ? '12% OFF Unlocked' : 'Give More, Save More'}
-                </h3>
-
-                <p className="mt-3 text-sm leading-6 text-[#6F665C]">
-                  {rewardEligible
-                    ? 'Your 50 kg donation milestone has been reached. Your one-time ReWear discount is now unlocked.'
-                    : 'Reach a cumulative donation of 50 kg or more to receive a one-time 12% discount on a ReWear purchase.'}
-                </p>
-
-                {/* LARGE PROGRESS */}
-                <div className="mt-6">
-                  <div className="flex items-end justify-between">
-                    <span className="text-xs font-semibold text-[#7E7469]">
-                      Your donation
-                    </span>
-
-                    <span className="text-lg font-black text-[#AC1B18]">
-                      {totalDonationWeight.toFixed(1)}
-                      <span className="ml-1 text-xs font-semibold">kg</span>
-                    </span>
-                  </div>
-
-                  <div className="mt-2 h-3 overflow-hidden rounded-full bg-[#DED4C8]">
-                    <div
-                      className="h-full rounded-full bg-[#AC1B18] transition-all duration-500"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-
-                  <div className="mt-2 flex justify-between text-[10px] font-bold uppercase tracking-wider text-[#8A8076]">
-                    <span>0 kg</span>
-                    <span>50 kg</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* SUMMARY */}
               <div className="border-t border-[#E3D7C7] p-6 sm:p-8">
                 <div className="flex items-center gap-2">
                   <Info size={17} className="text-[#AC1B18]" />
@@ -622,16 +413,7 @@ export default function DonationFormPage() {
 
                   <SummaryRow
                     label="Estimated Weight"
-                    value={`${currentWeight || 0} kg`}
-                  />
-
-                  <SummaryRow
-                    label="Categories"
-                    value={
-                      selectedCategories.length
-                        ? `${selectedCategories.length} selected`
-                        : 'Not selected'
-                    }
+                    value={`${weight || 0} kg`}
                   />
 
                   <SummaryRow
@@ -643,42 +425,6 @@ export default function DonationFormPage() {
                         : `Select ${organizationType}`
                     }
                   />
-                </div>
-
-                {/* REWARD CARD */}
-                <div
-                  className={`mt-6 rounded-xl border p-4 ${
-                    rewardEligible
-                      ? 'border-[#BFCAB6] bg-[#EAF0E7]'
-                      : 'border-[#E3D7C7] bg-[#FAF2E6]'
-                  }`}
-                >
-                  <div className="flex gap-3">
-                    <Gift
-                      size={18}
-                      className={
-                        rewardEligible
-                          ? 'mt-0.5 shrink-0 text-[#5E6B52]'
-                          : 'mt-0.5 shrink-0 text-[#AC1B18]'
-                      }
-                    />
-
-                    <div>
-                      <p className="text-xs font-bold text-[#211714]">
-                        {rewardEligible
-                          ? '12% ReWear Discount Unlocked'
-                          : '50 kg Donation Milestone'}
-                      </p>
-
-                      <p className="mt-1 text-xs leading-relaxed text-[#6F665C]">
-                        {rewardEligible
-                          ? 'One-time discount on your ReWear purchase. Seller earnings remain unaffected.'
-                          : `${remainingWeight.toFixed(
-                              1,
-                            )} kg remaining to unlock your one-time 12% ReWear purchase discount.`}
-                      </p>
-                    </div>
-                  </div>
                 </div>
 
                 {/* TRUST POINTS */}
@@ -699,7 +445,7 @@ export default function DonationFormPage() {
                       strokeWidth={3}
                     />
                     <span>
-                      Donation weight contributes toward your milestone
+                      Clothes go directly to communities that need them
                     </span>
                   </li>
 
@@ -709,7 +455,7 @@ export default function DonationFormPage() {
                       className="text-[#5E6B52]"
                       strokeWidth={3}
                     />
-                    <span>12% reward is funded by ReWear</span>
+                    <span>Secure, verified organization partners only</span>
                   </li>
                 </ul>
               </div>
