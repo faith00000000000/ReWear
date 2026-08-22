@@ -27,12 +27,6 @@ export type RentalListing = {
     dueDate: string;                 // e.g. "Due in 2 days"
 };
 
-export type Donation = {
-    id: string;
-    name: string;
-    image: string;
-};
-
 export type OrderStatus = "Delivered" | "Shipped" | "Completed" | "Processing";
 
 export type Order = {

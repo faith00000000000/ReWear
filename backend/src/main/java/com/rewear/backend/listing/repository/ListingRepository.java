@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -61,4 +62,11 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
     // in ListingRepository
         long countBySellerId(Long sellerId);
 
+
+    // Powers the "Active Items" stat
+    long countBySellerIdAndAvailability(Long sellerId, Availability availability);
+
+    // Powers the "Sold / Rented" stat — RESERVED covers active rentals,
+    // SOLD_OUT covers completed thrift sales
+    long countBySellerIdAndAvailabilityIn(Long sellerId, Collection<Availability> availabilities);
 }

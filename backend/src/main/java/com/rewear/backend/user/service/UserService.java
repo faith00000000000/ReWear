@@ -14,7 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
-
+import com.rewear.backend.listing.enums.Availability;
+import com.rewear.backend.listing.repository.ListingRepository;
+import com.rewear.backend.user.dto.response.UserStatsDto;
 import java.io.IOException;
 import java.util.List;
 
@@ -27,6 +29,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
     private final SupabaseStorageService storageService; // NEW — for profile picture upload
+    private final ListingRepository listingRepository;
 
     @Transactional(readOnly = true)
     public List<UserResponseDto> getAllUsers() {
@@ -191,5 +194,21 @@ public class UserService {
 
     private String normalizeEmail(String email) {
         return email.trim().toLowerCase();
+    }
+
+    @Transactional(readOnly = true)
+    public UserStatsDto getUserStats(Long id) {
+        findUserById(id); // throws ResourceNotFoundException if the user doesn't exist — keeps 404 behavior consistent with the rest of this class
+
+        long listingsPosted = listingRepository.countBySellerId(id);
+        long activeItems = listingRepository.countBySellerIdAndAvailability(id, Availability.AVAILABLE);
+        long soldOrRented = listingRepository.countBySellerIdAndAvailabilityIn(
+                id, List.of(Availability.RESERVED, Availability.SOLD_OUT));
+
+        return UserStatsDto.builder()
+                .listingsPosted(listingsPosted)
+                .activeItems(activeItems)
+                .soldOrRented(soldOrRented)
+                .build();
     }
 }

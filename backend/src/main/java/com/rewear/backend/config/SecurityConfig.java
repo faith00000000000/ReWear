@@ -90,9 +90,12 @@ public class SecurityConfig {
                                         "/health/**",
                                         "/api/listings",
                                         "/api/listings/**",
-                                        "/api/admin/**"
+                                        "/api/admin/**",
+                                        "/api/donations",
+                                        "/api/organizations"
                                 ).permitAll()
                                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/users/{id}").permitAll()
+                                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/users/*/stats").permitAll()
                                 .anyRequest().authenticated()
                 )
 //                .oauth2Login(oauth2 -> oauth2

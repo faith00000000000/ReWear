@@ -1,5 +1,5 @@
 import api from "@/lib/axios";
-import { Profile, RentalListing, Donation, Order } from "@/lib/types/profile";
+import { Profile, RentalListing, Order } from "@/lib/types/profile";
 
 /* ══════════════════════════════════════════════════════════
    Shared raw shape returned by GET /api/orders (matches backend
@@ -29,6 +29,16 @@ export type RawOrder = {
     items: RawOrderItem[];
 };
 
+export type UserStats = {
+    listingsPosted: number;
+    activeItems: number;
+    soldOrRented: number;
+};
+
+export async function fetchUserStats(userId: string | number): Promise<UserStats> {
+    const { data } = await api.get<UserStats>(`/api/users/${userId}/stats`);
+    return data;
+}
 /* /api/orders is scoped to the authenticated user server-side (via the
    auth principal in OrderController), so it always returns "my" orders.
    Everything below just filters/reshapes this one response. */
@@ -49,18 +59,31 @@ export async function fetchProfile(userId: string | number): Promise<Profile | n
     }
 }
 
+function formatJoinedDate(createdAt: string | undefined): string {
+    if (!createdAt) return "";
+    const date = new Date(createdAt);
+    if (isNaN(date.getTime())) return "";
+    // "May 2023" — matches the Profile type's documented format
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
 function mapUserResponseToProfile(dto: any): Profile {
     return {
         id: dto.id,
         name: dto.fullName,
         avatarUrl: dto.profilePictureUrl,
         isVerified: false,
-        joinedDate: dto.createdAt ?? "",
+        joinedDate: formatJoinedDate(dto.createdAt), // was: dto.createdAt ?? ""
         location: undefined,
         shipsFrom: undefined,
         fulfillment: undefined,
         activeDays: undefined,
         stats: {
+            // Real values computed client-side in ProfileClient.tsx from the
+            // `listings` prop it already has — see Fix 2. Left at 0 here only
+            // as a safe default for the brief window before that runs, and
+            // for soldOrRented/savedByUsers, which have no data source yet
+            // (see note below).
             listingsPosted: 0,
             activeItems: 0,
             soldOrRented: 0,
@@ -71,7 +94,6 @@ function mapUserResponseToProfile(dto: any): Profile {
         preferredSizes: undefined,
     };
 }
-
 export async function updateUserPhone(userId: string | number, phone: string): Promise<void> {
     await api.patch(`/api/users/${userId}`, { phone });
 }
@@ -122,10 +144,6 @@ export async function fetchRentals(userId: string | number): Promise<RentalListi
 
 /* Donations still hit their own dedicated endpoint — unchanged, no
    /api/orders overlap for these. */
-export async function fetchDonations(userId: string | number): Promise<Donation[]> {
-    const { data } = await api.get<Donation[]>(`/api/users/${userId}/donations`);
-    return data;
-}
 
 /* ── Order History (summary) — flattens each confirmed order's items into
    individual rows for the profile dashboard preview card. Full detail

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
     BadgeCheck,
     Bell,
-    Book,
+    Book, Building2,
     Calendar,
     Camera,
     ChevronRight,
@@ -37,12 +37,14 @@ import { useFavorites } from "@/lib/FavoritesContext";
 import {
     fetchProfile,
     fetchRentals,
-    fetchDonations,
     fetchOrders,
+    fetchUserStats,
     updateUserPhone,
     updateUserAvatar,
 } from "@/lib/api/profileApi";
-import { Profile, RentalListing, Donation, Order, OrderStatus } from "@/lib/types/profile";
+// import { Profile, RentalListing, Donation, Order, OrderStatus } from "@/lib/types/profile";
+import { Profile, RentalListing, Order, OrderStatus } from "@/lib/types/profile";
+import { Donation, DonationStatus, getMyDonations, DONATION_STATUS_STYLES } from "@/lib/api/donationApi";
 import { Product } from "@/lib/types/product";
 import { toast } from "react-toastify";
 import EditPhoneModal from "@/components/profile/EditPhoneModal";
@@ -79,19 +81,61 @@ export default function ProfileClient({
     const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
 
+    // useEffect(() => {
+    //     let cancelled = false;
+    //
+    //     async function loadProfile() {
+    //         try {
+    //             const data = await fetchProfile(userId);
+    //             if (!cancelled) setProfile(data);
+    //         } finally {
+    //             if (!cancelled) setLoading(false);
+    //         }
+    //     }
+    //
+    //     loadProfile();
+    //     return () => {
+    //         cancelled = true;
+    //     };
+    // }, [userId]);
+
     useEffect(() => {
         let cancelled = false;
 
         async function loadProfile() {
             try {
-                const data = await fetchProfile(userId);
-                if (!cancelled) setProfile(data);
+                const [profileData, statsData] = await Promise.allSettled([
+                    fetchProfile(userId),
+                    fetchUserStats(userId),
+                ]);
+
+                if (cancelled) return;
+
+                const base = profileData.status === "fulfilled" ? profileData.value : null;
+                if (!base) {
+                    setProfile(null);
+                    return;
+                }
+
+                const stats = statsData.status === "fulfilled" ? statsData.value : null;
+                setProfile({
+                    ...base,
+                    stats: {
+                        listingsPosted: stats?.listingsPosted ?? 0,
+                        activeItems: stats?.activeItems ?? 0,
+                        soldOrRented: stats?.soldOrRented ?? 0,
+                        // savedByUsers has no backend source yet — see chat notes.
+                        // Left at whatever mapUserResponseToProfile already set (0)
+                        // rather than fabricating a number.
+                        savedByUsers: base.stats.savedByUsers,
+                    },
+                });
             } finally {
                 if (!cancelled) setLoading(false);
             }
         }
 
-        loadProfile();
+        void loadProfile();
         return () => {
             cancelled = true;
         };
@@ -154,7 +198,8 @@ function OwnProfileView({
         (async () => {
             const results = await Promise.allSettled([
                 fetchRentals(profile.id),
-                fetchDonations(profile.id),
+                // fetchDonations(profile.id),
+                getMyDonations(),
                 fetchOrders(profile.id),
             ]);
             if (cancelled) return;
@@ -402,15 +447,46 @@ function OwnProfileView({
                         sub={`${donations.length} total donations`}
                         href="/profile/donations"
                     >
-                        <div className="grid grid-cols-3 gap-2.5">
-                            {donations.slice(0, 3).map((d) => (
-                                <div
-                                    key={d.id}
-                                    className="relative aspect-square overflow-hidden rounded-xl bg-[#F5F0E8] ring-1 ring-black/5 transition duration-300 hover:scale-[1.02]"
-                                >
-                                    <Image src={d.image} alt={d.name} fill className="object-cover" />
-                                </div>
-                            ))}
+                        <div className="space-y-2">
+                            {donations.length === 0 ? (
+                                <p className="py-4 text-center text-[11px] text-[#8C7E74]">
+                                    No donations yet.
+                                </p>
+                            ) : (
+                                donations.slice(0, 3).map((d) => (
+                                    <div
+                                        key={d.id}
+                                        className="flex items-center justify-between gap-2 rounded-xl border border-[#EBE3D5]/60 bg-stone-50/50 px-3 py-2 transition duration-200 hover:border-[#EBE3D5] hover:bg-white"
+                                    >
+                                        {/* Org icon instead of a clothing thumbnail — a donation
+                                        has no photo, it's linked to an Organization */}
+                                        <div className="flex min-w-0 items-center gap-2.5">
+                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#F5F0E8] text-[#9E2A1B] ring-1 ring-black/5">
+                                                <Building2 size={14} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="truncate text-[11px] font-semibold text-[#1A130E]">
+                                                    {d.organization?.name ?? 'Organization'}
+                                                </p>
+                                                <p className="text-[10px] text-[#8C7E74]">
+                                                    ~{d.estimatedWeightKg} kg
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Pulled from the shared DONATION_STATUS_STYLES map
+                                            (declared once near ORDER_STATUS_STYLES) instead of an
+                                            inline object literal — that inline version is what was
+                                            throwing TS7053, since an untyped object literal can't
+                                            be indexed with a DonationStatus key */}
+                                        <span
+                                            className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${DONATION_STATUS_STYLES[d.status]}`}
+                                        >
+                                            {d.status}
+                                        </span>
+                                    </div>
+                                ))
+                            )}
                         </div>
                         <ActionButton href="/profile/donations">View Donation History</ActionButton>
                     </SectionCard>
@@ -419,7 +495,7 @@ function OwnProfileView({
                         icon={Package}
                         title="Order History"
                         sub={`${orders.length} orders placed`}
-                        href="/order-history"
+                        href="/profile/order-history"
                     >
                         <div className="space-y-2">
                             {orders.slice(0, 3).map((o) => (
@@ -445,8 +521,8 @@ function OwnProfileView({
                                     <span
                                         className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${ORDER_STATUS_STYLES[o.status]}`}
                                     >
-                  {o.status}
-                </span>
+                                      {o.status}
+                                    </span>
                                     <span className="shrink-0 text-[11px] text-[#8C7E74]">{o.date}</span>
                                     <ChevronRight
                                         size={15}
@@ -455,7 +531,7 @@ function OwnProfileView({
                                 </Link>
                             ))}
                         </div>
-                        <ActionButton href="/order-history">View All Orders</ActionButton>
+                        <ActionButton href="/profile/order-history">View All Orders</ActionButton>
                     </SectionCard>
                 </div>
 
@@ -599,6 +675,8 @@ function OwnProfileView({
 function PublicProfileView({ profile, listings }: { profile: Profile; listings: Product[] }) {
     const { isFavorite, toggleFavorite } = useFavorites();
     const [filter, setFilter] = useState<"all" | "thrift" | "rent" | "both">("all");
+    const listingsPosted = listings.length;
+    const activeItems = listings.filter((p) => p.availability === "Available").length;
 
     const filtered = useMemo(() => {
         if (filter === "all") return listings;
@@ -658,6 +736,13 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
                         <InfoItem icon={Calendar} label="Joined Since" value={profile.joinedDate} />
                     </div>
                 </div>
+
+                {/*<div className="mt-4 flex flex-col divide-y divide-[#EBE3D5] rounded-xl border border-[#EBE3D5] bg-white sm:flex-row sm:divide-x sm:divide-y-0">*/}
+                {/*    <StatBlock icon={ShoppingBag} value={profile.stats.listingsPosted} label="Items Listed" description="Total items listed by seller" />*/}
+                {/*    <StatBlock icon={Tag} value={profile.stats.activeItems} label="Active Items" description="Currently available" />*/}
+                {/*    <StatBlock icon={ShoppingBag} value={profile.stats.soldOrRented} label="Sold / Rented" description="Successfully completed" />*/}
+                {/*    <StatBlock icon={Heart} value={profile.stats.savedByUsers} label="Saved by Users" description="Users who saved this profile" />*/}
+                {/*</div>*/}
 
                 <div className="mt-4 flex flex-col divide-y divide-[#EBE3D5] rounded-xl border border-[#EBE3D5] bg-white sm:flex-row sm:divide-x sm:divide-y-0">
                     <StatBlock icon={ShoppingBag} value={profile.stats.listingsPosted} label="Items Listed" description="Total items listed by seller" />

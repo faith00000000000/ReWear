@@ -3,6 +3,7 @@ package com.rewear.backend.user.controller;
 import com.rewear.backend.exception.ResourceNotFoundException;
 import com.rewear.backend.user.dto.request.UserUpdateRequestDto;
 import com.rewear.backend.user.dto.response.UserResponseDto;
+import com.rewear.backend.user.dto.response.UserStatsDto;
 import com.rewear.backend.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -176,5 +177,12 @@ public class UserController {
         log.info("Deleting user: {}", id);
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Add alongside the other @GetMapping methods
+    @GetMapping("/{id}/stats")
+    public ResponseEntity<UserStatsDto> getUserStats(@PathVariable Long id) {
+        log.info("Fetching stats for user: {}", id);
+        return ResponseEntity.ok(userService.getUserStats(id));
     }
 }
