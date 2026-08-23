@@ -106,7 +106,11 @@ public class ListingServiceImpl implements ListingService {
 
         // Only validate delivery details if the caller is actually touching
         // delivery fields on this partial update (deliveryOption present).
-        if (request.getDeliveryOption() != null) {
+//        if (request.getDeliveryOption() != null) {
+//            validateDeliveryDetails(request);
+//        }
+
+        if (request.getDeliveryOption() != null || request.getShippingFeeType() != null) {
             validateDeliveryDetails(request);
         }
 
@@ -175,6 +179,23 @@ public class ListingServiceImpl implements ListingService {
         boolean needsShipping = option == DeliveryOption.SHIPPING || option == DeliveryOption.FLEX;
         boolean needsPickup   = option == DeliveryOption.PICKUP   || option == DeliveryOption.FLEX;
 
+//        if (needsShipping) {
+//            if (isBlank(dto.getShippingAvailability()))
+//                throw new InvalidListingDataException("Shipping availability is required.");
+//            if (dto.getShippingFeeType() == null)
+//                throw new InvalidListingDataException("Shipping fee type is required.");
+//            if (dto.getShippingFeeType() == ShippingFeeType.FIXED_FEE
+//                    && dto.getFixedShippingFee() == null)
+//                throw new InvalidListingDataException("Fixed shipping fee is required.");
+//            if (dto.getShippingFeeType() == ShippingFeeType.DYNAMIC_SHIPPING
+//                    && (dto.getRateWithinDistrict() == null
+//                    || dto.getRateWithinProvince() == null
+//                    || dto.getRateNationwide() == null))
+//                throw new InvalidListingDataException("All dynamic shipping rates are required.");
+//            if (isBlank(dto.getDispatchTime()))
+//                throw new InvalidListingDataException("Dispatch time is required.");
+//        }
+
         if (needsShipping) {
             if (isBlank(dto.getShippingAvailability()))
                 throw new InvalidListingDataException("Shipping availability is required.");
@@ -188,6 +209,18 @@ public class ListingServiceImpl implements ListingService {
                     || dto.getRateWithinProvince() == null
                     || dto.getRateNationwide() == null))
                 throw new InvalidListingDataException("All dynamic shipping rates are required.");
+            // NEW — Dynamic Shipping prices delivery using distance from the
+            // seller's origin point (pickupLat/pickupLng). Without this, the
+            // buyer-side Buy Now / Rent Now flow has no way to calculate a
+            // delivery fee and gets permanently stuck showing "Delivery
+            // unavailable for this item". This must be enforced here even
+            // though "Pickup" as a delivery *option* isn't selected — the
+            // frontend map validation can be bypassed via direct API calls,
+            // so this is the authoritative check.
+            if (dto.getShippingFeeType() == ShippingFeeType.DYNAMIC_SHIPPING
+                    && (dto.getPickupLat() == null || dto.getPickupLng() == null))
+                throw new InvalidListingDataException(
+                        "Origin location (pickupLat/pickupLng) must be pinned when using Dynamic Shipping.");
             if (isBlank(dto.getDispatchTime()))
                 throw new InvalidListingDataException("Dispatch time is required.");
         }

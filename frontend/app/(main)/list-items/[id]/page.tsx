@@ -499,11 +499,23 @@ export default function EditListingPage() {
         if (!f.condition) return "Condition is required.";
         if (!f.color.trim()) return "Color is required.";
         if (!f.material) return "Material is required.";
+        // if (f.deliveryOption === "Shipping" || f.deliveryOption === "Flex (Both)") {
+        //     if (!f.shippingAvailability) return "Shipping availability is required.";
+        //     if (!f.shippingFeeType) return "Shipping fee type is required.";
+        //     if (f.shippingFeeType === "Fixed Fee" && !f.fixedShippingFee.trim()) return "Please enter a fixed shipping fee.";
+        //     if (f.shippingFeeType === "Dynamic Shipping" && (!f.rateWithinDistrict.trim() || !f.rateWithinProvince.trim() || !f.rateNationwide.trim())) return "Please fill in all dynamic shipping rates.";
+        //     if (!f.dispatchTime) return "Dispatch time is required.";
+        // }
         if (f.deliveryOption === "Shipping" || f.deliveryOption === "Flex (Both)") {
             if (!f.shippingAvailability) return "Shipping availability is required.";
             if (!f.shippingFeeType) return "Shipping fee type is required.";
             if (f.shippingFeeType === "Fixed Fee" && !f.fixedShippingFee.trim()) return "Please enter a fixed shipping fee.";
             if (f.shippingFeeType === "Dynamic Shipping" && (!f.rateWithinDistrict.trim() || !f.rateWithinProvince.trim() || !f.rateNationwide.trim())) return "Please fill in all dynamic shipping rates.";
+            // NEW — Dynamic Shipping calculates fees using distance from the
+            // seller's origin point. Without pickupLat/pickupLng, the buyer-side
+            // Buy Now / Rent Now modal has no way to price delivery and gets
+            // permanently stuck on "Delivery unavailable for this item".
+            if (f.shippingFeeType === "Dynamic Shipping" && !f.pickupLocationConfirmed) return "Please pin your origin location on the map — required for Dynamic Shipping to calculate delivery fees.";
             if (!f.dispatchTime) return "Dispatch time is required.";
         }
         if (f.deliveryOption === "Pickup" || f.deliveryOption === "Flex (Both)") {
@@ -778,6 +790,13 @@ export default function EditListingPage() {
                                     {form.shippingFeeType === "Fixed Fee" && (
                                         <InputField label="Shipping Fee" required value={form.fixedShippingFee} onChange={(v) => update("fixedShippingFee", v)} placeholder="150" prefix="Rs" inputClassName="pl-10" />
                                     )}
+                                    {/*{form.shippingFeeType === "Dynamic Shipping" && (*/}
+                                    {/*    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">*/}
+                                    {/*        <InputField label="Within District" required value={form.rateWithinDistrict} onChange={(v) => update("rateWithinDistrict", v)} placeholder="100" prefix="Rs" inputClassName="pl-10" />*/}
+                                    {/*        <InputField label="Within Province" required value={form.rateWithinProvince} onChange={(v) => update("rateWithinProvince", v)} placeholder="150" prefix="Rs" inputClassName="pl-10" />*/}
+                                    {/*        <InputField label="Nationwide" required value={form.rateNationwide} onChange={(v) => update("rateNationwide", v)} placeholder="250" prefix="Rs" inputClassName="pl-10" />*/}
+                                    {/*    </div>*/}
+                                    {/*)}*/}
                                     {form.shippingFeeType === "Dynamic Shipping" && (
                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                             <InputField label="Within District" required value={form.rateWithinDistrict} onChange={(v) => update("rateWithinDistrict", v)} placeholder="100" prefix="Rs" inputClassName="pl-10" />
@@ -785,6 +804,60 @@ export default function EditListingPage() {
                                             <InputField label="Nationwide" required value={form.rateNationwide} onChange={(v) => update("rateNationwide", v)} placeholder="250" prefix="Rs" inputClassName="pl-10" />
                                         </div>
                                     )}
+
+                                    {/* NEW — Origin location for Dynamic Shipping. Only shown
+                                        for pure "Shipping" mode; "Flex (Both)" already gets
+                                        this map from the Pickup section below, so we don't
+                                        duplicate it. */}
+                                    {form.shippingFeeType === "Dynamic Shipping" && form.deliveryOption === "Shipping" && (
+                                        <div>
+                                            <label className="text-[13px] font-medium text-[#3D2B1F] block mb-1">
+                                                Origin Location (for Dynamic Shipping) <span className="text-[#A33214]">*</span>
+                                            </label>
+                                            <p className="text-[12px] text-[#8A7060] mb-2.5">
+                                                Pin your shipping origin — the buyer's delivery fee is calculated as
+                                                distance from this point. Without this, buyers can't check out.
+                                            </p>
+                                            <div className="relative rounded-xl overflow-hidden border border-[#DDD0C4]">
+                                                <PickupLocationMap
+                                                    lat={form.pickupLat ? parseFloat(form.pickupLat) : null}
+                                                    lng={form.pickupLng ? parseFloat(form.pickupLng) : null}
+                                                    onLocationSelect={handlePickupLocationChange}
+                                                />
+                                                <button
+                                                    type="button" onClick={handleUseMyLocation}
+                                                    className="absolute top-3 right-3 z-[1000] px-2.5 py-1.5 rounded-lg bg-white/95 border border-[#DDD0C4] text-[#A33214] text-[11px] sm:text-[12px] font-semibold shadow-sm hover:bg-white transition-colors flex items-center gap-1.5"
+                                                >
+                                                    <Navigation size={12} />
+                                                    {form.pickupLocationConfirmed ? "Update Pin" : "Select My Location"}
+                                                </button>
+                                            </div>
+                                            {form.pickupResolvedAddress && (
+                                                <div className="mt-2 flex items-start gap-1.5 bg-[#FDFAF6] border border-[#EBE0D4] rounded-xl px-3 py-2">
+                                                    <MapPin size={12} className="text-[#8A7060] mt-0.5 flex-shrink-0" />
+                                                    <p className="text-[11px] text-[#6F6258] leading-relaxed">
+                                                        {form.pickupResolvedAddress}
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {form.pickupLocationConfirmed ? (
+                                                <div className="mt-2 flex items-center justify-between gap-2 bg-[#F2FAF0] border border-[#D8E8D0] rounded-xl px-3.5 py-2.5">
+                                                    <div className="flex items-center gap-1.5 text-[12px] text-[#3D5C30] font-medium">
+                                                        <CheckCircle size={13} /> Origin location set
+                                                    </div>
+                                                    <span className="text-[10px] text-[#6F9060] tabular-nums">
+                                                        {form.pickupLat}, {form.pickupLng}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <p className="text-[11px] text-[#8A7060] mt-2">
+                                                    No pin set yet — click on the map or use "Select My Location".
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <SelectField label="Ready to Dispatch In" required value={form.dispatchTime} onChange={(v) => update("dispatchTime", v)} options={["Same Day", "Within 1 Day", "Within 2-3 Days", "Within 1 Week"]} />
                                     <SelectField label="Ready to Dispatch In" required value={form.dispatchTime} onChange={(v) => update("dispatchTime", v)} options={["Same Day", "Within 1 Day", "Within 2-3 Days", "Within 1 Week"]} />
                                 </div>
                             )}
