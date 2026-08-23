@@ -13,6 +13,8 @@ import com.rewear.backend.payment.dto.request.PaymentVerifyRequest;
 import com.rewear.backend.payment.gateway.EsewaGatewayService;
 import com.rewear.backend.payment.gateway.KhaltiGatewayService;
 import com.rewear.backend.payment.repository.PaymentTransactionRepository;
+import com.rewear.backend.user.service.EmailService;
+import java.time.format.DateTimeFormatter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class PaymentService {
     private final EsewaGatewayService esewaService;
     private final KhaltiGatewayService khaltiService;
     private final PaymentMapper paymentMapper;
+    private final EmailService emailService;
 
     @Transactional
     public PaymentInitiateResponse initiatePayment(PaymentInitiateRequest request) throws Exception {
@@ -139,6 +142,29 @@ public class PaymentService {
             orderRepository.save(order);
 
             log.info("Payment verified SUCCESS: ref={}", tx.getReferenceId());
+
+            // ── Send transaction receipt email ──
+            try {
+                String formattedDate = tx.getCompletedAt()
+                        .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+
+                emailService.sendPaymentReceiptEmail(
+                        order.getBuyer().getEmail(),
+                        order.getBuyer().getFullName(),
+                        tx.getReferenceId(),
+                        tx.getPaymentGateway().name(),
+                        tx.getAmountNpr(),
+                        tx.getGatewayTransactionId(),
+                        order.getId(),
+                        order.getStatus(),
+                        formattedDate
+                );
+            } catch (Exception e) {
+                // Never let email failure break the payment verification flow
+                log.error("Could not queue payment receipt email for ref={}: {}",
+                        tx.getReferenceId(), e.getMessage());
+            }
+
         } else {
             tx.setPaymentStatus(PaymentStatus.FAILED);
             log.warn("Payment verification FAILED: ref={} gateway={}",

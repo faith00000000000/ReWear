@@ -103,23 +103,97 @@ public class KhaltiGatewayService {
     // ─────────────────────────────────────────────────────────────
     // Shared HTTP POST helper — avoids duplicating HttpClient setup
     // ─────────────────────────────────────────────────────────────
+//    private String post(String url, String jsonPayload) throws Exception {
+//        try (CloseableHttpClient client = HttpClients.createDefault()) {
+//            HttpPost request = new HttpPost(url);
+//            request.setHeader("Authorization", "Key " + props.getKhalti().getSecretKey());
+//            request.setHeader("Content-Type", "application/json");
+//            request.setEntity(new StringEntity(jsonPayload, ContentType.APPLICATION_JSON));
+//
+//            ClassicHttpResponse response = (ClassicHttpResponse) client.execute(request);
+//            String body = new String(
+//                    response.getEntity().getContent().readAllBytes(),
+//                    StandardCharsets.UTF_8
+//            );
+//
+//            // ✅ non-200 throws with full body for easy debugging
+//            if (response.getCode() != 200) {
+//                log.error("Khalti API error [{}] url={} body={}", response.getCode(), url, body);
+//                throw new RuntimeException("Khalti API error " + response.getCode() + ": " + body);
+//            }
+//
+//            return body;
+//        }
+//    }
     private String post(String url, String jsonPayload) throws Exception {
-        try (CloseableHttpClient client = HttpClients.createDefault()) {
-            HttpPost request = new HttpPost(url);
-            request.setHeader("Authorization", "Key " + props.getKhalti().getSecretKey());
-            request.setHeader("Content-Type", "application/json");
-            request.setEntity(new StringEntity(jsonPayload, ContentType.APPLICATION_JSON));
 
-            ClassicHttpResponse response = (ClassicHttpResponse) client.execute(request);
+        String secretKey = props.getKhalti().getSecretKey();
+
+        // Temporary diagnostics — never print the actual secret
+        log.info("Khalti base URL: {}", props.getKhalti().getBaseUrl());
+        log.info("Khalti secret loaded: {}",
+                secretKey != null && !secretKey.isBlank());
+        log.info("Khalti secret length: {}",
+                secretKey == null ? 0 : secretKey.trim().length());
+
+        if (secretKey != null && secretKey.length() >= 8) {
+            log.info("Khalti secret preview: {}...{}",
+                    secretKey.substring(0, 4),
+                    secretKey.substring(secretKey.length() - 4));
+        }
+
+        try (CloseableHttpClient client = HttpClients.createDefault()) {
+
+            HttpPost request = new HttpPost(url);
+
+            request.setHeader(
+                    "Authorization",
+                    "Key " + secretKey.trim()
+            );
+
+            request.setHeader(
+                    "Content-Type",
+                    "application/json"
+            );
+
+            request.setEntity(
+                    new StringEntity(
+                            jsonPayload,
+                            ContentType.APPLICATION_JSON
+                    )
+            );
+
+            log.info("Sending Khalti request to: {}", url);
+
+            ClassicHttpResponse response =
+                    (ClassicHttpResponse) client.execute(request);
+
             String body = new String(
-                    response.getEntity().getContent().readAllBytes(),
+                    response.getEntity()
+                            .getContent()
+                            .readAllBytes(),
                     StandardCharsets.UTF_8
             );
 
-            // ✅ non-200 throws with full body for easy debugging
+            log.info(
+                    "Khalti response status: {}",
+                    response.getCode()
+            );
+
             if (response.getCode() != 200) {
-                log.error("Khalti API error [{}] url={} body={}", response.getCode(), url, body);
-                throw new RuntimeException("Khalti API error " + response.getCode() + ": " + body);
+                log.error(
+                        "Khalti API error [{}] url={} body={}",
+                        response.getCode(),
+                        url,
+                        body
+                );
+
+                throw new RuntimeException(
+                        "Khalti API error " +
+                                response.getCode() +
+                                ": " +
+                                body
+                );
             }
 
             return body;
