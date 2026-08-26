@@ -23,5 +23,7 @@ public class OrderCreateRequest {
         private String rentalEnd;
         private Integer rentalDays;
         private String returnDeadline;
+        private String rentalStartIso; // "YYYY-MM-DD"
+        private String rentalEndIso;
     }
 }

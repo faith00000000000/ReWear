@@ -67,6 +67,8 @@ public class ListingController {
             @RequestParam(value = "shippingAvailability", required = false)    String shippingAvailability,
             @RequestParam(value = "shippingFeeType",      required = false)    String shippingFeeType,
             @RequestParam(value = "fixedShippingFee",     required = false)    BigDecimal fixedShippingFee,
+            @RequestParam(value = "sellerDistrict",       required = false)    String sellerDistrict,
+            @RequestParam(value = "sellerProvince",       required = false)    String sellerProvince,
             @RequestParam(value = "rateWithinDistrict",   required = false)    BigDecimal rateWithinDistrict,
             @RequestParam(value = "rateWithinProvince",   required = false)    BigDecimal rateWithinProvince,
             @RequestParam(value = "rateNationwide",       required = false)    BigDecimal rateNationwide,
@@ -100,7 +102,8 @@ public class ListingController {
                 photoDetail, video, description, size, condition, color,
                 material, originalPrice, availability, defectFlaws,
                 deliveryOption, shippingAvailability, shippingFeeType,
-                fixedShippingFee, rateWithinDistrict, rateWithinProvince,
+                fixedShippingFee, sellerDistrict, sellerProvince,
+                rateWithinDistrict, rateWithinProvince,
                 rateNationwide, dispatchTime, pickupArea, pickupLat, pickupLng,
                 pickupResolvedAddress, pickupContactNumber, pickupDays,
                 pickupTimeFrom, pickupTimeTo, pickupInstructions, sameDayPickup,
@@ -188,6 +191,8 @@ public class ListingController {
             @RequestParam(value = "shippingAvailability",   required = false) String shippingAvailability,
             @RequestParam(value = "shippingFeeType",        required = false) String shippingFeeType,
             @RequestParam(value = "fixedShippingFee",       required = false) BigDecimal fixedShippingFee,
+            @RequestParam(value = "sellerDistrict",         required = false) String sellerDistrict,
+            @RequestParam(value = "sellerProvince",         required = false) String sellerProvince,
             @RequestParam(value = "rateWithinDistrict",     required = false) BigDecimal rateWithinDistrict,
             @RequestParam(value = "rateWithinProvince",     required = false) BigDecimal rateWithinProvince,
             @RequestParam(value = "rateNationwide",         required = false) BigDecimal rateNationwide,
@@ -201,7 +206,6 @@ public class ListingController {
             @RequestParam(value = "pickupTimeFrom",         required = false) String pickupTimeFrom,
             @RequestParam(value = "pickupTimeTo",           required = false) String pickupTimeTo,
             @RequestParam(value = "pickupInstructions",     required = false) String pickupInstructions,
-//            @RequestParam(value = "sameDayPickup", defaultValue = "false")    boolean sameDayPickup,
             @RequestParam(value = "sameDayPickup", required = false) Boolean sameDayPickup,
 
             @RequestParam(value = "thriftPrice",     required = false) BigDecimal thriftPrice,
@@ -221,7 +225,8 @@ public class ListingController {
                 photoDetail, video, description, size, condition, color,
                 material, originalPrice, availability, defectFlaws,
                 deliveryOption, shippingAvailability, shippingFeeType,
-                fixedShippingFee, rateWithinDistrict, rateWithinProvince,
+                fixedShippingFee, sellerDistrict, sellerProvince,
+                rateWithinDistrict, rateWithinProvince,
                 rateNationwide, dispatchTime, pickupArea, pickupLat, pickupLng,
                 pickupResolvedAddress, pickupContactNumber, pickupDays,
                 pickupTimeFrom, pickupTimeTo, pickupInstructions, sameDayPickup,
@@ -263,7 +268,9 @@ public class ListingController {
             String material, BigDecimal originalPrice, String availability,
             String defectFlaws,
             String deliveryOption, String shippingAvailability, String shippingFeeType,
-            BigDecimal fixedShippingFee, BigDecimal rateWithinDistrict,
+            BigDecimal fixedShippingFee,
+            String sellerDistrict, String sellerProvince,
+            BigDecimal rateWithinDistrict,
             BigDecimal rateWithinProvince, BigDecimal rateNationwide, String dispatchTime,
             String pickupArea, Double pickupLat, Double pickupLng,
             String pickupResolvedAddress, String pickupContactNumber, String pickupDays,
@@ -298,6 +305,8 @@ public class ListingController {
                 .shippingAvailability(shippingAvailability)
                 .shippingFeeType(parseShippingFeeType(shippingFeeType))
                 .fixedShippingFee(fixedShippingFee)
+                .sellerDistrict(sellerDistrict)
+                .sellerProvince(sellerProvince)
                 .rateWithinDistrict(rateWithinDistrict)
                 .rateWithinProvince(rateWithinProvince)
                 .rateNationwide(rateNationwide)

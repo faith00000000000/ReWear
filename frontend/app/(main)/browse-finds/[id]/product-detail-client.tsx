@@ -4,7 +4,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useMemo, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import dynamic from 'next/dynamic';
 // import { useAuth } from "@/lib/AuthContext";
 import { fetchProfile } from '@/lib/api/profileApi';
 import {
@@ -52,29 +51,30 @@ import {
   DeliverableProduct,
   calculateFlexDeliveryFee,
   deliveryChannelsFor,
-  distanceKm,
   formatPickupDays,
   getDeliveryMode,
   isDynamicShipping,
   normalizeFulfillment,
-  resolveDistanceBucket,
+  resolveZoneFromLocation,
+  DeliveryZone,
   toNumber,
 } from '@/lib/delivery';
 import { toast } from 'react-toastify';
 import { useFavorites } from '@/lib/FavoritesContext';
 import api from '@/lib/axios';
+// Add near the top of the file, with other imports
+import dynamic from 'next/dynamic';
 
-// Leaflet touches `window` at import time — client-only load
 const PickupLocationMap = dynamic(
-  () => import('@/components/PickupLocationMap'),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-[200px] w-full rounded-xl bg-[#FDFAF6] border border-[#EBE3D5] flex items-center justify-center">
-        <p className="text-[12px] text-[#8C7E74]">Loading map…</p>
-      </div>
-    ),
-  },
+    () => import('@/components/PickupLocationMap'),
+    {
+      ssr: false,
+      loading: () => (
+          <div className="h-[200px] w-full rounded-xl bg-[#FDFAF6] border border-[#DDD0C4] flex items-center justify-center">
+            <p className="text-[12px] text-[#8A7060]">Loading map…</p>
+          </div>
+      ),
+    },
 );
 
 /* ─── Types ──────────────────────────────────────────────── */
@@ -117,12 +117,12 @@ function resolveCareIcon(text: string) {
 /* ─── Seller initials helper ──────────────────────────────── */
 function getInitials(name: string) {
   return name
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
 }
 
 /* ─── Date helpers (vanilla JS — no date-fns dependency) ───── */
@@ -134,9 +134,9 @@ function startOfDay(date: Date) {
 
 function isSameDay(a: Date, b: Date) {
   return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
   );
 }
 
@@ -164,7 +164,7 @@ function formatShortDate(date: Date) {
    date-picker calendar can block/display the same real range.
    Returns null when the field is missing or unparsable. ─────── */
 function parseRentDurationRange(
-  raw?: string,
+    raw?: string,
 ): { start: Date; end: Date } | null {
   if (!raw) return null;
   const [startRaw, endRaw] = raw.split(/\s+to\s+/i);
@@ -192,7 +192,7 @@ function buildCalendarMatrix(year: number, month: number): Date[] {
   while (cells.length % 7 !== 0) {
     const last = cells[cells.length - 1];
     cells.push(
-      new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1),
+        new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1),
     );
   }
   return cells;
@@ -202,21 +202,21 @@ function buildCalendarMatrix(year: number, month: number): Date[] {
    date falling inside the listing's real active rental range
    (bookedRange, derived from product.rentDuration) is blocked too. */
 type DayState =
-  | 'past'
-  | 'out-of-month'
-  | 'unavailable'
-  | 'few-left'
-  | 'available'
-  | 'range-start'
-  | 'range-end'
-  | 'in-range';
+    | 'past'
+    | 'out-of-month'
+    | 'unavailable'
+    | 'few-left'
+    | 'available'
+    | 'range-start'
+    | 'range-end'
+    | 'in-range';
 
 function getDayState(
-  date: Date,
-  month: number,
-  start: Date | null,
-  end: Date | null,
-  bookedRange: { start: Date; end: Date } | null = null,
+    date: Date,
+    month: number,
+    start: Date | null,
+    end: Date | null,
+    bookedRange: { start: Date; end: Date } | null = null,
 ): DayState {
   const inMonth = date.getMonth() === month;
   if (!inMonth) return 'out-of-month';
@@ -227,6 +227,19 @@ function getDayState(
   if (bookedRange && date >= bookedRange.start && date <= bookedRange.end)
     return 'unavailable';
   return 'available';
+}
+
+/* ─── Availability badge — "Sold Out" / "Reserved" tag shown alongside
+   the mode tag wherever a listing thumbnail appears. Returns null for
+   "Available" (nothing extra to show). ──────────────────────────── */
+function availabilityBadge(availability?: string) {
+  if (availability === 'Sold Out' || availability === 'SOLD_OUT') {
+    return { label: 'Sold Out', className: 'bg-[#3D332C] text-white' };
+  }
+  if (availability === 'Reserved' || availability === 'RESERVED') {
+    return { label: 'Reserved', className: 'bg-[#92740E] text-white' };
+  }
+  return null;
 }
 
 /* ─── Hybrid-aware status tag resolver ──────────────────────
@@ -241,9 +254,9 @@ function getContextTag(status: Status, context: 'thrift' | 'rent') {
     return {
       label: 'THRIFT + RENT',
       className:
-        context === 'thrift'
-          ? 'bg-[#9E2A1B] text-white'
-          : 'bg-[#5C5C5C] text-white',
+          context === 'thrift'
+              ? 'bg-[#9E2A1B] text-white'
+              : 'bg-[#5C5C5C] text-white',
     };
   }
   if (status === 'THRIFT') {
@@ -265,60 +278,78 @@ function DeliveryOptionTags({ product }: { product: DeliverableProduct }) {
   const mode = getDeliveryMode(product);
 
   const pill =
-    'inline-flex items-center gap-1 rounded-full bg-[#9E2A1B] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white';
+      'inline-flex items-center gap-1 rounded-full bg-[#9E2A1B] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white';
 
   switch (mode) {
     case 'SHIPPING_FREE':
       return (
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
           <span className={pill}>
             <Truck size={11} />
             Shipping · Free
           </span>
-        </div>
+          </div>
       );
     case 'SHIPPING_FIXED':
     case 'SHIPPING_DYNAMIC':
       return (
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
           <span className={pill}>
             <Truck size={11} />
             Shipping
           </span>
-        </div>
+          </div>
       );
     case 'PICKUP':
       return (
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
           <span className={pill}>
             <MapPin size={11} />
             Pickup
           </span>
-        </div>
+          </div>
       );
     case 'FLEX':
       return (
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
           <span className={pill}>
             <Truck size={11} />
             Shipping
           </span>
-          <span className={pill}>
+            <span className={pill}>
             <MapPin size={11} />
             Pickup
           </span>
-        </div>
+          </div>
       );
   }
+}
+
+/* ─── Dispatch-time helper — only meaningful when a Shipping
+   channel is offered (SHIPPING_* or FLEX). Renders as a small
+   right-aligned line under the delivery tags, inside the price
+   card, e.g. "Dispatch: Within 1 Day". ─────────────────────── */
+function getDispatchLabel(product: DeliverableProduct): string | null {
+  const mode = getDeliveryMode(product);
+  const shipsAtAll =
+      mode === 'SHIPPING_FREE' ||
+      mode === 'SHIPPING_FIXED' ||
+      mode === 'SHIPPING_DYNAMIC' ||
+      mode === 'FLEX';
+  if (!shipsAtAll) return null;
+  const dispatchTime = (product as unknown as { dispatchTime?: string })
+      .dispatchTime;
+  if (!dispatchTime) return null;
+  return `Dispatch: ${dispatchTime}`;
 }
 
 /* ══════════════════════════════════════════════════════════
    ROOT COMPONENT
 ══════════════════════════════════════════════════════════ */
 export default function ProductDetailClient({
-  product,
-  recommendations,
-}: {
+                                              product,
+                                              recommendations,
+                                            }: {
   product: Product;
   recommendations: Product[];
 }) {
@@ -332,7 +363,7 @@ export default function ProductDetailClient({
   const isFav = isFavorite(String(product.id));
 
   function mapAvailability(
-    value?: string,
+      value?: string,
   ): 'Available' | 'Limited Dates' | 'Unavailable' | 'Sold' {
     if (value === 'Available') return 'Available';
     if (value === 'Reserved') return 'Limited Dates';
@@ -353,23 +384,23 @@ export default function ProductDetailClient({
     });
 
     toast[nowFavorited ? 'success' : 'info'](
-      nowFavorited ? 'Added to favourites' : 'Removed from favourites',
-      { autoClose: 2000 },
+        nowFavorited ? 'Added to favourites' : 'Removed from favourites',
+        { autoClose: 2000 },
     );
   }
 
   const media = useMemo<MediaItem[]>(
-    () => [
-      ...product.gallery.slice(0, 4).map((src, i) => ({
-        type: 'image' as const,
-        src,
-        label: `View ${i + 1}`,
-      })),
-      ...(product.videoUrl
-        ? [{ type: 'video' as const, src: product.videoUrl, label: 'Video' }]
-        : []),
-    ],
-    [product.gallery, product.videoUrl],
+      () => [
+        ...product.gallery.slice(0, 4).map((src, i) => ({
+          type: 'image' as const,
+          src,
+          label: `View ${i + 1}`,
+        })),
+        ...(product.videoUrl
+            ? [{ type: 'video' as const, src: product.videoUrl, label: 'Video' }]
+            : []),
+      ],
+      [product.gallery, product.videoUrl],
   );
 
   const [selectedMedia, setSelectedMedia] = useState(media[0]);
@@ -395,9 +426,9 @@ export default function ProductDetailClient({
   const isHybridListing = product.status === 'THRIFT + RENT';
 
   const isThrift =
-    product.status === 'THRIFT' || (isHybridListing && view !== 'rent');
+      product.status === 'THRIFT' || (isHybridListing && view !== 'rent');
   const isRent =
-    product.status === 'RENT' || (isHybridListing && view === 'rent');
+      product.status === 'RENT' || (isHybridListing && view === 'rent');
   const isHybrid = isHybridListing;
 
   // Real seller data — always present now, no fallback hack needed.
@@ -417,15 +448,20 @@ export default function ProductDetailClient({
        product.rentDuration ("20 June 2026 to 27 June 2026").
        Drives both the status card and the calendar's blocked dates. */
   const activeRentRange = useMemo(
-    () => parseRentDurationRange(product.rentDuration),
-    [product.rentDuration],
+      () => parseRentDurationRange(product.rentDuration),
+      [product.rentDuration],
   );
 
   const isRentedNow = Boolean(
-    activeRentRange &&
-    startOfDay(new Date()) >= activeRentRange.start &&
-    startOfDay(new Date()) <= activeRentRange.end,
+      activeRentRange &&
+      startOfDay(new Date()) >= activeRentRange.start &&
+      startOfDay(new Date()) <= activeRentRange.end,
   );
+
+  // ── Delivery tags + dispatch line shown at the top of the price
+  // card (right-aligned, above the trust row) — computed once here
+  // so both the Thrift and Rent price cards can reuse it. ─────────
+  const dispatchLabel = useMemo(() => getDispatchLabel(product), [product]);
 
   function switchView(target: 'thrift' | 'rent') {
     const params = new URLSearchParams(searchParams.toString());
@@ -495,41 +531,41 @@ export default function ProductDetailClient({
     year: 'numeric',
   });
   const calendarCells = useMemo(
-    () => buildCalendarMatrix(calYear, calMonth),
-    [calYear, calMonth],
+      () => buildCalendarMatrix(calYear, calMonth),
+      [calYear, calMonth],
   );
 
   const rentalDays =
-    selectedStart && selectedEnd
-      ? Math.max(1, diffInDays(selectedEnd, selectedStart))
-      : null;
+      selectedStart && selectedEnd
+          ? Math.max(1, diffInDays(selectedEnd, selectedStart))
+          : null;
   const dailyRate = product.rentalPrice ?? 'Rs. 200';
 
   const dailyRateNumber = Number(
-    dailyRate.replace('Rs.', '').replaceAll(',', '').trim(),
+      dailyRate.replace('Rs.', '').replaceAll(',', '').trim(),
   );
 
   const securityDeposit = product.securityDeposit ?? 'Rs. 0';
   const securityDepositNumber = product.securityDepositValue ?? 0;
 
   const detailPageTag = getContextTag(
-    product.status,
-    isRent ? 'rent' : 'thrift',
+      product.status,
+      isRent ? 'rent' : 'thrift',
   );
 
   const thriftRecs = useMemo(
-    () =>
-      recommendations
-        .filter((p) => p.status === 'THRIFT' || p.status === 'THRIFT + RENT')
-        .slice(0, 4),
-    [recommendations],
+      () =>
+          recommendations
+              .filter((p) => p.status === 'THRIFT' || p.status === 'THRIFT + RENT')
+              .slice(0, 4),
+      [recommendations],
   );
   const rentRecs = useMemo(
-    () =>
-      recommendations
-        .filter((p) => p.status === 'RENT' || p.status === 'THRIFT + RENT')
-        .slice(0, 4),
-    [recommendations],
+      () =>
+          recommendations
+              .filter((p) => p.status === 'RENT' || p.status === 'THRIFT + RENT')
+              .slice(0, 4),
+      [recommendations],
   );
 
   function handleRentNow() {
@@ -542,956 +578,969 @@ export default function ProductDetailClient({
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF6F0] text-[#1A130E] antialiased">
-      <div>
-        <main className="mx-auto max-w-[1340px] px-4 pb-28 pt-4 sm:px-6 lg:px-8">
-          {/* ── Breadcrumb ── */}
-          <nav className="mb-6 flex flex-wrap items-center gap-1 text-[13px] text-[#6E6053]">
-            <Link href="/" className="hover:text-[#9E2A1B] transition">
-              Home
-            </Link>
-            <ChevronRight size={13} className="text-[#B5A89E]" />
-            <Link href="/women" className="hover:text-[#9E2A1B] transition">
-              Women
-            </Link>
-            <ChevronRight size={13} className="text-[#B5A89E]" />
-            <Link
-              href="/browse-finds"
-              className="hover:text-[#9E2A1B] transition"
-            >
-              Finds
-            </Link>
-            <ChevronRight size={13} className="text-[#B5A89E]" />
-            <span className="font-semibold text-[#1A130E] truncate max-w-[200px]">
+      <div className="min-h-screen bg-[#FAF6F0] text-[#1A130E] antialiased">
+        <div>
+          <main className="mx-auto max-w-[1340px] px-4 pb-28 pt-4 sm:px-6 lg:px-8">
+            {/* ── Breadcrumb ── */}
+            <nav className="mb-6 flex flex-wrap items-center gap-1 text-[13px] text-[#6E6053]">
+              <Link href="/" className="hover:text-[#9E2A1B] transition">
+                Home
+              </Link>
+              <ChevronRight size={13} className="text-[#B5A89E]" />
+              <Link href="/women" className="hover:text-[#9E2A1B] transition">
+                Women
+              </Link>
+              <ChevronRight size={13} className="text-[#B5A89E]" />
+              <Link
+                  href="/browse-finds"
+                  className="hover:text-[#9E2A1B] transition"
+              >
+                Finds
+              </Link>
+              <ChevronRight size={13} className="text-[#B5A89E]" />
+              <span className="font-semibold text-[#1A130E] truncate max-w-[200px]">
               {product.name}
             </span>
-          </nav>
+            </nav>
 
-          {/* ══ HERO GRID ══ */}
-          <section className="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-start">
-            {/* LEFT — Gallery */}
-            <div className="space-y-2.5">
-              <div className="relative aspect-[4/3.3] w-full overflow-hidden rounded-xl bg-[#F4ECE3]">
-                {selectedMedia.type === 'video' ? (
-                  <video
-                    key={selectedMedia.src}
-                    src={selectedMedia.src}
-                    controls
-                    autoPlay
-                    className="absolute inset-0 h-full w-full object-cover"
-                  />
-                ) : (
-                  <Image
-                    src={selectedMedia.src}
-                    alt={`${product.name} – ${selectedMedia.label}`}
-                    fill
-                    priority
-                    className="object-cover object-top"
-                  />
-                )}
+            {/* ══ HERO GRID ══ */}
+            <section className="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-start">
+              {/* LEFT — Gallery */}
+              <div className="space-y-2.5">
+                <div className="relative aspect-[4/3.3] w-full overflow-hidden rounded-xl bg-[#F4ECE3]">
+                  {selectedMedia.type === 'video' ? (
+                      <video
+                          key={selectedMedia.src}
+                          src={selectedMedia.src}
+                          controls
+                          autoPlay
+                          className="absolute inset-0 h-full w-full object-cover"
+                      />
+                  ) : (
+                      <Image
+                          src={selectedMedia.src}
+                          alt={`${product.name} – ${selectedMedia.label}`}
+                          fill
+                          priority
+                          className="object-cover object-top"
+                      />
+                  )}
 
-                <button
-                  onClick={() => setLightboxOpen(true)}
-                  className="absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#1A130E] shadow-sm transition hover:scale-105"
-                >
-                  <Maximize2 size={13} />
-                </button>
-
-                <button
-                  onClick={handleToggleFavorite}
-                  aria-label={
-                    isFav ? 'Remove from favourites' : 'Add to favourites'
-                  }
-                  className="absolute right-2.5 top-11 flex h-7 w-7 items-center justify-center rounded-full border border-[#EBE3D5] bg-white shadow-sm transition hover:scale-105"
-                >
-                  <Heart
-                    size={13}
-                    className={
-                      isFav
-                        ? 'fill-[#9E2A1B] text-[#9E2A1B]'
-                        : 'text-[#6E6053] transition hover:text-[#9E2A1B]'
-                    }
-                  />
-                </button>
-              </div>
-
-              <div className="mt-2 grid grid-cols-5 gap-1.5">
-                {media.map((item, idx) => (
                   <button
-                    key={`${item.type}-${idx}`}
-                    onClick={() => setSelectedMedia(item)}
-                    className={`relative aspect-square overflow-hidden rounded-xl border-2 transition ${
-                      selectedMedia.label === item.label
-                        ? 'border-[#9E2A1B] ring-1 ring-[#9E2A1B]/30'
-                        : 'border-transparent hover:border-[#B5A89E]'
-                    }`}
+                      onClick={() => setLightboxOpen(true)}
+                      className="absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#1A130E] shadow-sm transition hover:scale-105"
                   >
-                    {item.type === 'video' ? (
-                      <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-[#1A130E]">
-                        <Play
-                          size={16}
-                          fill="currentColor"
-                          className="text-white"
-                        />
-                        <span className="text-[9px] font-semibold uppercase tracking-wide text-white/80">
+                    <Maximize2 size={13} />
+                  </button>
+
+                  <button
+                      onClick={handleToggleFavorite}
+                      aria-label={
+                        isFav ? 'Remove from favourites' : 'Add to favourites'
+                      }
+                      className="absolute right-2.5 top-11 flex h-7 w-7 items-center justify-center rounded-full border border-[#EBE3D5] bg-white shadow-sm transition hover:scale-105"
+                  >
+                    <Heart
+                        size={13}
+                        className={
+                          isFav
+                              ? 'fill-[#9E2A1B] text-[#9E2A1B]'
+                              : 'text-[#6E6053] transition hover:text-[#9E2A1B]'
+                        }
+                    />
+                  </button>
+                </div>
+
+                <div className="mt-2 grid grid-cols-5 gap-1.5">
+                  {media.map((item, idx) => (
+                      <button
+                          key={`${item.type}-${idx}`}
+                          onClick={() => setSelectedMedia(item)}
+                          className={`relative aspect-square overflow-hidden rounded-xl border-2 transition ${
+                              selectedMedia.label === item.label
+                                  ? 'border-[#9E2A1B] ring-1 ring-[#9E2A1B]/30'
+                                  : 'border-transparent hover:border-[#B5A89E]'
+                          }`}
+                      >
+                        {item.type === 'video' ? (
+                            <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-[#1A130E]">
+                              <Play
+                                  size={16}
+                                  fill="currentColor"
+                                  className="text-white"
+                              />
+                              <span className="text-[9px] font-semibold uppercase tracking-wide text-white/80">
                           Video
                         </span>
-                      </div>
-                    ) : (
-                      <Image
-                        src={item.src}
-                        alt={item.label}
-                        fill
-                        className="object-cover object-top"
-                      />
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* ══ DETAIL TABS — Description / Details / Care Guide ══ */}
-              <div className="pt-3">
-                <div className="flex items-center gap-6 border-b border-[#EBE3D5]">
-                  {(
-                    [
-                      { id: 'description', label: 'Description' },
-                      { id: 'details', label: 'Details' },
-                      { id: 'care', label: 'Care Guide' },
-                    ] as { id: DetailTab; label: string }[]
-                  ).map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`relative pb-2.5 text-[13px] font-semibold transition ${
-                        activeTab === tab.id
-                          ? 'text-[#9E2A1B]'
-                          : 'text-[#8C7E74] hover:text-[#594E46]'
-                      }`}
-                    >
-                      {tab.label}
-                      {activeTab === tab.id && (
-                        <span className="absolute -bottom-px left-0 h-[2px] w-full rounded-full bg-[#9E2A1B]" />
-                      )}
-                    </button>
+                            </div>
+                        ) : (
+                            <Image
+                                src={item.src}
+                                alt={item.label}
+                                fill
+                                className="object-cover object-top"
+                            />
+                        )}
+                      </button>
                   ))}
                 </div>
 
-                {/* ── Description Tab — wired to real listing fields ── */}
-                {activeTab === 'description' && (
-                  <div className="mt-4 rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-5">
-                    <h4 className="text-[14px] font-bold text-[#1A130E]">
-                      About this item
-                    </h4>
-                    <p className="mt-1.5 text-[13px] leading-relaxed text-[#6E6053]">
-                      {product.description ??
-                        'No description provided for this item.'}
-                    </p>
-                    <div className="mt-4 space-y-3 border-t border-[#EBE3D5] pt-4">
-                      {[
-                        {
-                          icon: Tag,
-                          label: 'Style / Occasion',
-                          value: product.styleOccasion ?? '—',
-                        },
-                        {
-                          icon: BadgeCheck,
-                          label: 'Brand',
-                          value: product.brand ?? '—',
-                        },
-                        {
-                          icon: Users,
-                          label: 'Category',
-                          value: product.category ?? '—',
-                        },
-                        {
-                          icon: Tag,
-                          label: 'Gender',
-                          value: product.gender ?? '—',
-                        },
-                      ].map(({ icon: Icon, label, value }) => (
-                        <div
-                          key={label}
-                          className="flex items-center gap-3 text-[12px]"
+                {/* ══ DETAIL TABS — Description / Details / Care Guide ══ */}
+                <div className="pt-3">
+                  <div className="flex items-center gap-6 border-b border-[#EBE3D5]">
+                    {(
+                        [
+                          { id: 'description', label: 'Description' },
+                          { id: 'details', label: 'Details' },
+                          { id: 'care', label: 'Care Guide' },
+                        ] as { id: DetailTab; label: string }[]
+                    ).map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`relative pb-2.5 text-[13px] font-semibold transition ${
+                                activeTab === tab.id
+                                    ? 'text-[#9E2A1B]'
+                                    : 'text-[#8C7E74] hover:text-[#594E46]'
+                            }`}
                         >
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
-                            <Icon size={13} className="text-[#9E2A1B]" />
-                          </div>
-                          <span className="w-[110px] shrink-0 text-[#8C7E74]">
-                            {label}
-                          </span>
-                          <span className="font-semibold text-[#1A130E]">
-                            {value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Details Tab ── */}
-                {activeTab === 'details' && (
-                  <div className="mt-4 rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-5 space-y-3">
-                    {[
-                      { icon: Ruler, label: 'Size', value: product.size },
-                      {
-                        icon: ShieldCheck,
-                        label: 'Condition',
-                        value: product.condition,
-                      },
-                      { icon: Sparkles, label: 'Color', value: product.color },
-                      {
-                        icon: Leaf,
-                        label: 'Material',
-                        value: product.material,
-                      },
-                      {
-                        icon: Tag,
-                        label: 'Original Price',
-                        value: product.oldPrice ?? product.price,
-                      },
-                    ].map(({ icon: Icon, label, value }) => (
-                      <div
-                        key={label}
-                        className="flex items-center justify-between border-b border-[#EBE3D5] pb-3 last:border-0 last:pb-0"
-                      >
-                        <div className="flex items-center gap-2.5 text-[12px] text-[#6E6053]">
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
-                            <Icon size={13} className="text-[#9E2A1B]" />
-                          </div>
-                          {label}
-                        </div>
-                        <span className="text-[12px] font-semibold text-[#1A130E]">
-                          {value}
-                        </span>
-                      </div>
+                          {tab.label}
+                          {activeTab === tab.id && (
+                              <span className="absolute -bottom-px left-0 h-[2px] w-full rounded-full bg-[#9E2A1B]" />
+                          )}
+                        </button>
                     ))}
                   </div>
-                )}
 
-                {activeTab === 'care' && (
-                  <div className="mt-4 rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-5">
-                    <h4 className="text-[14px] font-bold text-[#1A130E]">
-                      Care Instructions
-                    </h4>
-                    <div className="mt-3 space-y-3">
-                      {product.care.map((item) => {
-                        const Icon = resolveCareIcon(item);
-                        return (
-                          <div key={item} className="flex items-center gap-3">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
-                              <Icon
-                                size={14}
-                                strokeWidth={1.8}
-                                className="text-[#9E2A1B]"
-                              />
+                  {/* ── Description Tab — wired to real listing fields ── */}
+                  {activeTab === 'description' && (
+                      <div className="mt-4 rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-5">
+                        <h4 className="text-[14px] font-bold text-[#1A130E]">
+                          About this item
+                        </h4>
+                        <p className="mt-1.5 text-[13px] leading-relaxed text-[#6E6053]">
+                          {product.description ??
+                              'No description provided for this item.'}
+                        </p>
+                        <div className="mt-4 space-y-3 border-t border-[#EBE3D5] pt-4">
+                          {[
+                            {
+                              icon: Tag,
+                              label: 'Style / Occasion',
+                              value: product.styleOccasion ?? '—',
+                            },
+                            {
+                              icon: BadgeCheck,
+                              label: 'Brand',
+                              value: product.brand ?? '—',
+                            },
+                            {
+                              icon: Users,
+                              label: 'Category',
+                              value: product.category ?? '—',
+                            },
+                            {
+                              icon: Tag,
+                              label: 'Gender',
+                              value: product.gender ?? '—',
+                            },
+                          ].map(({ icon: Icon, label, value }) => (
+                              <div
+                                  key={label}
+                                  className="flex items-center gap-3 text-[12px]"
+                              >
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
+                                  <Icon size={13} className="text-[#9E2A1B]" />
+                                </div>
+                                <span className="w-[110px] shrink-0 text-[#8C7E74]">
+                            {label}
+                          </span>
+                                <span className="font-semibold text-[#1A130E]">
+                            {value}
+                          </span>
+                              </div>
+                          ))}
+                        </div>
+                      </div>
+                  )}
+
+                  {/* ── Details Tab ── */}
+                  {activeTab === 'details' && (
+                      <div className="mt-4 rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-5 space-y-3">
+                        {[
+                          { icon: Ruler, label: 'Size', value: product.size },
+                          {
+                            icon: ShieldCheck,
+                            label: 'Condition',
+                            value: product.condition,
+                          },
+                          { icon: Sparkles, label: 'Color', value: product.color },
+                          {
+                            icon: Leaf,
+                            label: 'Material',
+                            value: product.material,
+                          },
+                          {
+                            icon: Tag,
+                            label: 'Original Price',
+                            value: product.oldPrice ?? product.price,
+                          },
+                        ].map(({ icon: Icon, label, value }) => (
+                            <div
+                                key={label}
+                                className="flex items-center justify-between border-b border-[#EBE3D5] pb-3 last:border-0 last:pb-0"
+                            >
+                              <div className="flex items-center gap-2.5 text-[12px] text-[#6E6053]">
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
+                                  <Icon size={13} className="text-[#9E2A1B]" />
+                                </div>
+                                {label}
+                              </div>
+                              <span className="text-[12px] font-semibold text-[#1A130E]">
+                          {value}
+                        </span>
                             </div>
-                            <span className="text-[12px] font-medium text-[#4F4338]">
+                        ))}
+                      </div>
+                  )}
+
+                  {activeTab === 'care' && (
+                      <div className="mt-4 rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-5">
+                        <h4 className="text-[14px] font-bold text-[#1A130E]">
+                          Care Instructions
+                        </h4>
+                        <div className="mt-3 space-y-3">
+                          {product.care.map((item) => {
+                            const Icon = resolveCareIcon(item);
+                            return (
+                                <div key={item} className="flex items-center gap-3">
+                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
+                                    <Icon
+                                        size={14}
+                                        strokeWidth={1.8}
+                                        className="text-[#9E2A1B]"
+                                    />
+                                  </div>
+                                  <span className="text-[12px] font-medium text-[#4F4338]">
                               {item}
                             </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                                </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* RIGHT — Info */}
-            <div className="space-y-3.5">
-              {/* Status badge (hybrid-aware) + seller pill */}
-              <div className="flex items-center justify-between gap-3">
+              {/* RIGHT — Info */}
+              <div className="space-y-3.5">
+                {/* Status badge (hybrid-aware) + seller pill */}
+                <div className="flex items-center justify-between gap-3">
                 <span
-                  className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider ${detailPageTag.className}`}
+                    className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider ${detailPageTag.className}`}
                 >
                   {detailPageTag.label}
                 </span>
 
-                <Link
-                  href={`/profile/${sellerId}`}
-                  className="flex items-center gap-2 rounded-full bg-[#F5EFE5] border border-[#9E2A1B]/4 py-1 pl-1 pr-3.5 transition hover:bg-[#F5EFE5]/70"
-                >
-                  <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-[#9E2A1B] text-white">
-                    {sellerAvatarUrl ? (
-                      <Image
-                        src={sellerAvatarUrl}
-                        alt={sellerName}
-                        fill
-                        className="object-cover"
-                      />
-                    ) : (
-                      <span className="flex h-full w-full items-center justify-center text-[11px] font-bold">
+                  <Link
+                      href={`/profile/${sellerId}`}
+                      className="flex items-center gap-2 rounded-full bg-[#F5EFE5] border border-[#9E2A1B]/4 py-1 pl-1 pr-3.5 transition hover:bg-[#F5EFE5]/70"
+                  >
+                    <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-[#9E2A1B] text-white">
+                      {sellerAvatarUrl ? (
+                          <Image
+                              src={sellerAvatarUrl}
+                              alt={sellerName}
+                              fill
+                              className="object-cover"
+                          />
+                      ) : (
+                          <span className="flex h-full w-full items-center justify-center text-[11px] font-bold">
                         {getInitials(sellerName)}
                       </span>
-                    )}
-                  </div>
-                  <span className="text-[12px] font-semibold text-[#1A130E] whitespace-nowrap">
-                    {sellerName}
-                  </span>
-                </Link>
-              </div>
-
-              {/* Title */}
-              <div>
-                <h1 className="font-serif text-[32px] font-normal leading-[1.12] tracking-tight text-[#1A130E] sm:text-[36px]">
-                  {product.name}
-                </h1>
-                <span className="mt-1.5 inline-block rounded-full border border-[#9E2A1B] bg-[#9E2A1B]/4 px-2.5 py-0.5 text-[11px] font-semibold text-[#9E2A1B]">
-                  {product.styleOccasion ?? 'Party Wear'}
-                </span>
-                <p className="mt-2 text-[13px] leading-relaxed text-[#6E6053]">
-                  {product.description ??
-                    'No description provided for this item.'}
-                </p>
-              </div>
-
-              {/* Cross-mode switch — only for hybrid (Thrift + Rent) listings */}
-              {isHybrid && (
-                <button
-                  onClick={() => switchView(isRent ? 'thrift' : 'rent')}
-                  className="flex w-full items-center justify-between rounded-lg border border-[#DDD5C8] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#9E2A1B] transition hover:bg-[#FAF6F0]"
-                >
-                  {isRent
-                    ? 'Also available to buy →'
-                    : 'This item is available for rent as well →'}
-                  <ChevronRight size={15} />
-                </button>
-              )}
-
-              {/* ══════════════ THRIFT-ADAPTED RIGHT COLUMN ══════════════ */}
-              {isThrift && (
-                <>
-                  <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-3">
-                    <div className="flex flex-wrap items-baseline gap-2.5">
-                      <p className="text-[26px] font-bold leading-none text-[#9E2A1B]">
-                        {product.price}
-                      </p>
-                      {product.oldPrice && (
-                        <p className="text-[13px] font-normal text-[#A89E94] line-through">
-                          {product.oldPrice}
-                        </p>
                       )}
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-[#EBE3D5] pt-3 text-[11px] text-[#6E6053]">
+                    <span className="text-[12px] font-semibold text-[#1A130E] whitespace-nowrap">
+                    {sellerName}
+                  </span>
+                  </Link>
+                </div>
+
+                {/* Title */}
+                <div>
+                  <h1 className="font-serif text-[32px] font-normal leading-[1.12] tracking-tight text-[#1A130E] sm:text-[36px]">
+                    {product.name}
+                  </h1>
+                  <span className="mt-1.5 inline-block rounded-full border border-[#9E2A1B] bg-[#9E2A1B]/4 px-2.5 py-0.5 text-[11px] font-semibold text-[#9E2A1B]">
+                  {product.styleOccasion ?? 'Party Wear'}
+                </span>
+                  <p className="mt-2 text-[13px] leading-relaxed text-[#6E6053]">
+                    {product.description ??
+                        'No description provided for this item.'}
+                  </p>
+                </div>
+
+                {/* Cross-mode switch — only for hybrid (Thrift + Rent) listings */}
+                {isHybrid && (
+                    <button
+                        onClick={() => switchView(isRent ? 'thrift' : 'rent')}
+                        className="flex w-full items-center justify-between rounded-lg border border-[#DDD5C8] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#9E2A1B] transition hover:bg-[#FAF6F0]"
+                    >
+                      {isRent
+                          ? 'Also available to buy →'
+                          : 'This item is available for rent as well →'}
+                      <ChevronRight size={15} />
+                    </button>
+                )}
+
+                {/* ══════════════ THRIFT-ADAPTED RIGHT COLUMN ══════════════ */}
+                {isThrift && (
+                    <>
+                      <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex flex-wrap items-baseline gap-2.5">
+                            <p className="text-[26px] font-bold leading-none text-[#9E2A1B]">
+                              {product.price}
+                            </p>
+                            {product.oldPrice && (
+                                <p className="text-[13px] font-normal text-[#A89E94] line-through">
+                                  {product.oldPrice}
+                                </p>
+                            )}
+                          </div>
+                          {/* Delivery tags + dispatch time — top-right of the
+                          price card, aligned with the price row. */}
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            <DeliveryOptionTags product={product} />
+                            {dispatchLabel && (
+                                <span className="text-[10px] font-medium text-[#8C7E74]">
+                            {dispatchLabel}
+                          </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-[#EBE3D5] pt-3 text-[11px] text-[#6E6053]">
                       <span className="flex items-center gap-1.5">
                         <ShieldCheck size={13} className="text-[#9E2A1B]" />{' '}
                         Quality Checked
                       </span>
-                      <span className="flex items-center gap-1.5">
+                          <span className="flex items-center gap-1.5">
                         <Lock size={13} className="text-[#9E2A1B]" /> Secure
                         Payment
                       </span>
-                      <span className="flex items-center gap-1.5">
+                          <span className="flex items-center gap-1.5">
                         <RefreshCw size={13} className="text-[#9E2A1B]" /> Easy
                         Returns
                       </span>
-                    </div>
-                  </div>
+                        </div>
+                      </div>
 
-                  {/* Details card — now uses real availability/shipping/defectFlaws */}
-                  <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-2.5">
-                    {[
-                      { label: 'Size on Label', value: product.size },
-                      { label: 'Condition', value: product.condition },
-                      { label: 'Color', value: product.color },
-                      { label: 'Material', value: product.material },
-                      {
-                        label: 'Original Price',
-                        value: product.oldPrice ?? product.price,
-                      },
-                      {
-                        label: 'Availability',
-                        value: product.availability,
-                        pill: true,
-                      },
-                      {
-                        label: 'Visible Flaws / Notes',
-                        value: product.defectFlaws ?? 'None noted',
-                      },
-                    ].map(({ label, value, pill }) => (
-                      <div
-                        key={label}
-                        className="flex items-center justify-between text-[12px]"
-                      >
-                        <span className="text-[#6E6053]">{label}</span>
-                        {pill ? (
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                              value === 'Available'
-                                ? 'bg-[#E8F5EE] text-[#2E7D52]'
-                                : value === 'Reserved'
-                                  ? 'bg-[#FDF3D9] text-[#92740E]'
-                                  : 'bg-[#F0EBE3] text-[#8C7E74]'
-                            }`}
+                      {/* Details card — now uses real availability/shipping/defectFlaws */}
+                      <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-2.5">
+                        {[
+                          { label: 'Size on Label', value: product.size },
+                          { label: 'Condition', value: product.condition },
+                          { label: 'Color', value: product.color },
+                          { label: 'Material', value: product.material },
+                          {
+                            label: 'Original Price',
+                            value: product.oldPrice ?? product.price,
+                          },
+                          {
+                            label: 'Availability',
+                            value: product.availability,
+                            pill: true,
+                          },
+                          {
+                            label: 'Visible Flaws / Notes',
+                            value: product.defectFlaws ?? 'None noted',
+                          },
+                        ].map(({ label, value, pill }) => (
+                            <div
+                                key={label}
+                                className="flex items-center justify-between text-[12px]"
+                            >
+                              <span className="text-[#6E6053]">{label}</span>
+                              {pill ? (
+                                  <span
+                                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                                          value === 'Available'
+                                              ? 'bg-[#E8F5EE] text-[#2E7D52]'
+                                              : value === 'Reserved'
+                                                  ? 'bg-[#FDF3D9] text-[#92740E]'
+                                                  : 'bg-[#F0EBE3] text-[#8C7E74]'
+                                      }`}
+                                  >
+                            {value}
+                          </span>
+                              ) : (
+                                  <span className="text-right font-semibold text-[#1A130E]">
+                            {value}
+                          </span>
+                              )}
+                            </div>
+                        ))}
+                      </div>
+
+                      {/* Buy Now → Go to Cart (already added) → View Listing (owner) */}
+                      {isOwner ? (
+                          <Link
+                              href={listingManagePath}
+                              className="block w-full rounded-lg bg-[#1A130E] py-3.5 text-center text-[13px] font-bold text-white transition hover:bg-[#332620]"
                           >
-                            {value}
-                          </span>
-                        ) : (
-                          <span className="text-right font-semibold text-[#1A130E]">
-                            {value}
-                          </span>
-                        )}
+                            View Listing
+                          </Link>
+                      ) : isInCart ? (
+                          <Link
+                              href="/cart"
+                              className="block w-full rounded-lg bg-[#9E2A1B] py-3.5 text-center text-[13px] font-bold text-white transition hover:bg-[#832215]"
+                          >
+                            Go to Cart
+                          </Link>
+                      ) : (
+                          <button
+                              onClick={() =>
+                                  requireAuth(() => setThriftModalOpen(true))
+                              }
+                              className="w-full rounded-lg bg-[#9E2A1B] py-3.5 text-[13px] font-bold text-white transition hover:bg-[#832215]"
+                          >
+                            Buy Now
+                          </button>
+                      )}
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                            onClick={() => setTryOnOpen(true)}
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
+                        >
+                          <Sparkles size={13} className="text-[#9E2A1B]" /> Virtual
+                          Try-On
+                        </button>
+                        <button
+                            onClick={handleToggleFavorite}
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
+                        >
+                          <Heart
+                              size={13}
+                              className={isFav ? 'fill-[#9E2A1B] text-[#9E2A1B]' : ''}
+                          />
+                          {isFav ? 'Saved' : 'Save Item'}
+                        </button>
+                        <button
+                            onClick={() =>
+                                requireAuth(() => setReportModalOpen(true))
+                            }
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
+                        >
+                          <Info size={13} /> Report
+                        </button>
                       </div>
-                    ))}
 
-                    {/* Delivery Options — hybrid-aware tag row (Shipping / Pickup / Free) */}
-                    <div className="flex items-center justify-between text-[12px]">
-                      <span className="text-[#6E6053]">Delivery Options</span>
-                      <DeliveryOptionTags product={product} />
-                    </div>
-                  </div>
-
-                  {/* Buy Now → Go to Cart (already added) → View Listing (owner) */}
-                  {isOwner ? (
-                    <Link
-                      href={listingManagePath}
-                      className="block w-full rounded-lg bg-[#1A130E] py-3.5 text-center text-[13px] font-bold text-white transition hover:bg-[#332620]"
-                    >
-                      View Listing
-                    </Link>
-                  ) : isInCart ? (
-                    <Link
-                      href="/cart"
-                      className="block w-full rounded-lg bg-[#9E2A1B] py-3.5 text-center text-[13px] font-bold text-white transition hover:bg-[#832215]"
-                    >
-                      Go to Cart
-                    </Link>
-                  ) : (
-                    <button
-                      onClick={() =>
-                        requireAuth(() => setThriftModalOpen(true))
-                      }
-                      className="w-full rounded-lg bg-[#9E2A1B] py-3.5 text-[13px] font-bold text-white transition hover:bg-[#832215]"
-                    >
-                      Buy Now
-                    </button>
-                  )}
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => setTryOnOpen(true)}
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
-                    >
-                      <Sparkles size={13} className="text-[#9E2A1B]" /> Virtual
-                      Try-On
-                    </button>
-                    <button
-                      onClick={handleToggleFavorite}
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
-                    >
-                      <Heart
-                        size={13}
-                        className={isFav ? 'fill-[#9E2A1B] text-[#9E2A1B]' : ''}
-                      />
-                      {isFav ? 'Saved' : 'Save Item'}
-                    </button>
-                    <button
-                      onClick={() =>
-                        requireAuth(() => setReportModalOpen(true))
-                      }
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
-                    >
-                      <Info size={13} /> Report
-                    </button>
-                  </div>
-
-                  {/* Condition Notes card — now uses real defectFlaws */}
-                  <div className="rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-4">
-                    <p className="text-[13px] font-bold text-[#1A130E]">
-                      Condition Notes
-                    </p>
-                    <div className="mt-2.5 flex items-start gap-2.5">
-                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
-                        <AlertTriangle size={13} className="text-[#9E2A1B]" />
-                      </div>
-                      <div>
-                        <p className="text-[12px] font-medium text-[#4F4338]">
-                          {product.defectFlaws ?? 'No major flaws.'}
+                      {/* Condition Notes card — now uses real defectFlaws */}
+                      <div className="rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-4">
+                        <p className="text-[13px] font-bold text-[#1A130E]">
+                          Condition Notes
                         </p>
-                        <p className="mt-0.5 text-[11px] text-[#8C7E74]">
-                          No major flaws. Overall in great condition.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* ══════════════ RENT-ADAPTED RIGHT COLUMN ══════════════ */}
-              {isRent && (
-                <>
-                  {/* Real "Currently on Rent" status, derived from product.rentDuration */}
-                  {isRentedNow && (
-                    <div className="rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-4 space-y-2.5">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 shrink-0 text-[#9E2A1B]">
-                          <RotateCcw size={17} />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-[#8C7E74]">
-                            Rent Status
-                          </p>
-                          <h4 className="mt-0.5 text-[14px] font-bold text-[#1A130E]">
-                            Currently on Rent
-                          </h4>
-                          <p className="mt-1 text-[11px] text-[#8C7E74]">
-                            Available Again
-                          </p>
-                          <p className="text-[16px] font-bold text-[#1A130E]">
-                            {activeRentRange
-                              ? formatShortDate(activeRentRange.end)
-                              : '—'}
-                          </p>
+                        <div className="mt-2.5 flex items-start gap-2.5">
+                          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
+                            <AlertTriangle size={13} className="text-[#9E2A1B]" />
+                          </div>
+                          <div>
+                            <p className="text-[12px] font-medium text-[#4F4338]">
+                              {product.defectFlaws ?? 'No major flaws.'}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-[#8C7E74]">
+                              No major flaws. Overall in great condition.
+                            </p>
+                          </div>
                         </div>
                       </div>
-                      <p className="text-center text-[11px] text-[#8C7E74]">
-                        This item is currently rented out and can't be booked
-                        for these dates.
-                      </p>
-                    </div>
-                  )}
+                    </>
+                )}
 
-                  {/* Price card — daily rate + security deposit + trust row (matches reference) */}
-                  <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-3">
-                    <div className="flex items-baseline gap-1.5">
-                      <p className="text-[26px] font-bold leading-none text-[#9E2A1B]">
-                        {dailyRate}
-                      </p>
-                      <span className="text-[12px] text-[#8C7E74]">/ day</span>
-                    </div>
-                    <p className="flex items-center gap-1.5 text-[12px] text-[#6E6053]">
-                      Security Deposit:{' '}
-                      <span className="font-semibold text-[#1A130E]">
+                {/* ══════════════ RENT-ADAPTED RIGHT COLUMN ══════════════ */}
+                {isRent && (
+                    <>
+                      {/* Real "Currently on Rent" status, derived from product.rentDuration */}
+                      {isRentedNow && (
+                          <div className="rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-4 space-y-2.5">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 shrink-0 text-[#9E2A1B]">
+                                <RotateCcw size={17} />
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-[#8C7E74]">
+                                  Rent Status
+                                </p>
+                                <h4 className="mt-0.5 text-[14px] font-bold text-[#1A130E]">
+                                  Currently on Rent
+                                </h4>
+                                <p className="mt-1 text-[11px] text-[#8C7E74]">
+                                  Available Again
+                                </p>
+                                <p className="text-[16px] font-bold text-[#1A130E]">
+                                  {activeRentRange
+                                      ? formatShortDate(activeRentRange.end)
+                                      : '—'}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="text-center text-[11px] text-[#8C7E74]">
+                              This item is currently rented out and can't be booked
+                              for these dates.
+                            </p>
+                          </div>
+                      )}
+
+                      {/* Price card — daily rate + security deposit + trust row (matches reference) */}
+                      <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-baseline gap-1.5">
+                            <p className="text-[26px] font-bold leading-none text-[#9E2A1B]">
+                              {dailyRate}
+                            </p>
+                            <span className="text-[12px] text-[#8C7E74]">/ day</span>
+                          </div>
+                          {/* Delivery tags + dispatch time — top-right of the
+                          price card, aligned with the daily-rate row. */}
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            <DeliveryOptionTags product={product} />
+                            {dispatchLabel && (
+                                <span className="text-[10px] font-medium text-[#8C7E74]">
+                            {dispatchLabel}
+                          </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="flex items-center gap-1.5 text-[12px] text-[#6E6053]">
+                          Security Deposit:{' '}
+                          <span className="font-semibold text-[#1A130E]">
                         {securityDeposit} (Refundable)
                       </span>
-                      <Info size={12} className="shrink-0 text-[#A6998E]" />
-                    </p>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-[#EBE3D5] pt-3 text-[11px] text-[#6E6053]">
+                          <Info size={12} className="shrink-0 text-[#A6998E]" />
+                        </p>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-[#EBE3D5] pt-3 text-[11px] text-[#6E6053]">
                       <span className="flex items-center gap-1.5">
                         <ShieldCheck size={13} className="text-[#9E2A1B]" />{' '}
                         Quality Checked
                       </span>
-                      <span className="flex items-center gap-1.5">
+                          <span className="flex items-center gap-1.5">
                         <Lock size={13} className="text-[#9E2A1B]" /> Secure
                         Payment
                       </span>
-                      <span className="flex items-center gap-1.5">
+                          <span className="flex items-center gap-1.5">
                         <RefreshCw size={13} className="text-[#9E2A1B]" /> Easy
                         Returns
                       </span>
-                    </div>
-                  </div>
-
-                  {/* Rental dates summary card — opens the date picker modal */}
-                  <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-3">
-                    <div className="flex items-center gap-1.5">
-                      <CalendarDays size={14} className="text-[#9E2A1B]" />
-                      <p className="text-[13px] font-bold text-[#1A130E]">
-                        Select Rental Dates
-                      </p>
-                    </div>
-                    <p className="text-[11px] text-[#8C7E74]">
-                      Choose your start and return date for this rental.
-                    </p>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="rounded-lg border border-[#EBE3D5] bg-[#FDFAF6] px-2.5 py-2.5">
-                        <p className="text-[9px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                          Start Date
-                        </p>
-                        <p className="mt-0.5 text-[11px] font-semibold text-[#1A130E]">
-                          {selectedStart
-                            ? formatShortDate(selectedStart)
-                            : 'Not selected'}
-                        </p>
+                        </div>
                       </div>
-                      <div className="rounded-lg border border-[#EBE3D5] bg-[#FDFAF6] px-2.5 py-2.5">
-                        <p className="text-[9px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                          End Date
-                        </p>
-                        <p className="mt-0.5 text-[11px] font-semibold text-[#1A130E]">
-                          {selectedEnd
-                            ? formatShortDate(selectedEnd)
-                            : 'Not selected'}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-[#EBE3D5] bg-[#FDFAF6] px-2.5 py-2.5">
-                        <p className="text-[9px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                          Return Date
-                        </p>
-                        <p className="mt-0.5 text-[11px] font-semibold text-[#1A130E]">
-                          {selectedEnd
-                            ? formatShortDate(selectedEnd)
-                            : 'Not selected'}
-                        </p>
-                      </div>
-                    </div>
 
-                    {rentalDays && (
-                      <div className="flex items-center justify-between rounded-lg bg-[#FAF0E6] px-3 py-2 text-[12px]">
+                      {/* Rental dates summary card — opens the date picker modal */}
+                      <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-3">
+                        <div className="flex items-center gap-1.5">
+                          <CalendarDays size={14} className="text-[#9E2A1B]" />
+                          <p className="text-[13px] font-bold text-[#1A130E]">
+                            Select Rental Dates
+                          </p>
+                        </div>
+                        <p className="text-[11px] text-[#8C7E74]">
+                          Choose your start and return date for this rental.
+                        </p>
+
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="rounded-lg border border-[#EBE3D5] bg-[#FDFAF6] px-2.5 py-2.5">
+                            <p className="text-[9px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                              Start Date
+                            </p>
+                            <p className="mt-0.5 text-[11px] font-semibold text-[#1A130E]">
+                              {selectedStart
+                                  ? formatShortDate(selectedStart)
+                                  : 'Not selected'}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-[#EBE3D5] bg-[#FDFAF6] px-2.5 py-2.5">
+                            <p className="text-[9px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                              End Date
+                            </p>
+                            <p className="mt-0.5 text-[11px] font-semibold text-[#1A130E]">
+                              {selectedEnd
+                                  ? formatShortDate(selectedEnd)
+                                  : 'Not selected'}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-[#EBE3D5] bg-[#FDFAF6] px-2.5 py-2.5">
+                            <p className="text-[9px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                              Return Date
+                            </p>
+                            <p className="mt-0.5 text-[11px] font-semibold text-[#1A130E]">
+                              {selectedEnd
+                                  ? formatShortDate(selectedEnd)
+                                  : 'Not selected'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {rentalDays && (
+                            <div className="flex items-center justify-between rounded-lg bg-[#FAF0E6] px-3 py-2 text-[12px]">
                         <span className="text-[#6E6053]">
                           Total Rental Days
                         </span>
-                        <span className="font-bold text-[#9E2A1B]">
+                              <span className="font-bold text-[#9E2A1B]">
                           {rentalDays} day{rentalDays > 1 ? 's' : ''}
                         </span>
+                            </div>
+                        )}
+
+                        <button
+                            onClick={() => {
+                              setDateError(null);
+                              setDateModalOpen(true);
+                            }}
+                            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#9E2A1B] bg-[#9E2A1B]/6 py-2.5 text-[12px] font-bold text-[#9E2A1B] transition hover:bg-[#9E2A1B]/10"
+                        >
+                          <CalendarDays size={13} />
+                          {selectedStart && selectedEnd
+                              ? 'Change Dates'
+                              : 'Select Dates'}
+                        </button>
+
+                        {dateError && (
+                            <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#9E2A1B]">
+                              <AlertTriangle size={12} /> {dateError}
+                            </p>
+                        )}
                       </div>
-                    )}
 
-                    <button
-                      onClick={() => {
-                        setDateError(null);
-                        setDateModalOpen(true);
-                      }}
-                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#9E2A1B] bg-[#9E2A1B]/6 py-2.5 text-[12px] font-bold text-[#9E2A1B] transition hover:bg-[#9E2A1B]/10"
-                    >
-                      <CalendarDays size={13} />
-                      {selectedStart && selectedEnd
-                        ? 'Change Dates'
-                        : 'Select Dates'}
-                    </button>
-
-                    {dateError && (
-                      <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#9E2A1B]">
-                        <AlertTriangle size={12} /> {dateError}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Details card — Thrift-style, adapted for Rent */}
-                  <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-2.5">
-                    {[
-                      { label: 'Size', value: product.size },
-                      { label: 'Condition', value: product.condition },
-                      { label: 'Color', value: product.color },
-                      { label: 'Material', value: product.material },
-                    ].map(({ label, value }) => (
-                      <div
-                        key={label}
-                        className="flex items-center justify-between text-[12px]"
-                      >
-                        <span className="text-[#6E6053]">{label}</span>
-                        <span className="text-right font-semibold text-[#1A130E]">
+                      {/* Details card — Thrift-style, adapted for Rent */}
+                      <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 space-y-2.5">
+                        {[
+                          { label: 'Size', value: product.size },
+                          { label: 'Condition', value: product.condition },
+                          { label: 'Color', value: product.color },
+                          { label: 'Material', value: product.material },
+                        ].map(({ label, value }) => (
+                            <div
+                                key={label}
+                                className="flex items-center justify-between text-[12px]"
+                            >
+                              <span className="text-[#6E6053]">{label}</span>
+                              <span className="text-right font-semibold text-[#1A130E]">
                           {value}
                         </span>
-                      </div>
-                    ))}
+                            </div>
+                        ))}
 
-                    <div className="flex items-center justify-between text-[12px]">
-                      <span className="text-[#6E6053]">Delivery Options</span>
-                      <DeliveryOptionTags product={product} />
-                    </div>
-
-                    <div className="flex items-center justify-between text-[12px]">
+                        <div className="flex items-center justify-between text-[12px]">
                       <span className="text-[#6E6053]">
                         Visible Flaws / Notes
                       </span>
-                      <span className="text-right font-semibold text-[#1A130E]">
+                          <span className="text-right font-semibold text-[#1A130E]">
                         {product.defectFlaws ?? 'None noted'}
                       </span>
-                    </div>
-                  </div>
+                        </div>
+                      </div>
 
-                  {/* Rent Now → Go to Cart (already added) → View Listing (owner) */}
-                  {isOwner ? (
-                    <Link
-                      href={listingManagePath}
-                      className="block w-full rounded-lg bg-[#1A130E] py-3.5 text-center text-[13px] font-bold text-white transition hover:bg-[#332620]"
-                    >
-                      View Listing
-                    </Link>
-                  ) : isInCart ? (
-                    <Link
-                      href="/cart"
-                      className="block w-full rounded-lg bg-[#1A130E] py-3.5 text-center text-[13px] font-bold text-white transition hover:bg-[#332620]"
-                    >
-                      Go to Cart
-                    </Link>
-                  ) : (
-                    <button
-                      onClick={handleRentNow}
-                      className="w-full rounded-lg bg-[#1A130E] py-3.5 text-[13px] font-bold text-white transition hover:bg-[#332620]"
-                    >
-                      Rent Now
-                    </button>
-                  )}
+                      {/* Rent Now → Go to Cart (already added) → View Listing (owner) */}
+                      {isOwner ? (
+                          <Link
+                              href={listingManagePath}
+                              className="block w-full rounded-lg bg-[#1A130E] py-3.5 text-center text-[13px] font-bold text-white transition hover:bg-[#332620]"
+                          >
+                            View Listing
+                          </Link>
+                      ) : isInCart ? (
+                          <Link
+                              href="/cart"
+                              className="block w-full rounded-lg bg-[#1A130E] py-3.5 text-center text-[13px] font-bold text-white transition hover:bg-[#332620]"
+                          >
+                            Go to Cart
+                          </Link>
+                      ) : (
+                          <button
+                              onClick={handleRentNow}
+                              className="w-full rounded-lg bg-[#1A130E] py-3.5 text-[13px] font-bold text-white transition hover:bg-[#332620]"
+                          >
+                            Rent Now
+                          </button>
+                      )}
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => setTryOnOpen(true)}
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
-                    >
-                      <Sparkles size={13} className="text-[#9E2A1B]" /> Virtual
-                      Try-On
-                    </button>
-                    <button
-                      onClick={handleToggleFavorite}
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
-                    >
-                      <Heart
-                        size={13}
-                        className={isFav ? 'fill-[#9E2A1B] text-[#9E2A1B]' : ''}
-                      />
-                      {isFav ? 'Saved' : 'Save Item'}
-                    </button>
-                    <button
-                      onClick={() =>
-                        requireAuth(() => setReportModalOpen(true))
-                      }
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
-                    >
-                      <Info size={13} /> Report
-                    </button>
-                  </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                            onClick={() => setTryOnOpen(true)}
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
+                        >
+                          <Sparkles size={13} className="text-[#9E2A1B]" /> Virtual
+                          Try-On
+                        </button>
+                        <button
+                            onClick={handleToggleFavorite}
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
+                        >
+                          <Heart
+                              size={13}
+                              className={isFav ? 'fill-[#9E2A1B] text-[#9E2A1B]' : ''}
+                          />
+                          {isFav ? 'Saved' : 'Save Item'}
+                        </button>
+                        <button
+                            onClick={() =>
+                                requireAuth(() => setReportModalOpen(true))
+                            }
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[#DDD5C8] bg-white py-2.5 text-[11px] font-semibold text-[#594E46] transition hover:bg-[#FAF6F0]"
+                        >
+                          <Info size={13} /> Report
+                        </button>
+                      </div>
 
-                  {/* Return Process card — makes the return workflow explicit */}
-                  <div className="rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-4 space-y-2.5">
-                    <p className="text-[13px] font-bold text-[#1A130E]">
-                      Return Process
-                    </p>
-                    <div className="flex items-start gap-2.5">
-                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
-                        <RotateCcw size={13} className="text-[#9E2A1B]" />
-                      </div>
-                      <div>
-                        <p className="text-[12px] font-semibold text-[#1A130E]">
-                          {selectedEnd
-                            ? `Return by ${formatShortDate(selectedEnd)}`
-                            : 'Select dates to see your return date'}
+                      {/* Return Process card — makes the return workflow explicit */}
+                      <div className="rounded-xl border border-[#EBE3D5] bg-[#FDFAF6] p-4 space-y-2.5">
+                        <p className="text-[13px] font-bold text-[#1A130E]">
+                          Return Process
                         </p>
-                        <p className="mt-0.5 text-[11px] text-[#8C7E74]">
-                          Return method follows whatever you choose at checkout
-                          — courier pickup for shipping, or drop-off with{' '}
-                          {sellerName} for pickup orders.
-                        </p>
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
+                            <RotateCcw size={13} className="text-[#9E2A1B]" />
+                          </div>
+                          <div>
+                            <p className="text-[12px] font-semibold text-[#1A130E]">
+                              {selectedEnd
+                                  ? `Return by ${formatShortDate(selectedEnd)}`
+                                  : 'Select dates to see your return date'}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-[#8C7E74]">
+                              Return method follows whatever you choose at checkout
+                              — courier pickup for shipping, or drop-off with{' '}
+                              {sellerName} for pickup orders.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
+                            <ShieldCheck size={13} className="text-[#9E2A1B]" />
+                          </div>
+                          <div>
+                            <p className="text-[12px] font-semibold text-[#1A130E]">
+                              Deposit refund
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-[#8C7E74]">
+                              {securityDeposit} refunded within 3 business days
+                              after condition inspection.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
+                            <AlertTriangle size={13} className="text-[#9E2A1B]" />
+                          </div>
+                          <div>
+                            <p className="text-[12px] font-semibold text-[#1A130E]">
+                              Late or damaged returns
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-[#8C7E74]">
+                              Late fees apply per extra day; damage may be deducted
+                              from the deposit.
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-start gap-2.5">
-                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
-                        <ShieldCheck size={13} className="text-[#9E2A1B]" />
-                      </div>
-                      <div>
-                        <p className="text-[12px] font-semibold text-[#1A130E]">
-                          Deposit refund
-                        </p>
-                        <p className="mt-0.5 text-[11px] text-[#8C7E74]">
-                          {securityDeposit} refunded within 3 business days
-                          after condition inspection.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2.5">
-                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white">
-                        <AlertTriangle size={13} className="text-[#9E2A1B]" />
-                      </div>
-                      <div>
-                        <p className="text-[12px] font-semibold text-[#1A130E]">
-                          Late or damaged returns
-                        </p>
-                        <p className="mt-0.5 text-[11px] text-[#8C7E74]">
-                          Late fees apply per extra day; damage may be deducted
-                          from the deposit.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </section>
+                    </>
+                )}
+              </div>
+            </section>
 
-          {/* ══ TRUST STRIP ══ */}
-          <section className="mt-8 grid grid-cols-5 divide-x divide-[#EBE3D5] rounded-xl border border-[#EBE3D5] bg-[#FAF8F5]">
-            {[
-              {
-                icon: ShieldCheck,
-                label: 'Verified Seller',
-                sub: 'Trusted & reviewed',
-              },
-              { icon: Lock, label: 'Secure Payment', sub: '100% protected' },
-              {
-                icon: Recycle,
-                label: 'Sustainable Choice',
-                sub: 'Reduce. Rewear. Repeat.',
-              },
-              {
-                icon: Users,
-                label: 'Community Driven',
-                sub: 'By buyers, for buyers.',
-              },
-              { icon: Sparkles, label: 'Virtual Try-On', sub: 'See it on you' },
-            ].map(({ icon: Icon, label, sub }) => (
-              <div
-                key={label}
-                className="flex flex-col items-center gap-1.5 px-2 py-5 text-center"
-              >
-                <Icon size={18} className="text-[#9E2A1B]" />
-                <span className="text-[11px] font-bold leading-tight text-[#1A130E]">
+            {/* ══ TRUST STRIP ══ */}
+            <section className="mt-8 grid grid-cols-5 divide-x divide-[#EBE3D5] rounded-xl border border-[#EBE3D5] bg-[#FAF8F5]">
+              {[
+                {
+                  icon: ShieldCheck,
+                  label: 'Verified Seller',
+                  sub: 'Trusted & reviewed',
+                },
+                { icon: Lock, label: 'Secure Payment', sub: '100% protected' },
+                {
+                  icon: Recycle,
+                  label: 'Sustainable Choice',
+                  sub: 'Reduce. Rewear. Repeat.',
+                },
+                {
+                  icon: Users,
+                  label: 'Community Driven',
+                  sub: 'By buyers, for buyers.',
+                },
+                { icon: Sparkles, label: 'Virtual Try-On', sub: 'See it on you' },
+              ].map(({ icon: Icon, label, sub }) => (
+                  <div
+                      key={label}
+                      className="flex flex-col items-center gap-1.5 px-2 py-5 text-center"
+                  >
+                    <Icon size={18} className="text-[#9E2A1B]" />
+                    <span className="text-[11px] font-bold leading-tight text-[#1A130E]">
                   {label}
                 </span>
-                <span className="text-[10px] leading-tight text-[#8C7E74]">
+                    <span className="text-[10px] leading-tight text-[#8C7E74]">
                   {sub}
                 </span>
-              </div>
-            ))}
-          </section>
+                  </div>
+              ))}
+            </section>
 
-          {/* ══ TRY BEFORE YOU BUY BANNER ══ */}
-          <section className="mt-8 overflow-hidden rounded-xl border border-[#EBE3D5] bg-white shadow-sm">
-            <div className="grid md:grid-cols-[1fr_1.1fr]">
-              <div className="flex flex-col justify-center p-8 sm:p-10 lg:p-12">
-                <h3 className="font-serif text-[24px] font-normal tracking-wide text-[#1A130E] sm:text-[28px]">
-                  Try Before You Buy
-                </h3>
-                <p className="mt-2 max-w-[340px] text-[13px] leading-relaxed text-[#6E6053]">
-                  Upload a photo and see how this {product.name.toLowerCase()}{' '}
-                  looks on you.
-                </p>
-                <button
-                  onClick={() => setTryOnOpen(true)}
-                  className="mt-6 inline-flex w-fit items-center gap-2 rounded-md bg-[#9E2A1B] px-7 py-2.5 text-[13px] font-bold text-white transition hover:bg-[#832215]"
-                >
-                  Launch AI Try-On
-                </button>
-                <div className="mt-4 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-widest text-[#A6998E]">
-                  <span>Fast</span>
-                  <span className="h-1 w-1 rounded-full bg-[#DCD3C4]" />
-                  <span>Private</span>
-                  <span className="h-1 w-1 rounded-full bg-[#DCD3C4]" />
-                  <span>Secure</span>
+            {/* ══ TRY BEFORE YOU BUY BANNER ══ */}
+            <section className="mt-8 overflow-hidden rounded-xl border border-[#EBE3D5] bg-white shadow-sm">
+              <div className="grid md:grid-cols-[1fr_1.1fr]">
+                <div className="flex flex-col justify-center p-8 sm:p-10 lg:p-12">
+                  <h3 className="font-serif text-[24px] font-normal tracking-wide text-[#1A130E] sm:text-[28px]">
+                    Try Before You Buy
+                  </h3>
+                  <p className="mt-2 max-w-[340px] text-[13px] leading-relaxed text-[#6E6053]">
+                    Upload a photo and see how this {product.name.toLowerCase()}{' '}
+                    looks on you.
+                  </p>
+                  <button
+                      onClick={() => setTryOnOpen(true)}
+                      className="mt-6 inline-flex w-fit items-center gap-2 rounded-md bg-[#9E2A1B] px-7 py-2.5 text-[13px] font-bold text-white transition hover:bg-[#832215]"
+                  >
+                    Launch AI Try-On
+                  </button>
+                  <div className="mt-4 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-widest text-[#A6998E]">
+                    <span>Fast</span>
+                    <span className="h-1 w-1 rounded-full bg-[#DCD3C4]" />
+                    <span>Private</span>
+                    <span className="h-1 w-1 rounded-full bg-[#DCD3C4]" />
+                    <span>Secure</span>
+                  </div>
+                </div>
+                <div className="relative min-h-[220px]">
+                  <Image
+                      src="/images/tryon3.png"
+                      alt="AI Try-On preview"
+                      fill
+                      priority
+                      className="object-contain"
+                  />
                 </div>
               </div>
-              <div className="relative min-h-[220px]">
-                <Image
-                  src="/images/tryon3.png"
-                  alt="AI Try-On preview"
-                  fill
-                  priority
-                  className="object-contain"
-                />
+            </section>
+
+            {/* ══ RECOMMENDATIONS ══ */}
+            <div className="mt-12 space-y-12">
+              {(isRent || isHybrid) && (
+                  <RecommendationRow
+                      title="Rent the Look"
+                      linkLabel="View All Rentals →"
+                      items={
+                        rentRecs.length > 0 ? rentRecs : recommendations.slice(0, 4)
+                      }
+                      mode="rent"
+                      compact
+                  />
+              )}
+
+              {(isThrift || isHybrid) && (
+                  <RecommendationRow
+                      title="You May Also Love"
+                      linkLabel="Explore More →"
+                      items={
+                        thriftRecs.length > 0
+                            ? thriftRecs
+                            : recommendations.slice(0, 4)
+                      }
+                      mode="thrift"
+                      compact
+                  />
+              )}
+            </div>
+          </main>
+
+          {/* Lightbox */}
+          {lightboxOpen && (
+              <div
+                  className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+                  onClick={() => setLightboxOpen(false)}
+              >
+                <button
+                    onClick={() => setLightboxOpen(false)}
+                    className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+                >
+                  <X size={20} />
+                </button>
+                <div
+                    className="relative aspect-[3/4] w-full max-w-[600px] max-h-[85vh] overflow-hidden rounded-xl"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                  <Image
+                      src={selectedMedia.src}
+                      alt="Full view"
+                      fill
+                      className="object-contain"
+                      quality={100}
+                  />
+                </div>
               </div>
-            </div>
-          </section>
+          )}
 
-          {/* ══ RECOMMENDATIONS ══ */}
-          <div className="mt-12 space-y-12">
-            {(isRent || isHybrid) && (
-              <RecommendationRow
-                title="Rent the Look"
-                linkLabel="View All Rentals →"
-                items={
-                  rentRecs.length > 0 ? rentRecs : recommendations.slice(0, 4)
-                }
-                mode="rent"
-                compact
+          {/* Try-On Modal */}
+          {tryOnOpen && (
+              <TryOnModal product={product} onClose={() => setTryOnOpen(false)} />
+          )}
+          {/* Buy Now — Thrift */}
+          {thriftModalOpen && (
+              <BuyNowModal
+                  product={product}
+                  onClose={() => setThriftModalOpen(false)}
               />
-            )}
-
-            {(isThrift || isHybrid) && (
-              <RecommendationRow
-                title="You May Also Love"
-                linkLabel="Explore More →"
-                items={
-                  thriftRecs.length > 0
-                    ? thriftRecs
-                    : recommendations.slice(0, 4)
-                }
-                mode="thrift"
-                compact
+          )}
+          {/* Report this listing */}
+          {reportModalOpen && (
+              <ReportModal
+                  product={product}
+                  onClose={() => setReportModalOpen(false)}
               />
-            )}
-          </div>
-        </main>
-
-        {/* Lightbox */}
-        {lightboxOpen && (
-          <div
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
-            onClick={() => setLightboxOpen(false)}
-          >
-            <button
-              onClick={() => setLightboxOpen(false)}
-              className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-            >
-              <X size={20} />
-            </button>
-            <div
-              className="relative aspect-[3/4] w-full max-w-[600px] max-h-[85vh] overflow-hidden rounded-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Image
-                src={selectedMedia.src}
-                alt="Full view"
-                fill
-                className="object-contain"
-                quality={100}
+          )}
+          {/* Rent date-picker modal */}
+          {dateModalOpen && (
+              <RentDatePickerModal
+                  initialStart={selectedStart}
+                  initialEnd={selectedEnd}
+                  dailyRateNumber={dailyRateNumber}
+                  securityDepositNumber={securityDepositNumber}
+                  bookedRange={activeRentRange}
+                  onConfirm={(start, end) => {
+                    setSelectedStart(start);
+                    setSelectedEnd(end);
+                    setDateModalOpen(false);
+                  }}
+                  onClose={() => setDateModalOpen(false)}
               />
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* Try-On Modal */}
-        {tryOnOpen && (
-          <TryOnModal product={product} onClose={() => setTryOnOpen(false)} />
-        )}
-        {/* Buy Now — Thrift */}
-        {thriftModalOpen && (
-          <BuyNowModal
-            product={product}
-            onClose={() => setThriftModalOpen(false)}
-          />
-        )}
-        {/* Report this listing */}
-        {reportModalOpen && (
-          <ReportModal
-            product={product}
-            onClose={() => setReportModalOpen(false)}
-          />
-        )}
-        {/* Rent date-picker modal */}
-        {dateModalOpen && (
-          <RentDatePickerModal
-            initialStart={selectedStart}
-            initialEnd={selectedEnd}
-            dailyRateNumber={dailyRateNumber}
-            securityDepositNumber={securityDepositNumber}
-            bookedRange={activeRentRange}
-            onConfirm={(start, end) => {
-              setSelectedStart(start);
-              setSelectedEnd(end);
-              setDateModalOpen(false);
-            }}
-            onClose={() => setDateModalOpen(false)}
-          />
-        )}
-
-        {/* Rent Now — delivery/pickup/flex modal (mirrors BuyNowModal) */}
-        {rentModalOpen && selectedStart && selectedEnd && (
-          <RentNowModal
-            product={product}
-            rentInfo={{
-              days: rentalDays ?? 1,
-              startDate: selectedStart,
-              endDate: selectedEnd,
-              dailyRateNumber,
-              securityDepositNumber,
-            }}
-            onClose={() => setRentModalOpen(false)}
-          />
-        )}
+          {/* Rent Now — delivery/pickup/flex modal (mirrors BuyNowModal) */}
+          {rentModalOpen && selectedStart && selectedEnd && (
+              <RentNowModal
+                  product={product}
+                  rentInfo={{
+                    days: rentalDays ?? 1,
+                    startDate: selectedStart,
+                    endDate: selectedEnd,
+                    dailyRateNumber,
+                    securityDepositNumber,
+                  }}
+                  onClose={() => setRentModalOpen(false)}
+              />
+          )}
+        </div>
       </div>
-    </div>
   );
 }
 
 /* ─── Recommendation Row ──────────────────────────────────── */
 function RecommendationRow({
-  title,
-  linkLabel,
-  items,
-  mode,
-  compact = false,
-}: {
+                             title,
+                             linkLabel,
+                             items,
+                             mode,
+                             compact = false,
+                           }: {
   title: string;
   linkLabel: string;
   items: Product[];
@@ -1499,66 +1548,66 @@ function RecommendationRow({
   compact?: boolean;
 }) {
   return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
-          {title}
-        </h2>
-        <Link
-          href="/browse-finds"
-          className="text-[13px] font-bold text-[#9E2A1B] underline-offset-4 transition hover:underline"
-        >
-          {linkLabel}
-        </Link>
-      </div>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 md:grid-cols-4">
-        {items.map((item) => {
-          const tag = getContextTag(item.status, mode);
-          return (
-            <article key={item.id} className="group">
-              <div
-                className={`relative overflow-hidden rounded-lg bg-[#F5F0E8] ${compact ? 'aspect-[3/4]' : 'aspect-[0.8/1]'}`}
-              >
-                <Link
-                  href={`/browse-finds/${item.id}`}
-                  className="block h-full w-full"
-                >
-                  <Image
-                    src={item.image}
-                    alt={item.name}
-                    fill
-                    sizes="(min-width:1280px) 25vw,(min-width:640px) 50vw,100vw"
-                    className="object-cover transition duration-500 group-hover:scale-[1.03]"
-                  />
-                </Link>
-                <span
-                  className={`absolute left-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${tag.className}`}
-                >
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
+            {title}
+          </h2>
+          <Link
+              href="/browse-finds"
+              className="text-[13px] font-bold text-[#9E2A1B] underline-offset-4 transition hover:underline"
+          >
+            {linkLabel}
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 md:grid-cols-4">
+          {items.map((item) => {
+            const tag = getContextTag(item.status, mode);
+            return (
+                <article key={item.id} className="group">
+                  <div
+                      className={`relative overflow-hidden rounded-lg bg-[#F5F0E8] ${compact ? 'aspect-[3/4]' : 'aspect-[0.8/1]'}`}
+                  >
+                    <Link
+                        href={`/browse-finds/${item.id}`}
+                        className="block h-full w-full"
+                    >
+                      <Image
+                          src={item.image}
+                          alt={item.name}
+                          fill
+                          sizes="(min-width:1280px) 25vw,(min-width:640px) 50vw,100vw"
+                          className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                      />
+                    </Link>
+                    <span
+                        className={`absolute left-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${tag.className}`}
+                    >
                   {tag.label}
                 </span>
-                <button
-                  type="button"
-                  aria-label={`Save ${item.name}`}
-                  className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm transition hover:text-[#9E2A1B]"
-                >
-                  <Heart size={12} strokeWidth={2} className="text-[#707070]" />
-                </button>
-              </div>
-              <Link href={`/browse-finds/${item.id}`} className="mt-2 block">
-                <h3 className="line-clamp-2 text-[13px] font-medium leading-[1.35] text-[#1A1A1A]">
-                  {item.name}
-                </h3>
-                <p className="mt-0.5 text-[13px] font-semibold text-[#9E2A1B]">
-                  {mode === 'rent' && item.rentalPrice
-                    ? item.rentalPrice
-                    : item.price}
-                </p>
-              </Link>
-            </article>
-          );
-        })}
-      </div>
-    </section>
+                    <button
+                        type="button"
+                        aria-label={`Save ${item.name}`}
+                        className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm transition hover:text-[#9E2A1B]"
+                    >
+                      <Heart size={12} strokeWidth={2} className="text-[#707070]" />
+                    </button>
+                  </div>
+                  <Link href={`/browse-finds/${item.id}`} className="mt-2 block">
+                    <h3 className="line-clamp-2 text-[13px] font-medium leading-[1.35] text-[#1A1A1A]">
+                      {item.name}
+                    </h3>
+                    <p className="mt-0.5 text-[13px] font-semibold text-[#9E2A1B]">
+                      {mode === 'rent' && item.rentalPrice
+                          ? item.rentalPrice
+                          : item.price}
+                    </p>
+                  </Link>
+                </article>
+            );
+          })}
+        </div>
+      </section>
   );
 }
 
@@ -1566,9 +1615,9 @@ function RecommendationRow({
    VIRTUAL TRY-ON MODAL — unchanged from original
 ══════════════════════════════════════════════════════════ */
 function TryOnModal({
-  product,
-  onClose,
-}: {
+                      product,
+                      onClose,
+                    }: {
   product: Product;
   onClose: () => void;
 }) {
@@ -1592,16 +1641,16 @@ function TryOnModal({
       formData.append('garmentDescription', product.name);
 
       const token =
-        localStorage.getItem('accessToken') || localStorage.getItem('token');
+          localStorage.getItem('accessToken') || localStorage.getItem('token');
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/vton/image`,
-        {
-          method: 'POST',
-          body: formData,
-          credentials: 'include',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        },
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/vton/image`,
+          {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          },
       );
 
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
@@ -1644,356 +1693,356 @@ function TryOnModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm">
-      <div className="relative w-full max-w-[960px] rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl">
-        <button
-          onClick={onClose}
-          className="absolute right-3.5 top-3.5 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-[#FAF6F0] text-[#594E46] transition hover:bg-[#F4ECE3]"
-        >
-          <X size={16} />
-        </button>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm">
+        <div className="relative w-full max-w-[960px] rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl">
+          <button
+              onClick={onClose}
+              className="absolute right-3.5 top-3.5 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-[#FAF6F0] text-[#594E46] transition hover:bg-[#F4ECE3]"
+          >
+            <X size={16} />
+          </button>
 
-        <div className="px-6 pt-5 pb-4 text-center">
-          <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
-            Virtual Try-On
-          </h2>
-          <p className="mt-1 text-[13px] text-[#6E6053]">
-            See how this piece looks on you before you decide.
-          </p>
-          <div className="mt-1 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#4A6B3A]">
-            <Lock size={10} />
-            Your data is private and secure.
+          <div className="px-6 pt-5 pb-4 text-center">
+            <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
+              Virtual Try-On
+            </h2>
+            <p className="mt-1 text-[13px] text-[#6E6053]">
+              See how this piece looks on you before you decide.
+            </p>
+            <div className="mt-1 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#4A6B3A]">
+              <Lock size={10} />
+              Your data is private and secure.
+            </div>
           </div>
-        </div>
 
-        <div className="grid gap-3 px-5 sm:grid-cols-3">
-          {/* Column 1 — Selected Item */}
-          <div className="rounded-xl border border-[#EBE3D5] bg-white p-4">
+          <div className="grid gap-3 px-5 sm:grid-cols-3">
+            {/* Column 1 — Selected Item */}
+            <div className="rounded-xl border border-[#EBE3D5] bg-white p-4">
             <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-[#8C7E74]">
               1. Selected Item
             </span>
-            <div className="relative aspect-[3/3.2] w-full overflow-hidden rounded-lg border border-[#FAF6F0] bg-[#F5F0E8]">
-              <Image
-                src={product.image}
-                alt={product.name}
-                fill
-                className="object-cover"
-              />
-              <span
-                className={`absolute left-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
-                  STATUS_CONFIG[product.status]?.pill ??
-                  'bg-[#1A130E] text-white'
-                }`}
-              >
+              <div className="relative aspect-[3/3.2] w-full overflow-hidden rounded-lg border border-[#FAF6F0] bg-[#F5F0E8]">
+                <Image
+                    src={product.image}
+                    alt={product.name}
+                    fill
+                    className="object-cover"
+                />
+                <span
+                    className={`absolute left-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                        STATUS_CONFIG[product.status]?.pill ??
+                        'bg-[#1A130E] text-white'
+                    }`}
+                >
                 {product.status}
               </span>
+              </div>
+              <h4 className="mt-2.5 font-serif text-[14px] font-medium leading-tight text-[#1A130E]">
+                {product.name}
+              </h4>
+              <p className="mt-0.5 text-[13px] font-bold text-[#9E2A1B]">
+                {product.rentalPrice ? product.rentalPrice : product.price}
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1 text-[11px] text-[#6E6053]">
+                <span>{product.brand}</span>
+                <span className="text-[#B5A89E]">•</span>
+                <span>{product.material}</span>
+                <span className="text-[#B5A89E]">•</span>
+                <span>{product.color}</span>
+              </div>
             </div>
-            <h4 className="mt-2.5 font-serif text-[14px] font-medium leading-tight text-[#1A130E]">
-              {product.name}
-            </h4>
-            <p className="mt-0.5 text-[13px] font-bold text-[#9E2A1B]">
-              {product.rentalPrice ? product.rentalPrice : product.price}
-            </p>
-            <div className="mt-1.5 flex flex-wrap gap-1 text-[11px] text-[#6E6053]">
-              <span>{product.brand}</span>
-              <span className="text-[#B5A89E]">•</span>
-              <span>{product.material}</span>
-              <span className="text-[#B5A89E]">•</span>
-              <span>{product.color}</span>
-            </div>
-          </div>
 
-          {/* Column 2 — Upload */}
-          <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 flex flex-col gap-3">
-            <div>
+            {/* Column 2 — Upload */}
+            <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 flex flex-col gap-3">
+              <div>
               <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-[#8C7E74]">
                 2. Upload Your Photo
               </span>
-              <p className="text-[11px] text-[#6E6053]">
-                Use a clear front-facing photo in good lighting.
-              </p>
-            </div>
-
-            <label
-              className={`flex min-h-[130px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 text-center transition ${
-                fileSelected
-                  ? 'border-[#4A6B3A] bg-[#F4F8F3]'
-                  : 'border-[#DCD3C4] bg-[#FCFAF7] hover:border-[#9E2A1B]'
-              }`}
-            >
-              {fileSelected ? (
-                <>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E4ECE0] text-[#4A6B3A]">
-                    <Check size={17} />
-                  </div>
-                  <p className="text-[12px] font-bold text-[#1A130E]">
-                    {fileName}
-                  </p>
-                  <p className="text-[10px] text-[#4A6B3A]">
-                    Ready to generate
-                  </p>
-                </>
-              ) : (
-                <>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#EBE3D5] bg-[#FAF6F0] text-[#8C7E74]">
-                    <UploadCloud size={18} />
-                  </div>
-                  <p className="text-[12px] font-medium text-[#1A130E]">
-                    Upload Your Photo
-                  </p>
-                  <p className="text-[10px] text-[#8C7E74]">
-                    JPG or PNG (max 20MB)
-                  </p>
-                </>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                className="sr-only"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    setFileSelected(true);
-                    setFileName(file.name);
-                    setUploadedFile(file);
-                    setErrorMessage(null);
-                  }
-                }}
-              />
-            </label>
-
-            <div className="relative text-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-[#EBE3D5]" />
+                <p className="text-[11px] text-[#6E6053]">
+                  Use a clear front-facing photo in good lighting.
+                </p>
               </div>
-              <span className="relative bg-white px-3 text-[10px] font-medium uppercase tracking-wider text-[#8C7E74]">
+
+              <label
+                  className={`flex min-h-[130px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 text-center transition ${
+                      fileSelected
+                          ? 'border-[#4A6B3A] bg-[#F4F8F3]'
+                          : 'border-[#DCD3C4] bg-[#FCFAF7] hover:border-[#9E2A1B]'
+                  }`}
+              >
+                {fileSelected ? (
+                    <>
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E4ECE0] text-[#4A6B3A]">
+                        <Check size={17} />
+                      </div>
+                      <p className="text-[12px] font-bold text-[#1A130E]">
+                        {fileName}
+                      </p>
+                      <p className="text-[10px] text-[#4A6B3A]">
+                        Ready to generate
+                      </p>
+                    </>
+                ) : (
+                    <>
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#EBE3D5] bg-[#FAF6F0] text-[#8C7E74]">
+                        <UploadCloud size={18} />
+                      </div>
+                      <p className="text-[12px] font-medium text-[#1A130E]">
+                        Upload Your Photo
+                      </p>
+                      <p className="text-[10px] text-[#8C7E74]">
+                        JPG or PNG (max 20MB)
+                      </p>
+                    </>
+                )}
+                <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setFileSelected(true);
+                        setFileName(file.name);
+                        setUploadedFile(file);
+                        setErrorMessage(null);
+                      }
+                    }}
+                />
+              </label>
+
+              <div className="relative text-center">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-[#EBE3D5]" />
+                </div>
+                <span className="relative bg-white px-3 text-[10px] font-medium uppercase tracking-wider text-[#8C7E74]">
                 or
               </span>
+              </div>
+
+              <button
+                  onClick={() => {
+                    setFileSelected(true);
+                    setFileName('webcam_capture.jpg');
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-md border border-[#DCD3C4] bg-white py-2 text-[12px] font-semibold text-[#1A130E] transition hover:bg-[#FAF6F0]"
+              >
+                <Camera size={13} />
+                Use Webcam
+              </button>
+
+              <div className="rounded-lg border border-[#EBE3D5] bg-[#FCFAF7] p-3 space-y-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#1A130E]">
+                  Tips for best results
+                </p>
+                {[
+                  'Face the camera directly',
+                  'Good, natural lighting',
+                  'Wear form-fitting clothing',
+                  'Stand straight for full view',
+                ].map((tip) => (
+                    <div
+                        key={tip}
+                        className="flex items-center gap-1.5 text-[11px] text-[#594E46]"
+                    >
+                      <Check size={11} className="shrink-0 text-[#4A6B3A]" />
+                      {tip}
+                    </div>
+                ))}
+              </div>
             </div>
 
-            <button
-              onClick={() => {
-                setFileSelected(true);
-                setFileName('webcam_capture.jpg');
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-[#DCD3C4] bg-white py-2 text-[12px] font-semibold text-[#1A130E] transition hover:bg-[#FAF6F0]"
-            >
-              <Camera size={13} />
-              Use Webcam
-            </button>
-
-            <div className="rounded-lg border border-[#EBE3D5] bg-[#FCFAF7] p-3 space-y-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[#1A130E]">
-                Tips for best results
+            {/* Column 3 — Result */}
+            <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 flex flex-col gap-2.5">
+            <span className="block text-[10px] font-bold uppercase tracking-widest text-[#8C7E74]">
+              3. See It On You
+            </span>
+              <p className="text-[11px] text-[#6E6053]">
+                Our AI will generate a realistic preview in seconds.
               </p>
+
+              {step === 'upload' && (
+                  <div className="flex flex-1 min-h-[200px] flex-col items-center justify-center rounded-xl border border-[#FAF6F0] bg-[#FCFAF7] p-5 text-center">
+                    {errorMessage ? (
+                        <>
+                          <AlertTriangle
+                              size={24}
+                              className="mb-2 text-[#9E2A1B]"
+                              strokeWidth={1.4}
+                          />
+                          <p className="max-w-[160px] text-[12px] font-medium text-[#9E2A1B]">
+                            {errorMessage}
+                          </p>
+                        </>
+                    ) : (
+                        <>
+                          <Sparkle
+                              size={24}
+                              className="mb-2 animate-pulse text-[#B5A89E]"
+                              strokeWidth={1.4}
+                          />
+                          <p className="max-w-[160px] text-[12px] font-medium text-[#6E6053]">
+                            Upload your photo to see the AI preview.
+                          </p>
+                        </>
+                    )}
+                  </div>
+              )}
+
+              {step === 'processing' && (
+                  <div className="flex flex-1 min-h-[200px] flex-col items-center justify-center rounded-xl border border-[#EBE3D5] bg-white p-5 text-center">
+                    <div className="relative mb-3 flex h-12 w-12 items-center justify-center">
+                      <div className="absolute inset-0 animate-spin rounded-full border-2 border-[#9E2A1B]/20 border-t-[#9E2A1B]" />
+                      <Sparkle size={14} className="text-[#9E2A1B]" />
+                    </div>
+                    <p className="text-[13px] font-bold text-[#1A130E]">
+                      Generating Look…
+                    </p>
+                    <p className="mt-0.5 max-w-[140px] text-[10px] text-[#8C7E74]">
+                      This may take 30–60 seconds
+                    </p>
+                  </div>
+              )}
+
+              {step === 'result' && resultImageUrl && (
+                  <div className="flex flex-col gap-2">
+                    <div
+                        className="relative aspect-[3/3.2] w-full cursor-zoom-in overflow-hidden rounded-xl border border-[#EBE3D5]"
+                        onClick={() => setPreviewOpen(true)}
+                    >
+                      <Image
+                          src={resultImageUrl}
+                          alt="AI Try-On result"
+                          fill
+                          className="object-cover"
+                          unoptimized
+                      />
+                      <span className="absolute right-2 top-2 flex items-center gap-1 rounded-sm bg-[#1A1A1A]/70 px-2 py-0.5 text-[9px] font-bold uppercase text-white backdrop-blur-sm">
+                    <Sparkles size={8} className="text-yellow-400" />
+                    AI Generated
+                  </span>
+                      <div className="absolute bottom-2 left-2 flex gap-1.5">
+                        <button className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm transition hover:bg-white">
+                          <ThumbsUp size={11} className="text-[#1A130E]" />
+                        </button>
+                        <button className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm transition hover:bg-white">
+                          <ThumbsDown size={11} className="text-[#1A130E]" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                          onClick={handleDownload}
+                          className="flex items-center justify-center gap-1.5 rounded-md border border-[#DCD3C4] bg-white py-1.5 text-[11px] font-bold text-[#594E46] transition hover:bg-[#FAF6F0]"
+                      >
+                        <Download size={12} /> Download
+                      </button>
+                      <button className="flex items-center justify-center gap-1.5 rounded-md border border-[#DCD3C4] bg-white py-1.5 text-[11px] font-bold text-[#594E46] transition hover:bg-[#FAF6F0]">
+                        <Share2 size={12} /> Share
+                      </button>
+                    </div>
+                  </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mx-5 mt-3 rounded-xl border border-[#EBE3D5] bg-white px-4 py-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               {[
-                'Face the camera directly',
-                'Good, natural lighting',
-                'Wear form-fitting clothing',
-                'Stand straight for full view',
-              ].map((tip) => (
-                <div
-                  key={tip}
-                  className="flex items-center gap-1.5 text-[11px] text-[#594E46]"
-                >
-                  <Check size={11} className="shrink-0 text-[#4A6B3A]" />
-                  {tip}
-                </div>
+                {
+                  icon: Lock,
+                  title: 'Private & Secure',
+                  desc: 'Your images are private and deleted after 24 hours.',
+                },
+                {
+                  icon: Sparkles,
+                  title: 'AI-Powered Fit',
+                  desc: 'Advanced AI ensures realistic fit and drape.',
+                },
+                {
+                  icon: RefreshCw,
+                  title: 'Not satisfied?',
+                  desc: 'Try again with a different photo or angle.',
+                },
+              ].map(({ icon: Icon, title, desc }) => (
+                  <div key={title} className="flex items-start gap-2.5">
+                    <div className="mt-0.5 shrink-0 rounded-lg border border-[#EBE3D5] p-1.5 text-[#8C7E74]">
+                      <Icon size={13} />
+                    </div>
+                    <div>
+                      <p className="text-[12px] font-bold text-[#1A130E]">
+                        {title}
+                      </p>
+                      <p className="mt-0.5 text-[11px] leading-snug text-[#6E6053]">
+                        {desc}
+                      </p>
+                    </div>
+                  </div>
               ))}
             </div>
           </div>
 
-          {/* Column 3 — Result */}
-          <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 flex flex-col gap-2.5">
-            <span className="block text-[10px] font-bold uppercase tracking-widest text-[#8C7E74]">
-              3. See It On You
-            </span>
-            <p className="text-[11px] text-[#6E6053]">
-              Our AI will generate a realistic preview in seconds.
-            </p>
-
-            {step === 'upload' && (
-              <div className="flex flex-1 min-h-[200px] flex-col items-center justify-center rounded-xl border border-[#FAF6F0] bg-[#FCFAF7] p-5 text-center">
-                {errorMessage ? (
-                  <>
-                    <AlertTriangle
-                      size={24}
-                      className="mb-2 text-[#9E2A1B]"
-                      strokeWidth={1.4}
-                    />
-                    <p className="max-w-[160px] text-[12px] font-medium text-[#9E2A1B]">
-                      {errorMessage}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <Sparkle
-                      size={24}
-                      className="mb-2 animate-pulse text-[#B5A89E]"
-                      strokeWidth={1.4}
-                    />
-                    <p className="max-w-[160px] text-[12px] font-medium text-[#6E6053]">
-                      Upload your photo to see the AI preview.
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-
-            {step === 'processing' && (
-              <div className="flex flex-1 min-h-[200px] flex-col items-center justify-center rounded-xl border border-[#EBE3D5] bg-white p-5 text-center">
-                <div className="relative mb-3 flex h-12 w-12 items-center justify-center">
-                  <div className="absolute inset-0 animate-spin rounded-full border-2 border-[#9E2A1B]/20 border-t-[#9E2A1B]" />
-                  <Sparkle size={14} className="text-[#9E2A1B]" />
-                </div>
-                <p className="text-[13px] font-bold text-[#1A130E]">
-                  Generating Look…
-                </p>
-                <p className="mt-0.5 max-w-[140px] text-[10px] text-[#8C7E74]">
-                  This may take 30–60 seconds
-                </p>
-              </div>
-            )}
-
-            {step === 'result' && resultImageUrl && (
-              <div className="flex flex-col gap-2">
-                <div
-                  className="relative aspect-[3/3.2] w-full cursor-zoom-in overflow-hidden rounded-xl border border-[#EBE3D5]"
-                  onClick={() => setPreviewOpen(true)}
+          <div className="flex flex-col items-center gap-2 px-5 py-4">
+            {step === 'result' && (
+                <button
+                    onClick={handleReset}
+                    className="text-[12px] font-bold text-[#9E2A1B] underline-offset-4 hover:underline"
                 >
-                  <Image
-                    src={resultImageUrl}
-                    alt="AI Try-On result"
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
-                  <span className="absolute right-2 top-2 flex items-center gap-1 rounded-sm bg-[#1A1A1A]/70 px-2 py-0.5 text-[9px] font-bold uppercase text-white backdrop-blur-sm">
-                    <Sparkles size={8} className="text-yellow-400" />
-                    AI Generated
-                  </span>
-                  <div className="absolute bottom-2 left-2 flex gap-1.5">
-                    <button className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm transition hover:bg-white">
-                      <ThumbsUp size={11} className="text-[#1A130E]" />
-                    </button>
-                    <button className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm transition hover:bg-white">
-                      <ThumbsDown size={11} className="text-[#1A130E]" />
-                    </button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    onClick={handleDownload}
-                    className="flex items-center justify-center gap-1.5 rounded-md border border-[#DCD3C4] bg-white py-1.5 text-[11px] font-bold text-[#594E46] transition hover:bg-[#FAF6F0]"
-                  >
-                    <Download size={12} /> Download
-                  </button>
-                  <button className="flex items-center justify-center gap-1.5 rounded-md border border-[#DCD3C4] bg-white py-1.5 text-[11px] font-bold text-[#594E46] transition hover:bg-[#FAF6F0]">
-                    <Share2 size={12} /> Share
-                  </button>
-                </div>
-              </div>
+                  Try Another Style
+                </button>
             )}
-          </div>
-        </div>
-
-        <div className="mx-5 mt-3 rounded-xl border border-[#EBE3D5] bg-white px-4 py-3">
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              {
-                icon: Lock,
-                title: 'Private & Secure',
-                desc: 'Your images are private and deleted after 24 hours.',
-              },
-              {
-                icon: Sparkles,
-                title: 'AI-Powered Fit',
-                desc: 'Advanced AI ensures realistic fit and drape.',
-              },
-              {
-                icon: RefreshCw,
-                title: 'Not satisfied?',
-                desc: 'Try again with a different photo or angle.',
-              },
-            ].map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="flex items-start gap-2.5">
-                <div className="mt-0.5 shrink-0 rounded-lg border border-[#EBE3D5] p-1.5 text-[#8C7E74]">
-                  <Icon size={13} />
-                </div>
-                <div>
-                  <p className="text-[12px] font-bold text-[#1A130E]">
-                    {title}
-                  </p>
-                  <p className="mt-0.5 text-[11px] leading-snug text-[#6E6053]">
-                    {desc}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-col items-center gap-2 px-5 py-4">
-          {step === 'result' && (
             <button
-              onClick={handleReset}
-              className="text-[12px] font-bold text-[#9E2A1B] underline-offset-4 hover:underline"
+                onClick={handleGenerate}
+                disabled={!uploadedFile || step === 'processing'}
+                className={`w-full max-w-md rounded-md py-3 text-[13px] font-bold transition ${
+                    uploadedFile && step !== 'processing'
+                        ? 'bg-[#9E2A1B] text-white hover:bg-[#832215]'
+                        : 'cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]'
+                }`}
             >
-              Try Another Style
+              {step === 'result'
+                  ? 'Regenerate Try-On'
+                  : step === 'processing'
+                      ? 'Processing…'
+                      : 'Generate My Try-On'}
             </button>
-          )}
-          <button
-            onClick={handleGenerate}
-            disabled={!uploadedFile || step === 'processing'}
-            className={`w-full max-w-md rounded-md py-3 text-[13px] font-bold transition ${
-              uploadedFile && step !== 'processing'
-                ? 'bg-[#9E2A1B] text-white hover:bg-[#832215]'
-                : 'cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]'
-            }`}
-          >
-            {step === 'result'
-              ? 'Regenerate Try-On'
-              : step === 'processing'
-                ? 'Processing…'
-                : 'Generate My Try-On'}
-          </button>
-          <p className="text-center text-[10px] text-[#8C7E74]">
-            By using this feature, you agree to our{' '}
-            <span className="font-bold underline underline-offset-2 cursor-pointer">
+            <p className="text-center text-[10px] text-[#8C7E74]">
+              By using this feature, you agree to our{' '}
+              <span className="font-bold underline underline-offset-2 cursor-pointer">
               Privacy Policy
             </span>
-            . * AI results are for reference only and may vary.
-          </p>
-        </div>
-      </div>
-
-      {previewOpen && resultImageUrl && (
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
-          onClick={() => setPreviewOpen(false)}
-        >
-          <button
-            onClick={() => setPreviewOpen(false)}
-            className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#1A130E] shadow-lg transition hover:scale-105"
-          >
-            <X size={18} />
-          </button>
-          <div
-            className="relative h-[88vh] w-full max-w-[600px] overflow-hidden rounded-2xl bg-[#FCFAF7]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Image
-              src={resultImageUrl}
-              alt="High resolution preview"
-              fill
-              priority
-              className="object-contain"
-              unoptimized
-            />
+              . * AI results are for reference only and may vary.
+            </p>
           </div>
         </div>
-      )}
-    </div>
+
+        {previewOpen && resultImageUrl && (
+            <div
+                className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+                onClick={() => setPreviewOpen(false)}
+            >
+              <button
+                  onClick={() => setPreviewOpen(false)}
+                  className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#1A130E] shadow-lg transition hover:scale-105"
+              >
+                <X size={18} />
+              </button>
+              <div
+                  className="relative h-[88vh] w-full max-w-[600px] overflow-hidden rounded-2xl bg-[#FCFAF7]"
+                  onClick={(e) => e.stopPropagation()}
+              >
+                <Image
+                    src={resultImageUrl}
+                    alt="High resolution preview"
+                    fill
+                    priority
+                    className="object-contain"
+                    unoptimized
+                />
+              </div>
+            </div>
+        )}
+      </div>
   );
 }
 
@@ -2013,9 +2062,9 @@ const REPORT_REASONS = [
 ] as const;
 
 function ReportModal({
-  product,
-  onClose,
-}: {
+                       product,
+                       onClose,
+                     }: {
   product: Product;
   onClose: () => void;
 }) {
@@ -2042,106 +2091,106 @@ function ReportModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[170] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
       <div
-        className="relative w-full max-w-[480px] rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
+          className="fixed inset-0 z-[170] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={onClose}
-          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+      >
+        <div
+            className="relative w-full max-w-[480px] rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
         >
-          <X size={16} />
-        </button>
-
-        {submitted ? (
-          <div className="flex flex-col items-center px-8 py-10 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#4A6B3A] bg-[#F0F6ED]">
-              <Check size={26} className="text-[#4A6B3A]" />
-            </div>
-            <h2 className="font-serif text-[20px] font-normal text-[#1A130E]">
-              Report Submitted
-            </h2>
-            <p className="mt-2 max-w-[320px] text-[13px] text-[#6E6053]">
-              Thanks for flagging this. Our team will review "{product.name}"
-              shortly.
-            </p>
-            <button
+          <button
               onClick={onClose}
-              className="mt-6 rounded-xl bg-[#9E2A1B] px-6 py-2.5 text-[13px] font-bold text-white transition hover:bg-[#832215]"
-            >
-              Close
-            </button>
-          </div>
-        ) : (
-          <div className="px-6 pt-6 pb-5">
-            <h2 className="font-serif text-[20px] font-normal text-[#1A130E]">
-              Report this Listing
-            </h2>
-            <p className="mt-1 text-[12px] text-[#6E6053]">
-              Reporting "{product.name}". Let us know what's wrong.
-            </p>
+              className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+          >
+            <X size={16} />
+          </button>
 
-            <div className="mt-4 flex flex-col gap-1.5">
-              <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                Reason
-              </label>
-              <select
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-              >
-                {REPORT_REASONS.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {submitted ? (
+              <div className="flex flex-col items-center px-8 py-10 text-center">
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#4A6B3A] bg-[#F0F6ED]">
+                  <Check size={26} className="text-[#4A6B3A]" />
+                </div>
+                <h2 className="font-serif text-[20px] font-normal text-[#1A130E]">
+                  Report Submitted
+                </h2>
+                <p className="mt-2 max-w-[320px] text-[13px] text-[#6E6053]">
+                  Thanks for flagging this. Our team will review "{product.name}"
+                  shortly.
+                </p>
+                <button
+                    onClick={onClose}
+                    className="mt-6 rounded-xl bg-[#9E2A1B] px-6 py-2.5 text-[13px] font-bold text-white transition hover:bg-[#832215]"
+                >
+                  Close
+                </button>
+              </div>
+          ) : (
+              <div className="px-6 pt-6 pb-5">
+                <h2 className="font-serif text-[20px] font-normal text-[#1A130E]">
+                  Report this Listing
+                </h2>
+                <p className="mt-1 text-[12px] text-[#6E6053]">
+                  Reporting "{product.name}". Let us know what's wrong.
+                </p>
 
-            <div className="mt-4 flex flex-col gap-1.5">
-              <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                Additional details (optional)
-              </label>
-              <textarea
-                value={details}
-                onChange={(e) => setDetails(e.target.value)}
-                placeholder="Tell us more about the issue…"
-                maxLength={500}
-                rows={4}
-                className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-              />
-              <span className="self-end text-[10px] text-[#A6998E]">
+                <div className="mt-4 flex flex-col gap-1.5">
+                  <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                    Reason
+                  </label>
+                  <select
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                  >
+                    {REPORT_REASONS.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="mt-4 flex flex-col gap-1.5">
+                  <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                    Additional details (optional)
+                  </label>
+                  <textarea
+                      value={details}
+                      onChange={(e) => setDetails(e.target.value)}
+                      placeholder="Tell us more about the issue…"
+                      maxLength={500}
+                      rows={4}
+                      className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                  />
+                  <span className="self-end text-[10px] text-[#A6998E]">
                 {details.length} / 500
               </span>
-            </div>
+                </div>
 
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="mt-5 w-full rounded-xl bg-[#9E2A1B] py-3 text-[13px] font-bold text-white transition hover:bg-[#832215] disabled:opacity-60"
-            >
-              {submitting ? 'Submitting…' : 'Submit Report'}
-            </button>
-          </div>
-        )}
+                <button
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    className="mt-5 w-full rounded-xl bg-[#9E2A1B] py-3 text-[13px] font-bold text-white transition hover:bg-[#832215] disabled:opacity-60"
+                >
+                  {submitting ? 'Submitting…' : 'Submit Report'}
+                </button>
+              </div>
+          )}
+        </div>
       </div>
-    </div>
   );
 }
 
 function RentDatePickerModal({
-  initialStart,
-  initialEnd,
-  dailyRateNumber,
-  securityDepositNumber,
-  bookedRange = null,
-  onConfirm,
-  onClose,
-}: {
+                               initialStart,
+                               initialEnd,
+                               dailyRateNumber,
+                               securityDepositNumber,
+                               bookedRange = null,
+                               onConfirm,
+                               onClose,
+                             }: {
   initialStart: Date | null;
   initialEnd: Date | null;
   dailyRateNumber: number;
@@ -2174,8 +2223,8 @@ function RentDatePickerModal({
   }
 
   const calendarCells = useMemo(
-    () => buildCalendarMatrix(calYear, calMonth),
-    [calYear, calMonth],
+      () => buildCalendarMatrix(calYear, calMonth),
+      [calYear, calMonth],
   );
 
   function inclusiveDays(start: Date, end: Date) {
@@ -2183,7 +2232,7 @@ function RentDatePickerModal({
   }
 
   const draftDays =
-    draftStart && draftEnd ? inclusiveDays(draftStart, draftEnd) : null;
+      draftStart && draftEnd ? inclusiveDays(draftStart, draftEnd) : null;
 
   function handleDayClick(date: Date, state: DayState) {
     if (state === 'past' || state === 'out-of-month' || state === 'unavailable')
@@ -2227,256 +2276,544 @@ function RentDatePickerModal({
     year: 'numeric',
   });
 
-  return (
-    <div
-      className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-[640px] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-[#EBE3D5] px-6 py-4">
-          <h2 className="font-serif text-[18px] font-normal tracking-wide text-[#1A130E]">
-            Select Rental Dates
-          </h2>
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
-          >
-            <X size={16} />
-          </button>
-        </div>
+  // ── Is the currently-viewed month the same month as the booked range?
+  // Used to decide whether to show the "jump to booked month" hint below
+  // the calendar, so the seller/buyer isn't confused if the booking sits
+  // in a different month than what's currently on screen.
+  const bookedRangeVisibleInCurrentMonth = useMemo(() => {
+    if (!bookedRange) return false;
+    return calendarCells.some(
+        (date) =>
+            date.getMonth() === calMonth &&
+            date >= bookedRange.start &&
+            date <= bookedRange.end,
+    );
+  }, [bookedRange, calendarCells, calMonth]);
 
-        <div className="grid gap-5 p-6 pb-0 sm:grid-cols-[1fr_220px]">
-          {/* Calendar column */}
-          <div>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
-              Select Dates
-            </p>
-            <div className="rounded-xl border border-[#EBE3D5] bg-white p-3.5">
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => goToMonth(-1)}
-                  className="flex h-6 w-6 items-center justify-center rounded-full border border-[#EBE3D5] text-[#6E6053] hover:bg-[#FAF6F0] transition"
-                >
-                  <ChevronLeft size={13} />
-                </button>
-                <span className="text-[13px] font-bold text-[#1A130E]">
+  return (
+      <div
+          className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={onClose}
+      >
+        <div
+            className="relative w-full max-w-[640px] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-[#EBE3D5] px-6 py-4">
+            <h2 className="font-serif text-[18px] font-normal tracking-wide text-[#1A130E]">
+              Select Rental Dates
+            </h2>
+            <button
+                onClick={onClose}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* ── Booked-window banner — only shown when this listing has an
+              active reservation. Tells the buyer up front why some dates
+              are blocked, rather than making them discover it by clicking
+              around the calendar. ── */}
+          {bookedRange && (
+              <div className="mx-6 mt-4 flex items-start gap-2 rounded-xl border border-[#F1C9C0] bg-[#FCEEEA] px-3.5 py-2.5 text-[11px] text-[#9E2A1B]">
+                <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                <span>
+              This item is currently booked from{' '}
+                  <strong>{formatShortDate(bookedRange.start)}</strong> to{' '}
+                  <strong>{formatShortDate(bookedRange.end)}</strong>. It'll be
+              available again the day after.
+            </span>
+              </div>
+          )}
+
+          <div className="grid gap-5 p-6 pb-0 sm:grid-cols-[1fr_220px]">
+            {/* Calendar column */}
+            <div>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                Select Dates
+              </p>
+              <div className="rounded-xl border border-[#EBE3D5] bg-white p-3.5">
+                <div className="flex items-center justify-between">
+                  <button
+                      onClick={() => goToMonth(-1)}
+                      className="flex h-6 w-6 items-center justify-center rounded-full border border-[#EBE3D5] text-[#6E6053] hover:bg-[#FAF6F0] transition"
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
+                  <span className="text-[13px] font-bold text-[#1A130E]">
                   {monthLabel}
                 </span>
-                <button
-                  onClick={() => goToMonth(1)}
-                  className="flex h-6 w-6 items-center justify-center rounded-full border border-[#EBE3D5] text-[#6E6053] hover:bg-[#FAF6F0] transition"
-                >
-                  <ChevronRight size={13} />
-                </button>
-              </div>
-
-              <div className="mt-3 grid grid-cols-7 gap-1 text-center">
-                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                  <span
-                    key={d}
-                    className="text-[10px] font-semibold text-[#A6998E]"
+                  <button
+                      onClick={() => goToMonth(1)}
+                      className="flex h-6 w-6 items-center justify-center rounded-full border border-[#EBE3D5] text-[#6E6053] hover:bg-[#FAF6F0] transition"
                   >
+                    <ChevronRight size={13} />
+                  </button>
+                </div>
+
+                {/* ── "Jump to booking" hint — only shows when the booked
+                    range exists but isn't in the month currently on screen. ── */}
+                {bookedRange && !bookedRangeVisibleInCurrentMonth && (
+                    <button
+                        onClick={() => {
+                          setCalYear(bookedRange.start.getFullYear());
+                          setCalMonth(bookedRange.start.getMonth());
+                        }}
+                        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#F1C9C0] bg-[#FCEEEA] py-1.5 text-[10px] font-semibold text-[#9E2A1B] transition hover:bg-[#F8DDD4]"
+                    >
+                      <AlertTriangle size={11} />
+                      Jump to booked dates ({formatShortDate(bookedRange.start)})
+                    </button>
+                )}
+
+                <div className="mt-3 grid grid-cols-7 gap-1 text-center">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                      <span
+                          key={d}
+                          className="text-[10px] font-semibold text-[#A6998E]"
+                      >
                     {d}
                   </span>
-                ))}
-                {calendarCells.map((date, idx) => {
-                  const state = getDayState(
-                    date,
-                    calMonth,
-                    draftStart,
-                    draftEnd,
-                    bookedRange,
-                  );
-                  const baseClasses =
-                    'flex h-7 w-7 items-center justify-center rounded-full text-[11px] mx-auto transition';
-                  const stateClasses =
-                    state === 'range-start' || state === 'range-end'
-                      ? 'bg-[#9E2A1B] text-white font-bold'
-                      : state === 'in-range'
-                        ? 'bg-[#9E2A1B]/12 text-[#9E2A1B] font-semibold'
-                        : state === 'past'
-                          ? 'text-[#DCD3C4] cursor-not-allowed'
-                          : state === 'unavailable'
-                            ? 'bg-[#F0EBE3] text-[#C4B8AE] cursor-not-allowed'
-                            : state === 'few-left'
-                              ? 'bg-[#FDF3D9] text-[#92740E] font-semibold cursor-pointer hover:bg-[#FBEAB8]'
-                              : state === 'out-of-month'
-                                ? 'text-[#DCD3C4]'
-                                : 'bg-[#E8F5EE] text-[#2E7D52] font-semibold cursor-pointer hover:bg-[#D7EEE0]';
-                  return (
-                    <button
-                      key={idx}
-                      disabled={
-                        state === 'past' ||
-                        state === 'unavailable' ||
-                        state === 'out-of-month'
-                      }
-                      onClick={() => handleDayClick(date, state)}
-                      className={`${baseClasses} ${stateClasses}`}
-                    >
-                      {date.getDate()}
-                    </button>
-                  );
-                })}
-              </div>
+                  ))}
+                  {calendarCells.map((date, idx) => {
+                    const state = getDayState(
+                        date,
+                        calMonth,
+                        draftStart,
+                        draftEnd,
+                        bookedRange,
+                    );
+                    const baseClasses =
+                        'flex h-7 w-7 items-center justify-center rounded-full text-[11px] mx-auto transition relative';
 
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[#6E6053]">
+                    // ── Booked days render with a solid red/rose treatment
+                    // and a strike-through, distinct from plain "past" grey
+                    // and from the seller-availability "few-left" amber —
+                    // this is the buyer-facing "this exact item is taken"
+                    // signal, not a generic disabled state. ──────────────
+                    const stateClasses =
+                        state === 'range-start' || state === 'range-end'
+                            ? 'bg-[#9E2A1B] text-white font-bold'
+                            : state === 'in-range'
+                                ? 'bg-[#9E2A1B]/12 text-[#9E2A1B] font-semibold'
+                                : state === 'past'
+                                    ? 'text-[#DCD3C4] cursor-not-allowed'
+                                    : state === 'unavailable'
+                                        ? 'bg-[#F8D7D2] text-[#9E2A1B] font-bold line-through cursor-not-allowed border border-[#F1C9C0]'
+                                        : state === 'few-left'
+                                            ? 'bg-[#FDF3D9] text-[#92740E] font-semibold cursor-pointer hover:bg-[#FBEAB8]'
+                                            : state === 'out-of-month'
+                                                ? 'text-[#DCD3C4]'
+                                                : 'bg-[#E8F5EE] text-[#2E7D52] font-semibold cursor-pointer hover:bg-[#D7EEE0]';
+                    return (
+                        <button
+                            key={idx}
+                            disabled={
+                                state === 'past' ||
+                                state === 'unavailable' ||
+                                state === 'out-of-month'
+                            }
+                            onClick={() => handleDayClick(date, state)}
+                            title={state === 'unavailable' ? 'Already booked' : undefined}
+                            className={`${baseClasses} ${stateClasses}`}
+                        >
+                          {date.getDate()}
+                          {/* Small red dot under booked days — reinforces
+                              the state even for colorblind users relying
+                              only on the strike-through/fill. */}
+                          {state === 'unavailable' && (
+                              <span className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-[#9E2A1B]" />
+                          )}
+                        </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[#6E6053]">
                 <span className="flex items-center gap-1">
                   <span className="h-2 w-2 rounded-full bg-[#E8F5EE] border border-[#BFD0B3]" />{' '}
                   Available
                 </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-[#F0EBE3] border border-[#DDD5C8]" />{' '}
-                  Unavailable
+                  <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-[#F8D7D2] border border-[#F1C9C0]" />{' '}
+                    Booked
                 </span>
-                <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1">
                   <span className="h-2 w-2 rounded-full bg-[#FDF3D9] border border-[#E9D896]" />{' '}
-                  Few left
+                    Few left
                 </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right column — quick duration only now */}
+            <div>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                Rental Duration
+              </p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {durationOptions.map((d) => {
+                  const active = draftDays === d;
+                  return (
+                      <button
+                          key={d}
+                          onClick={() => applyQuickDuration(d)}
+                          className={`rounded-lg border py-2 text-[11px] font-semibold transition ${
+                              active
+                                  ? 'border-[#9E2A1B] bg-[#9E2A1B]/8 text-[#9E2A1B]'
+                                  : 'border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]'
+                          }`}
+                      >
+                        {d} Day{d > 1 ? 's' : ''}
+                      </button>
+                  );
+                })}
+                <button
+                    className={`col-span-2 rounded-lg border py-2 text-[11px] font-semibold transition ${
+                        draftDays && !durationOptions.includes(draftDays)
+                            ? 'border-[#9E2A1B] bg-[#9E2A1B]/8 text-[#9E2A1B]'
+                            : 'border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]'
+                    }`}
+                >
+                  Custom (tap calendar)
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Right column — quick duration only now */}
-          <div>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
-              Rental Duration
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {durationOptions.map((d) => {
-                const active = draftDays === d;
-                return (
-                  <button
-                    key={d}
-                    onClick={() => applyQuickDuration(d)}
-                    className={`rounded-lg border py-2 text-[11px] font-semibold transition ${
-                      active
-                        ? 'border-[#9E2A1B] bg-[#9E2A1B]/8 text-[#9E2A1B]'
-                        : 'border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]'
-                    }`}
-                  >
-                    {d} Day{d > 1 ? 's' : ''}
-                  </button>
-                );
-              })}
-              <button
-                className={`col-span-2 rounded-lg border py-2 text-[11px] font-semibold transition ${
-                  draftDays && !durationOptions.includes(draftDays)
-                    ? 'border-[#9E2A1B] bg-[#9E2A1B]/8 text-[#9E2A1B]'
-                    : 'border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]'
-                }`}
-              >
-                Custom (tap calendar)
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Start Date / End Date / Total Days — full-width,
+          {/* ── Start Date / End Date / Total Days — full-width,
                     sitting below BOTH the calendar and duration columns ── */}
-        <div className="grid grid-cols-3 gap-3 px-6 pt-4">
-          <div>
-            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
-              Start Date
-            </p>
-            <div className="rounded-lg border border-[#DDD5C8] bg-white px-3 py-2.5 text-center text-[12px] font-semibold text-[#1A130E]">
-              {draftStart ? formatShortDate(draftStart) : '—'}
+          <div className="grid grid-cols-3 gap-3 px-6 pt-4">
+            <div>
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                Start Date
+              </p>
+              <div className="rounded-lg border border-[#DDD5C8] bg-white px-3 py-2.5 text-center text-[12px] font-semibold text-[#1A130E]">
+                {draftStart ? formatShortDate(draftStart) : '—'}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
-              End Date
-            </p>
-            <div className="rounded-lg border border-[#DDD5C8] bg-white px-3 py-2.5 text-center text-[12px] font-semibold text-[#1A130E]">
-              {draftEnd ? formatShortDate(draftEnd) : '—'}
+            <div>
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                End Date
+              </p>
+              <div className="rounded-lg border border-[#DDD5C8] bg-white px-3 py-2.5 text-center text-[12px] font-semibold text-[#1A130E]">
+                {draftEnd ? formatShortDate(draftEnd) : '—'}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
-              Total Days
-            </p>
-            <div className="rounded-lg bg-[#FAF0E6] px-3 py-2.5 text-center">
+            <div>
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                Total Days
+              </p>
+              <div className="rounded-lg bg-[#FAF0E6] px-3 py-2.5 text-center">
               <span className="text-[14px] font-bold text-[#9E2A1B]">
                 {draftDays
-                  ? `${draftDays} Day${draftDays > 1 ? 's' : ''}`
-                  : '—'}
+                    ? `${draftDays} Day${draftDays > 1 ? 's' : ''}`
+                    : '—'}
               </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="mx-6 mt-5 rounded-xl border border-[#EBE3D5] bg-white p-4">
-          <p className="mb-2 text-[12px] font-bold text-[#1A130E]">
-            Price Summary
-          </p>
-          <div className="flex items-center justify-between text-[12px] text-[#6E6053]">
+          <div className="mx-6 mt-5 rounded-xl border border-[#EBE3D5] bg-white p-4">
+            <p className="mb-2 text-[12px] font-bold text-[#1A130E]">
+              Price Summary
+            </p>
+            <div className="flex items-center justify-between text-[12px] text-[#6E6053]">
             <span>
               Rental Price ({fmt(dailyRateNumber)} × {draftDays ?? 0} days)
             </span>
-            <span className="font-semibold text-[#1A130E]">
+              <span className="font-semibold text-[#1A130E]">
               {fmt(rentalPriceTotal)}
             </span>
-          </div>
-          <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
-            <span>Security Deposit (Refundable)</span>
-            <span className="font-semibold text-[#1A130E]">
+            </div>
+            <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
+              <span>Security Deposit (Refundable)</span>
+              <span className="font-semibold text-[#1A130E]">
               {fmt(securityDepositNumber)}
             </span>
-          </div>
-          <div className="mt-2 flex items-center justify-between border-t border-[#EBE3D5] pt-2">
+            </div>
+            <div className="mt-2 flex items-center justify-between border-t border-[#EBE3D5] pt-2">
             <span className="text-[13px] font-bold text-[#1A130E]">
               Total Payable (Excl. delivery/pickup)
             </span>
-            <span className="text-[15px] font-bold text-[#9E2A1B]">
+              <span className="text-[15px] font-bold text-[#9E2A1B]">
               {fmt(payable)}
             </span>
+            </div>
+          </div>
+
+          <div className="p-6 pt-4">
+            <button
+                onClick={handleConfirm}
+                disabled={!canConfirm}
+                className={`w-full rounded-xl py-3.5 text-[14px] font-bold transition ${
+                    canConfirm
+                        ? 'bg-[#9E2A1B] text-white hover:bg-[#832215]'
+                        : 'cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]'
+                }`}
+            >
+              Confirm Dates
+            </button>
           </div>
         </div>
-
-        <div className="p-6 pt-4">
-          <button
-            onClick={handleConfirm}
-            disabled={!canConfirm}
-            className={`w-full rounded-xl py-3.5 text-[14px] font-bold transition ${
-              canConfirm
-                ? 'bg-[#9E2A1B] text-white hover:bg-[#832215]'
-                : 'cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]'
-            }`}
-          >
-            Confirm Dates
-          </button>
-        </div>
       </div>
-    </div>
   );
 }
+/* ══════════════════════════════════════════════════════════
+   DELIVERY ZONE PICKER — map-pin based, same as seller-side.
+   Buyer pins their location on a Leaflet map; we reverse-geocode
+   it into district/province (fuzzy-matched against NEPAL_PROVINCES,
+   same Levenshtein logic used on the listing form) and compare
+   against the seller's district/province via resolveZoneFromLocation.
+   No typing required — mirrors the seller's own map-pin flow.
+══════════════════════════════════════════════════════════ */
+const NEPAL_PROVINCES = [
+  'Koshi', 'Madhesh', 'Bagmati', 'Gandaki',
+  'Lumbini', 'Karnali', 'Sudurpashchim',
+] as const;
+
+function normalizeForMatch(s: string): string {
+  return s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z]/g, '');
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+function matchProvince(raw: string | undefined): string {
+  if (!raw) return '';
+  const words = raw
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z\s]/g, '')
+      .split(/\s+/)
+      .filter(Boolean);
+
+  let best = '';
+  let bestDist = Infinity;
+  for (const word of words) {
+    for (const p of NEPAL_PROVINCES) {
+      const dist = levenshteinDistance(word, p.toLowerCase());
+      if (dist <= 2 && dist < bestDist) {
+        bestDist = dist;
+        best = p;
+      }
+    }
+  }
+  if (best) return best;
+
+  const flat = normalizeForMatch(raw);
+  if (/province\s*(no\.?\s*)?1\b/.test(raw.toLowerCase()) || flat.includes('provinceno1')) return 'Koshi';
+  if (/province\s*(no\.?\s*)?2\b/.test(raw.toLowerCase()) || flat.includes('provinceno2')) return 'Madhesh';
+  return '';
+}
+
+function zoneRate(product: DeliverableProduct, zone: DeliveryZone): number {
+  if (zone === 'DISTRICT') {
+    return toNumber(product.rateWithinDistrict) || toNumber(product.rateNationwide);
+  }
+  if (zone === 'PROVINCE') {
+    return toNumber(product.rateWithinProvince) || toNumber(product.rateNationwide);
+  }
+  return toNumber(product.rateNationwide);
+}
+
+function zoneLabelFor(product: DeliverableProduct, zone: DeliveryZone): string {
+  if (zone === 'DISTRICT') return `Same district as the seller (${product.sellerDistrict})`;
+  if (zone === 'PROVINCE') return `Same province as the seller (${product.sellerProvince})`;
+  return 'Nationwide rate';
+}
+
+function DeliveryZonePicker({
+                              product,
+                              buyerDistrict,
+                              buyerProvince,
+                              onDistrictChange,
+                              onProvinceChange,
+                              fmt,
+                            }: {
+  product: DeliverableProduct;
+  buyerDistrict: string;
+  buyerProvince: string;
+  onDistrictChange: (v: string) => void;
+  onProvinceChange: (v: string) => void;
+  fmt: (n: number) => string;
+}) {
+  const [buyerLat, setBuyerLat] = useState<string>('');
+  const [buyerLng, setBuyerLng] = useState<string>('');
+  const [locationConfirmed, setLocationConfirmed] = useState(false);
+  const [resolvedAddress, setResolvedAddress] = useState('');
+
+  const reverseGeocodeBuyer = async (lat: number, lng: number) => {
+    try {
+      const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+          { headers: { Accept: 'application/json' } },
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const addr = data.address ?? {};
+      const districtCandidates = [
+        addr.state_district, addr.county, addr.city_district, addr.district, addr.city, addr.town,
+      ];
+      const district = districtCandidates.find(
+          (v) => v && !normalizeForMatch(v).includes('province'),
+      ) ?? '';
+      const matchedProvince = matchProvince(addr.state);
+
+      onDistrictChange(district);
+      onProvinceChange(matchedProvince);
+      setResolvedAddress(data.display_name ?? '');
+    } catch {
+      // Silent — the "couldn't detect" state below tells the buyer.
+    }
+  };
+
+  const handleLocationSelect = (lat: number, lng: number) => {
+    setBuyerLat(lat.toFixed(6));
+    setBuyerLng(lng.toFixed(6));
+    setLocationConfirmed(true);
+    reverseGeocodeBuyer(lat, lng);
+  };
+
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+        (pos) => handleLocationSelect(pos.coords.latitude, pos.coords.longitude),
+        () => toast.error("Couldn't fetch your location. Please allow location access."),
+    );
+  };
+
+  const resolvedZone: DeliveryZone | null = buyerProvince
+      ? resolveZoneFromLocation(
+          product.sellerDistrict,
+          product.sellerProvince,
+          buyerDistrict,
+          buyerProvince,
+      )
+      : null;
+
+  return (
+      <div>
+        <p className="text-[13px] font-bold text-[#1A130E] mb-1">
+          Your Delivery Location
+        </p>
+        <p className="text-[11px] text-[#8C7E74] mb-3">
+          Pin your location on the map below — we'll match it to the seller's
+          shipping rate (seller ships from {product.sellerDistrict ?? '—'},{' '}
+          {product.sellerProvince ?? '—'}).
+        </p>
+
+        <div className="relative rounded-xl overflow-hidden border border-[#DDD5C8] mb-3">
+          <PickupLocationMap
+              key="buyer-delivery-map"
+              lat={buyerLat ? parseFloat(buyerLat) : null}
+              lng={buyerLng ? parseFloat(buyerLng) : null}
+              onLocationSelect={handleLocationSelect}
+          />
+          <button
+              type="button"
+              onClick={handleUseMyLocation}
+              className="absolute top-3 right-3 z-[1000] px-2.5 py-1.5 rounded-lg bg-white/95 border border-[#DDD5C8] text-[#9E2A1B] text-[11px] font-semibold shadow-sm hover:bg-white transition-colors flex items-center gap-1.5"
+          >
+            <MapPin size={12} />
+            {locationConfirmed ? 'Update Pin' : 'Use My Location'}
+          </button>
+        </div>
+
+        {resolvedAddress && (
+            <div className="mb-3 flex items-start gap-1.5 bg-[#FDFAF6] border border-[#EBE0D4] rounded-xl px-3 py-2">
+              <MapPin size={12} className="text-[#8C7E74] mt-0.5 flex-shrink-0" />
+              <p className="text-[11px] text-[#6E6053] leading-relaxed">{resolvedAddress}</p>
+            </div>
+        )}
+
+        {locationConfirmed ? (
+            buyerDistrict && buyerProvince ? (
+                <div className="mb-3 flex items-center gap-1.5 bg-[#F0F6ED] border border-[#BFD0B3] rounded-xl px-3.5 py-2.5 text-[12px] text-[#4A6B3A] font-medium">
+                  <Check size={13} className="flex-shrink-0" />
+                  Location set — {buyerDistrict}, {buyerProvince}
+                </div>
+            ) : (
+                <div className="mb-3 flex items-center gap-1.5 bg-[#FCEEEA] border border-[#F1C9C0] rounded-xl px-3.5 py-2.5 text-[12px] text-[#9E2A1B]">
+                  <AlertTriangle size={13} className="flex-shrink-0" />
+                  Couldn't detect your district/province — try re-pinning, or moving the pin slightly.
+                </div>
+            )
+        ) : (
+            <p className="text-[11px] text-[#8C7E74] mb-3">
+              No pin set yet — click the map or use "Use My Location".
+            </p>
+        )}
+
+        {resolvedZone && (
+            <div className="flex items-center justify-between rounded-xl border-2 border-[#9E2A1B] bg-[#9E2A1B]/6 px-4 py-3">
+              <p className="text-[13px] font-bold text-[#9E2A1B]">
+                {zoneLabelFor(product, resolvedZone)}
+              </p>
+              <span className="shrink-0 text-[13px] font-bold text-[#9E2A1B]">
+            {fmt(zoneRate(product, resolvedZone))}
+          </span>
+            </div>
+        )}
+      </div>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════
    BUY NOW MODAL — delivery method selection + add to cart
    (Thrift flow)
 
    FIX (shipping-stuck-disabled bug):
-   When a listing uses DYNAMIC shipping but the seller never set
-   a pickup/origin location (pickupLat/pickupLng), the old code
-   would compute `deliveryFee` as `null` FOREVER — no matter what
-   address the buyer pinned — because the useMemo short-circuited
-   on `!hasSellerOrigin` before ever calling distanceKm(). That
-   kept `dynamicFeePending` stuck `true`, which permanently
-   disabled "Save & Add to Cart" with zero explanation to the
-   buyer. We now detect that state explicitly (shippingOriginMissing),
-   auto-fall-back to Pickup when possible, and otherwise show a
-   clear "delivery unavailable" message instead of a dead button.
+   When a listing uses DYNAMIC shipping but the seller never
+   resolved an origin district/province, the old code would
+   compute `deliveryFee` as `null` FOREVER — because the useMemo
+   depended on a lat/lng pin the buyer had no way to complete.
+   That kept `dynamicFeePending` stuck `true`, which permanently
+   disabled "Save & Add to Cart" with zero explanation. We now
+   detect that state explicitly (shippingOriginMissing), auto-
+   fall-back to Pickup when possible, and otherwise show a clear
+   "delivery unavailable" message instead of a dead button.
+
+   UPDATE (zone-based dynamic shipping):
+   The old flow required the buyer to pin an exact address on a
+   map so we could compute a straight-line distance from the
+   seller's origin. That's gone — the seller sets a flat rate per
+   zone (District / Province / Nationwide) at listing time, and
+   the buyer now just types their district + picks their province
+   via <DeliveryZonePicker />. `resolveZoneFromLocation` compares
+   that against the seller's district/province, and
+   `calculateFlexDeliveryFee` prices the resulting zone directly.
+   No coordinates involved anywhere.
 ══════════════════════════════════════════════════════════ */
 type BuyNowStep = 'delivery' | 'added';
 
 function BuyNowModal({
-  product,
-  onClose,
-}: {
+                       product,
+                       onClose,
+                     }: {
   product: DeliverableProduct;
   onClose: () => void;
 }) {
@@ -2486,43 +2823,17 @@ function BuyNowModal({
 
   const [step, setStep] = useState<BuyNowStep>('delivery');
   const [channel, setChannel] = useState<'shipping' | 'pickup'>(
-    hasShipping ? 'shipping' : 'pickup',
+      hasShipping ? 'shipping' : 'pickup',
   );
 
   const [fullName, setFullName] = useState('');
   const [contactNumber, setContactNumber] = useState('');
   const [notes, setNotes] = useState('');
 
-  const [addressLat, setAddressLat] = useState<number | null>(null);
-  const [addressLng, setAddressLng] = useState<number | null>(null);
-  const [resolvedAddress, setResolvedAddress] = useState('');
-
-  const reverseGeocode = async (lat: number, lng: number) => {
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
-        { headers: { Accept: 'application/json' } },
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data?.display_name) setResolvedAddress(data.display_name as string);
-    } catch {
-      // Silent — nice-to-have only.
-    }
-  };
-
-  const handleAddressPin = (lat: number, lng: number) => {
-    setAddressLat(lat);
-    setAddressLng(lng);
-    reverseGeocode(lat, lng);
-  };
-
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((pos) => {
-      handleAddressPin(pos.coords.latitude, pos.coords.longitude);
-    });
-  };
+  // Buyer types their district + picks their province — no map,
+  // no coordinates. resolveZoneFromLocation does the matching.
+  const [buyerDistrict, setBuyerDistrict] = useState('');
+  const [buyerProvince, setBuyerProvince] = useState('');
 
   const { user } = useAuth();
   const [fetchingProfileName, setFetchingProfileName] = useState(false);
@@ -2570,82 +2881,74 @@ function BuyNowModal({
 
   const basePrice = product.priceValue;
 
-  const sellerPickupLat = product.pickupLat
-    ? toNumber(product.pickupLat)
-    : null;
-  const sellerPickupLng = product.pickupLng
-    ? toNumber(product.pickupLng)
-    : null;
-  const hasSellerOrigin = sellerPickupLat !== null && sellerPickupLng !== null;
-
   const isDynamic = isDynamicShipping(product, 'shipping');
 
-  // ── FIX: explicit flag for "dynamic shipping configured, but
-  // seller never pinned an origin" — this is what was silently
-  // wedging the submit button forever. ──────────────────────────
-  const shippingOriginMissing = isDynamic && !hasSellerOrigin;
+  // ── Dynamic shipping now depends on the seller having a
+  // resolved origin district/province (set at listing time from
+  // their own map pin), not the buyer pinning anything. If that's
+  // missing, there's no rate table to show at all. ───────────────
+  const shippingOriginMissing =
+      isDynamic && !product.sellerDistrict && !product.sellerProvince;
 
-  // ── FIX: if shipping is the only channel AND its origin is
-  // missing, there is literally no way for the buyer to complete
-  // this order. Surface that instead of a dead disabled button. ──
+  // ── If shipping is the only channel AND its origin is missing,
+  // there is literally no way for the buyer to complete this order.
+  // Surface that instead of a dead disabled button. ──────────────
   const noValidChannel = shippingOriginMissing && !hasPickup;
 
-  // ── FIX: if a valid Pickup alternative exists, don't let the
-  // buyer sit on a broken Shipping tab — steer them to Pickup. ──
+  // ── If a valid Pickup alternative exists, don't let the buyer
+  // sit on a broken Shipping tab — steer them to Pickup. ─────────
   useEffect(() => {
     if (shippingOriginMissing && hasPickup && channel === 'shipping') {
       setChannel('pickup');
     }
   }, [shippingOriginMissing, hasPickup, channel]);
 
+  const resolvedZone: DeliveryZone | null = useMemo(() => {
+    if (!isDynamic || !buyerProvince) return null;
+    return resolveZoneFromLocation(
+        product.sellerDistrict,
+        product.sellerProvince,
+        buyerDistrict,
+        buyerProvince,
+    );
+  }, [isDynamic, buyerDistrict, buyerProvince, product]);
+
   const deliveryFee = useMemo(() => {
     if (channel === 'pickup') return 0;
     if (!isDynamic) return calculateFlexDeliveryFee(product, 'shipping', null);
-    if (shippingOriginMissing) return null; // no seller origin — genuinely can't price this
-    if (!addressLat || !addressLng) return null;
-    const km = distanceKm(
-      sellerPickupLat as number,
-      sellerPickupLng as number,
-      addressLat,
-      addressLng,
-    );
-    const bucket = resolveDistanceBucket(km);
-    return calculateFlexDeliveryFee(product, 'shipping', bucket);
-  }, [
-    channel,
-    isDynamic,
-    shippingOriginMissing,
-    addressLat,
-    addressLng,
-    sellerPickupLat,
-    sellerPickupLng,
-    product,
-  ]);
+    if (!resolvedZone) return null; // buyer hasn't picked a province yet
+    return calculateFlexDeliveryFee(product, 'shipping', resolvedZone);
+  }, [channel, isDynamic, resolvedZone, product]);
 
-  // Now only "true" when the buyer just hasn't pinned an address
-  // yet (a state they CAN resolve) — not when it's unresolvable.
+  // Only "true" when the buyer just hasn't picked a province yet
+  // (a state they CAN resolve) — not when it's genuinely
+  // unresolvable (that's `shippingOriginMissing` / `noValidChannel`).
   const dynamicFeePending =
-    channel === 'shipping' &&
-    isDynamic &&
-    !shippingOriginMissing &&
-    deliveryFee === null;
+      channel === 'shipping' &&
+      isDynamic &&
+      !shippingOriginMissing &&
+      deliveryFee === null;
   const resolvedFee = deliveryFee ?? 0;
   const total = basePrice + (channel === 'shipping' ? resolvedFee : 0);
 
   const fmt = (n: number) => `Rs. ${n.toLocaleString('en-IN')}`;
 
   const pickupMapUrl =
-    sellerPickupLat && sellerPickupLng
-      ? `https://www.google.com/maps?q=${sellerPickupLat},${sellerPickupLng}`
-      : null;
+      product.pickupLat && product.pickupLng
+          ? `https://www.google.com/maps?q=${toNumber(product.pickupLat)},${toNumber(product.pickupLng)}`
+          : null;
+
+  // Human-readable label for the buyer's resolved zone — used in
+  // the delivery-fee row and the "Added to Cart" confirmation.
+  const zoneLabel = useMemo(() => {
+    if (!resolvedZone) return null;
+    return zoneLabelFor(product, resolvedZone);
+  }, [resolvedZone, product]);
 
   const canSubmit =
-    !noValidChannel &&
-    fullName.trim() &&
-    contactNumber.trim() &&
-    (channel === 'pickup' || (addressLat && addressLng)) &&
-    !(channel === 'shipping' && dynamicFeePending) &&
-    !(channel === 'shipping' && shippingOriginMissing);
+      fullName.trim() &&
+      contactNumber.trim() &&
+      !(channel === 'shipping' && dynamicFeePending); // dynamicFeePending is false once a province is picked
 
   const handleSaveAndAddToCart = () => {
     if (!canSubmit) return;
@@ -2663,630 +2966,605 @@ function BuyNowModal({
       fulfillment: channel,
       deliveryFee: resolvedFee,
       pickupArea:
-        channel === 'pickup'
-          ? (product.pickupResolvedAddress ?? product.pickupArea ?? undefined)
-          : undefined,
+          channel === 'pickup'
+              ? (product.pickupResolvedAddress ?? product.pickupArea ?? undefined)
+              : undefined,
       pickupHours:
-        channel === 'pickup'
-          ? `${product.pickupTimeFrom ?? '10:00 AM'} – ${product.pickupTimeTo ?? '6:00 PM'}${
-              product.pickupDays
-                ? ` (${formatPickupDays(product.pickupDays)})`
-                : ''
-            }`
-          : undefined,
+          channel === 'pickup'
+              ? `${product.pickupTimeFrom ?? '10:00 AM'} – ${product.pickupTimeTo ?? '6:00 PM'}${
+                  product.pickupDays
+                      ? ` (${formatPickupDays(product.pickupDays)})`
+                      : ''
+              }`
+              : undefined,
       note:
-        channel === 'shipping'
-          ? `Ship to: ${resolvedAddress || 'Pinned address'} · ${fullName} · ${contactNumber}`
-          : `Pickup by: ${fullName} · ${contactNumber}`,
+          channel === 'shipping'
+              ? `Ship to: ${buyerDistrict ? `${buyerDistrict}, ` : ''}${buyerProvince || 'Selected zone'} · ${fullName} · ${contactNumber}`
+              : `Pickup by: ${fullName} · ${contactNumber}`,
     });
     setStep('added');
   };
 
   const subtitle =
-    hasShipping && hasPickup
-      ? 'This item is available with both shipping and pickup.'
-      : hasShipping
-        ? 'This item is available with shipping.'
-        : 'This item is available with pickup.';
+      hasShipping && hasPickup
+          ? 'This item is available with both shipping and pickup.'
+          : hasShipping
+              ? 'This item is available with shipping.'
+              : 'This item is available with pickup.';
 
   return (
-    <div
-      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
       <div
-        className="relative w-full max-w-[620px] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
+          className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={onClose}
-          className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+      >
+        <div
+            className="relative w-full max-w-[620px] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
         >
-          <X size={16} />
-        </button>
+          <button
+              onClick={onClose}
+              className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+          >
+            <X size={16} />
+          </button>
 
-        {step === 'added' ? (
-          <div className="flex flex-col items-center px-8 py-8 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#4A6B3A] bg-[#F0F6ED]">
-              <Check size={30} strokeWidth={2.2} className="text-[#4A6B3A]" />
-            </div>
-            <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
-              Added to Cart!
-            </h2>
-            <p className="mt-2 max-w-[360px] text-[13px] leading-relaxed text-[#6E6053]">
+          {step === 'added' ? (
+              <div className="flex flex-col items-center px-8 py-8 text-center">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#4A6B3A] bg-[#F0F6ED]">
+                  <Check size={30} strokeWidth={2.2} className="text-[#4A6B3A]" />
+                </div>
+                <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
+                  Added to Cart!
+                </h2>
+                <p className="mt-2 max-w-[360px] text-[13px] leading-relaxed text-[#6E6053]">
               <span className="font-semibold text-[#1A130E]">
                 {product.name}
               </span>{' '}
-              has been added to your cart with{' '}
-              {channel === 'shipping' ? 'shipping' : 'pickup'} selected.
-            </p>
-
-            <div className="mt-5 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
-              <div className="flex items-center gap-4">
-                <div className="relative h-[64px] w-[52px] shrink-0 overflow-hidden rounded-lg border border-[#EBE3D5] bg-[#F5F0E8]">
-                  <Image
-                    src={product.image}
-                    alt={product.name}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="truncate text-[13px] font-semibold text-[#1A130E]">
-                    {product.name}
-                  </p>
-                  <p className="text-[11px] text-[#6E6053]">
-                    {product.brand}{' '}
-                    {product.size ? `· Size ${product.size}` : ''}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-[#8C7E74]">
-                    {channel === 'shipping'
-                      ? 'Ships to your address'
-                      : 'Pickup from seller'}
-                  </p>
-                </div>
-                <p className="shrink-0 text-[15px] font-bold text-[#9E2A1B]">
-                  {fmt(basePrice)}
+                  has been added to your cart with{' '}
+                  {channel === 'shipping' ? 'shipping' : 'pickup'} selected.
                 </p>
-              </div>
-            </div>
 
-            <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] px-5 py-4 text-left overflow-hidden">
-              <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                {channel === 'shipping' ? (
-                  <Truck size={12} />
-                ) : (
-                  <MapPin size={12} />
-                )}
-                {channel === 'shipping' ? 'Shipping Details' : 'Pickup Details'}
-              </p>
-
-              {channel === 'shipping' ? (
-                <div className="mt-2 space-y-1.5">
-                  <div className="flex items-start gap-1.5">
-                    <MapPin
-                      size={13}
-                      className="mt-0.5 shrink-0 text-[#9E2A1B]"
-                    />
-                    <p className="text-[12px] text-[#4F4338]">
-                      {resolvedAddress || 'Pinned address'}
-                    </p>
-                  </div>
-                  <p className="text-[12px] text-[#4F4338]">
-                    <span className="font-semibold">{fullName}</span> ·{' '}
-                    {contactNumber}
-                  </p>
-                  {notes && (
-                    <p className="text-[11px] italic text-[#8C7E74]">
-                      "{notes}"
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="mt-2 space-y-1.5">
-                  <div className="flex items-start gap-1.5">
-                    <MapPin
-                      size={13}
-                      className="mt-0.5 shrink-0 text-[#9E2A1B]"
-                    />
-                    <p className="text-[12px] text-[#4F4338]">
-                      {product.pickupResolvedAddress ??
-                        product.pickupArea ??
-                        'Shared after booking'}
-                    </p>
-                  </div>
-                  <p className="text-[12px] text-[#4F4338]">
-                    <span className="font-semibold">{fullName}</span> ·{' '}
-                    {contactNumber}
-                  </p>
-                  <p className="text-[11px] text-[#8C7E74]">
-                    Pickup hours:{' '}
-                    {product.pickupTimeFrom && product.pickupTimeTo
-                      ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
-                      : '10:00 AM – 6:00 PM'}
-                    {product.pickupContactNumber
-                      ? ` · Seller: ${product.pickupContactNumber}`
-                      : ''}
-                  </p>
-                  {notes && (
-                    <p className="text-[11px] italic text-[#8C7E74]">
-                      "{notes}"
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
-              <div className="flex items-center justify-between text-[12px] text-[#6E6053]">
-                <span>Item Price</span>
-                <span className="font-semibold text-[#1A130E]">
-                  {fmt(basePrice)}
-                </span>
-              </div>
-              <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
-                <span>
-                  {channel === 'shipping' ? 'Delivery Fee' : 'Pickup Fee'}
-                </span>
-                <span
-                  className={`font-semibold ${resolvedFee === 0 ? 'text-[#4A6B3A]' : 'text-[#1A130E]'}`}
-                >
-                  {resolvedFee === 0 ? 'Free' : fmt(resolvedFee)}
-                </span>
-              </div>
-              <div className="mt-2 flex items-center justify-between border-t border-[#EBE3D5] pt-2">
-                <span className="text-[13px] font-bold text-[#1A130E]">
-                  Total Paid
-                </span>
-                <span className="text-[16px] font-bold text-[#9E2A1B]">
-                  {fmt(total)}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-5 w-full grid grid-cols-2 gap-2.5">
-              <Link
-                href="/cart"
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#9E2A1B] py-3.5 text-[14px] font-bold text-white transition hover:bg-[#832215]"
-              >
-                <ShoppingBag size={15} />
-                Go to Cart
-              </Link>
-              <button
-                onClick={onClose}
-                className="w-full rounded-xl border border-[#DDD5C8] bg-white py-3.5 text-[14px] font-semibold text-[#9E2A1B] transition hover:bg-[#FAF6F0]"
-              >
-                Continue Shopping
-              </button>
-            </div>
-
-            <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#8C7E74]">
-              <ShieldCheck
-                size={12}
-                strokeWidth={1.6}
-                className="text-[#A89E94]"
-              />
-              Secure checkout. Your payment information is safe with us.
-            </p>
-          </div>
-        ) : (
-          <div className="px-6 pt-7 pb-6">
-            <div className="text-center">
-              <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
-                Choose Delivery Method
-              </h2>
-              <p className="mt-1 text-[13px] text-[#6E6053]">{subtitle}</p>
-            </div>
-
-            {/* ── FIX: hard block state — dynamic shipping is the
-                            only channel and the seller never pinned an origin.
-                            Nothing the buyer does can fix this, so don't show
-                            a form that leads to a dead-end disabled button. ── */}
-            {noValidChannel ? (
-              <div className="mt-5 rounded-xl border border-[#F1C9C0] bg-[#FCEEEA] p-5 text-center">
-                <AlertTriangle size={22} className="mx-auto text-[#9E2A1B]" />
-                <p className="mt-2 text-[13px] font-bold text-[#9E2A1B]">
-                  Delivery unavailable for this item
-                </p>
-                <p className="mt-1.5 text-[12px] leading-relaxed text-[#6E6053]">
-                  This listing uses distance-based shipping, but the seller
-                  hasn't set a pickup/origin location yet, so we can't calculate
-                  a delivery fee. Please message the seller or check back later.
-                </p>
-              </div>
-            ) : (
-              <>
-                {hasShipping && hasPickup && (
-                  <div className="mt-5 grid grid-cols-2 gap-2.5">
-                    <button
-                      onClick={() => {
-                        if (!shippingOriginMissing) setChannel('shipping');
-                      }}
-                      disabled={shippingOriginMissing}
-                      title={
-                        shippingOriginMissing
-                          ? "Shipping unavailable — seller hasn't set a pickup/origin location"
-                          : undefined
-                      }
-                      className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
-                        shippingOriginMissing
-                          ? 'cursor-not-allowed border-[#EBE3D5] bg-[#F4ECE3] text-[#B5A89E]'
-                          : channel === 'shipping'
-                            ? 'border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]'
-                            : 'border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]'
-                      }`}
-                    >
-                      <Truck size={15} /> Shipping
-                    </button>
-                    <button
-                      onClick={() => setChannel('pickup')}
-                      className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
-                        channel === 'pickup'
-                          ? 'border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]'
-                          : 'border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]'
-                      }`}
-                    >
-                      <MapPin size={15} /> Pickup
-                    </button>
-                  </div>
-                )}
-
-                {/* ── FIX: soft warning — shipping is available in
-                                    theory (Pickup exists as fallback) but its origin
-                                    is missing, so we explain why the tab is greyed out. ── */}
-                {shippingOriginMissing && hasPickup && (
-                  <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#F1C9C0] bg-[#FCEEEA] px-3.5 py-2.5 text-[11px] text-[#9E2A1B]">
-                    <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-                    Shipping isn't available for this item right now — the
-                    seller hasn't set a pickup/origin location. Pickup has been
-                    selected instead.
-                  </div>
-                )}
-
-                {channel === 'shipping' && (
-                  <div className="mt-5 space-y-4">
-                    <div className="flex items-center rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] divide-x divide-[#EBE3D5]">
-                      <div className="flex flex-1 items-center gap-3 px-4 py-3.5">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white text-[#9E2A1B]">
-                          <Truck size={15} />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                            Shipping Availability
-                          </p>
-                          <p className="text-[13px] font-bold text-[#1A130E]">
-                            {product.shippingAvailability ?? 'Nationwide'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex-1 px-4 py-3.5 text-right">
-                        <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                          Delivery Fee
-                        </p>
-                        <p className="text-[15px] font-bold text-[#9E2A1B]">
-                          {dynamicFeePending
-                            ? 'Pin address'
-                            : resolvedFee === 0
-                              ? 'Free'
-                              : fmt(resolvedFee)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {isDynamic && (
-                      <div className="flex items-start gap-2 rounded-xl border border-[#D9E2F1] bg-[#F0F4FC] px-3.5 py-2.5 text-[11px] text-[#3A537D]">
-                        <Info size={13} className="mt-0.5 shrink-0" />
-                        Dynamic shipping uses the distance between your location
-                        and the seller's delivery location to calculate the
-                        delivery fee.
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="text-[13px] font-bold text-[#1A130E] mb-2">
-                        Delivery Address
-                      </p>
-                      <div className="relative rounded-xl overflow-hidden border border-[#EBE3D5]">
-                        <PickupLocationMap
-                          lat={addressLat}
-                          lng={addressLng}
-                          onLocationSelect={handleAddressPin}
-                        />
-                        <button
-                          type="button"
-                          onClick={handleUseCurrentLocation}
-                          className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 rounded-lg bg-white/95 border border-[#DDD5C8] px-3 py-2 text-[12px] font-semibold text-[#9E2A1B] shadow-sm hover:bg-white transition"
-                        >
-                          <MapPin size={13} /> Use current location
-                        </button>
-                      </div>
-                      {addressLat && addressLng && (
-                        <div className="mt-2 flex items-start gap-2 rounded-xl border border-[#BFD0B3] bg-[#F0F6ED] px-3 py-2.5">
-                          <Check
-                            size={13}
-                            className="mt-0.5 shrink-0 text-[#4A6B3A]"
-                          />
-                          <div>
-                            <p className="text-[11px] font-bold text-[#2E7D52]">
-                              Location pinned successfully
-                            </p>
-                            {resolvedAddress && (
-                              <p className="mt-0.5 text-[11px] leading-relaxed text-[#4F4338]">
-                                {resolvedAddress}
-                              </p>
-                            )}
-                            <p className="mt-0.5 text-[10px] text-[#8C7E74]">
-                              (Tap on map to change location)
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                            Full Name *
-                          </label>
-                          <button
-                            onClick={handleUseProfileName}
-                            disabled={fetchingProfileName}
-                            className="text-[11px] font-semibold text-[#9E2A1B] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
-                          >
-                            {fetchingProfileName
-                              ? 'Fetching...'
-                              : 'Use profile name'}
-                          </button>
-                        </div>
-                        <input
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
-                          placeholder="Your full name"
-                          className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                            Contact Number *
-                          </label>
-                          <button
-                            onClick={handleUseProfileNumber}
-                            disabled={fetchingProfileNumber}
-                            className="text-[11px] font-semibold text-[#9E2A1B] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
-                          >
-                            {fetchingProfileNumber
-                              ? 'Fetching...'
-                              : 'Use profile number'}
-                          </button>
-                        </div>
-                        <input
-                          value={contactNumber}
-                          onChange={(e) => setContactNumber(e.target.value)}
-                          placeholder="+977 98XXXXXXXX"
-                          className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                        Delivery Notes (Optional)
-                      </label>
-                      <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="E.g. Please ring the bell. Gate code 1234."
-                        maxLength={200}
-                        rows={2}
-                        className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                <div className="mt-5 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
+                  <div className="flex items-center gap-4">
+                    <div className="relative h-[64px] w-[52px] shrink-0 overflow-hidden rounded-lg border border-[#EBE3D5] bg-[#F5F0E8]">
+                      <Image
+                          src={product.image}
+                          alt={product.name}
+                          fill
+                          className="object-cover"
                       />
-                      <span className="self-end text-[10px] text-[#A6998E]">
-                        {notes.length} / 200
-                      </span>
                     </div>
-                  </div>
-                )}
-
-                {channel === 'pickup' && (
-                  <div className="mt-5 space-y-4">
-                    <div className="rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-2.5">
-                          <MapPin
-                            size={15}
-                            className="mt-0.5 shrink-0 text-[#9E2A1B]"
-                          />
-                          <div>
-                            <p className="text-[11px] font-bold text-[#1A130E]">
-                              Pickup Details{' '}
-                              <span className="font-normal text-[#8C7E74]">
-                                (Provided by Seller)
-                              </span>
-                            </p>
-                            <p className="mt-0.5 text-[13px] font-semibold text-[#1A130E]">
-                              {product.pickupResolvedAddress ??
-                                product.pickupArea ??
-                                'Shared after booking'}
-                            </p>
-                          </div>
-                        </div>
-                        {pickupMapUrl && (
-                          <a
-                            href={pickupMapUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="shrink-0 text-[12px] font-bold text-[#9E2A1B] hover:underline"
-                          >
-                            View on Map
-                          </a>
-                        )}
-                      </div>
-
-                      <div className="mt-3.5 grid grid-cols-3 gap-3 border-t border-[#EBE3D5] pt-3.5">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                            Pickup Hours
-                          </p>
-                          <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
-                            {product.pickupTimeFrom && product.pickupTimeTo
-                              ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
-                              : '10:00 AM – 6:00 PM'}
-                          </p>
-                          <p className="text-[10px] text-[#8C7E74]">
-                            ({formatPickupDays(product.pickupDays)}
-                            {product.sameDayPickup ? ' · Same-day OK' : ''})
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                            Instructions
-                          </p>
-                          <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E] line-clamp-2">
-                            {product.pickupInstructions ??
-                              'Call before arriving.'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                            Contact Number
-                          </p>
-                          <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
-                            {product.pickupContactNumber ??
-                              'Shared after booking'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-[13px] font-bold text-[#1A130E]">
-                        Your Pickup Information
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-[13px] font-semibold text-[#1A130E]">
+                        {product.name}
                       </p>
-                      <p className="text-[11px] text-[#8C7E74]">
-                        This information will be shared with the seller to
-                        coordinate pickup.
+                      <p className="text-[11px] text-[#6E6053]">
+                        {product.brand}{' '}
+                        {product.size ? `· Size ${product.size}` : ''}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-[#8C7E74]">
+                        {channel === 'shipping'
+                            ? 'Ships to your address'
+                            : 'Pickup from seller'}
                       </p>
                     </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                          Full Name *
-                        </label>
-                        <button
-                          onClick={handleUseProfileName}
-                          className="text-[11px] font-semibold text-[#9E2A1B] hover:underline"
-                        >
-                          Use profile name
-                        </button>
-                      </div>
-                      <input
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Your full name"
-                        className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                          Contact Number *
-                        </label>
-                        <button
-                          onClick={handleUseProfileNumber}
-                          className="text-[11px] font-semibold text-[#9E2A1B] hover:underline"
-                        >
-                          Use profile number
-                        </button>
-                      </div>
-                      <input
-                        value={contactNumber}
-                        onChange={(e) => setContactNumber(e.target.value)}
-                        placeholder="+977 98XXXXXXXX"
-                        className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                        Pickup Notes (Optional)
-                      </label>
-                      <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="E.g. I will come with a friend."
-                        maxLength={200}
-                        rows={2}
-                        className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                      />
-                      <span className="self-end text-[10px] text-[#A6998E]">
-                        {notes.length} / 200
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-5 flex items-center justify-between rounded-xl bg-white border border-[#EBE3D5] px-4 py-3.5">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                      Item Price
-                    </p>
-                    <p className="text-[14px] font-bold text-[#1A130E]">
+                    <p className="shrink-0 text-[15px] font-bold text-[#9E2A1B]">
                       {fmt(basePrice)}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                      {channel === 'shipping' ? 'Delivery Fee' : 'Pickup Fee'}
-                    </p>
-                    <p
-                      className={`text-[14px] font-bold ${
-                        channel === 'shipping' && dynamicFeePending
-                          ? 'text-[#8C7E74]'
-                          : resolvedFee === 0
-                            ? 'text-[#4A6B3A]'
-                            : 'text-[#1A130E]'
-                      }`}
-                    >
-                      {channel === 'shipping' && dynamicFeePending
-                        ? '—'
-                        : resolvedFee === 0
-                          ? 'Free'
-                          : fmt(resolvedFee)}
-                    </p>
+                </div>
+
+                <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] px-5 py-4 text-left overflow-hidden">
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                    {channel === 'shipping' ? (
+                        <Truck size={12} />
+                    ) : (
+                        <MapPin size={12} />
+                    )}
+                    {channel === 'shipping' ? 'Shipping Details' : 'Pickup Details'}
+                  </p>
+
+                  {channel === 'shipping' ? (
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex items-start gap-1.5">
+                          <MapPin
+                              size={13}
+                              className="mt-0.5 shrink-0 text-[#9E2A1B]"
+                          />
+                          <p className="text-[12px] text-[#4F4338]">
+                            {buyerDistrict ? `${buyerDistrict}, ` : ''}
+                            {buyerProvince || 'Selected delivery zone'}
+                            {zoneLabel ? ` · ${zoneLabel}` : ''}
+                          </p>
+                        </div>
+                        <p className="text-[12px] text-[#4F4338]">
+                          <span className="font-semibold">{fullName}</span> ·{' '}
+                          {contactNumber}
+                        </p>
+                        {notes && (
+                            <p className="text-[11px] italic text-[#8C7E74]">
+                              "{notes}"
+                            </p>
+                        )}
+                      </div>
+                  ) : (
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex items-start gap-1.5">
+                          <MapPin
+                              size={13}
+                              className="mt-0.5 shrink-0 text-[#9E2A1B]"
+                          />
+                          <p className="text-[12px] text-[#4F4338]">
+                            {product.pickupResolvedAddress ??
+                                product.pickupArea ??
+                                'Shared after booking'}
+                          </p>
+                        </div>
+                        <p className="text-[12px] text-[#4F4338]">
+                          <span className="font-semibold">{fullName}</span> ·{' '}
+                          {contactNumber}
+                        </p>
+                        <p className="text-[11px] text-[#8C7E74]">
+                          Pickup hours:{' '}
+                          {product.pickupTimeFrom && product.pickupTimeTo
+                              ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
+                              : '10:00 AM – 6:00 PM'}
+                          {product.pickupContactNumber
+                              ? ` · Seller: ${product.pickupContactNumber}`
+                              : ''}
+                        </p>
+                        {notes && (
+                            <p className="text-[11px] italic text-[#8C7E74]">
+                              "{notes}"
+                            </p>
+                        )}
+                      </div>
+                  )}
+                </div>
+
+                <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
+                  <div className="flex items-center justify-between text-[12px] text-[#6E6053]">
+                    <span>Item Price</span>
+                    <span className="font-semibold text-[#1A130E]">
+                  {fmt(basePrice)}
+                </span>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                      Total Amount
-                    </p>
-                    <p className="text-[16px] font-bold text-[#9E2A1B]">
-                      {channel === 'shipping' && dynamicFeePending
-                        ? '—'
-                        : fmt(total)}
-                    </p>
+                  <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
+                <span>
+                  {channel === 'shipping' ? 'Delivery Fee' : 'Pickup Fee'}
+                </span>
+                    <span
+                        className={`font-semibold ${resolvedFee === 0 ? 'text-[#4A6B3A]' : 'text-[#1A130E]'}`}
+                    >
+                  {resolvedFee === 0 ? 'Free' : fmt(resolvedFee)}
+                </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between border-t border-[#EBE3D5] pt-2">
+                <span className="text-[13px] font-bold text-[#1A130E]">
+                  Total Paid
+                </span>
+                    <span className="text-[16px] font-bold text-[#9E2A1B]">
+                  {fmt(total)}
+                </span>
                   </div>
                 </div>
 
-                <button
-                  onClick={handleSaveAndAddToCart}
-                  disabled={!canSubmit}
-                  className={`mt-4 w-full rounded-xl py-3.5 text-[14px] font-bold transition ${
-                    canSubmit
-                      ? 'bg-[#9E2A1B] text-white hover:bg-[#832215]'
-                      : 'cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]'
-                  }`}
-                >
-                  Save & Add to Cart
-                </button>
-              </>
-            )}
-          </div>
-        )}
+                <div className="mt-5 w-full grid grid-cols-2 gap-2.5">
+                  <Link
+                      href="/cart"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#9E2A1B] py-3.5 text-[14px] font-bold text-white transition hover:bg-[#832215]"
+                  >
+                    <ShoppingBag size={15} />
+                    Go to Cart
+                  </Link>
+                  <button
+                      onClick={onClose}
+                      className="w-full rounded-xl border border-[#DDD5C8] bg-white py-3.5 text-[14px] font-semibold text-[#9E2A1B] transition hover:bg-[#FAF6F0]"
+                  >
+                    Continue Shopping
+                  </button>
+                </div>
+
+                <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#8C7E74]">
+                  <ShieldCheck
+                      size={12}
+                      strokeWidth={1.6}
+                      className="text-[#A89E94]"
+                  />
+                  Secure checkout. Your payment information is safe with us.
+                </p>
+              </div>
+          ) : (
+              <div className="px-6 pt-7 pb-6">
+                <div className="text-center">
+                  <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
+                    Choose Delivery Method
+                  </h2>
+                  <p className="mt-1 text-[13px] text-[#6E6053]">{subtitle}</p>
+                </div>
+
+                {/* ── Hard block state — dynamic shipping is the only
+                            channel and the seller never resolved a
+                            district/province. Nothing the buyer does can
+                            fix this, so don't show a form that leads to a
+                            dead-end disabled button. ── */}
+                {noValidChannel ? (
+                    <div className="mt-5 rounded-xl border border-[#F1C9C0] bg-[#FCEEEA] p-5 text-center">
+                      <AlertTriangle size={22} className="mx-auto text-[#9E2A1B]" />
+                      <p className="mt-2 text-[13px] font-bold text-[#9E2A1B]">
+                        Delivery unavailable for this item
+                      </p>
+                      <p className="mt-1.5 text-[12px] leading-relaxed text-[#6E6053]">
+                        This listing uses zone-based shipping, but the seller
+                        hasn't set an origin district/province yet, so we can't
+                        calculate a delivery fee. Please message the seller or
+                        check back later.
+                      </p>
+                    </div>
+                ) : (
+                    <>
+                      {hasShipping && hasPickup && (
+                          <div className="mt-5 grid grid-cols-2 gap-2.5">
+                            <button
+                                onClick={() => {
+                                  if (!shippingOriginMissing) setChannel('shipping');
+                                }}
+                                disabled={shippingOriginMissing}
+                                title={
+                                  shippingOriginMissing
+                                      ? "Shipping unavailable — seller hasn't set an origin district/province"
+                                      : undefined
+                                }
+                                className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
+                                    shippingOriginMissing
+                                        ? 'cursor-not-allowed border-[#EBE3D5] bg-[#F4ECE3] text-[#B5A89E]'
+                                        : channel === 'shipping'
+                                            ? 'border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]'
+                                            : 'border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]'
+                                }`}
+                            >
+                              <Truck size={15} /> Shipping
+                            </button>
+                            <button
+                                onClick={() => setChannel('pickup')}
+                                className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
+                                    channel === 'pickup'
+                                        ? 'border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]'
+                                        : 'border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]'
+                                }`}
+                            >
+                              <MapPin size={15} /> Pickup
+                            </button>
+                          </div>
+                      )}
+
+                      {/* ── Soft warning — shipping is available in theory
+                                    (Pickup exists as fallback) but its origin
+                                    district/province is missing, so we explain
+                                    why the tab is greyed out. ── */}
+                      {shippingOriginMissing && hasPickup && (
+                          <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#F1C9C0] bg-[#FCEEEA] px-3.5 py-2.5 text-[11px] text-[#9E2A1B]">
+                            <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                            Shipping isn't available for this item right now — the
+                            seller hasn't set an origin district/province. Pickup has
+                            been selected instead.
+                          </div>
+                      )}
+
+                      {channel === 'shipping' && (
+                          <div className="mt-5 space-y-4">
+                            <div className="flex items-center rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] divide-x divide-[#EBE3D5]">
+                              <div className="flex flex-1 items-center gap-3 px-4 py-3.5">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white text-[#9E2A1B]">
+                                  <Truck size={15} />
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                    Shipping Availability
+                                  </p>
+                                  <p className="text-[13px] font-bold text-[#1A130E]">
+                                    {product.shippingAvailability ?? 'Nationwide'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex-1 px-4 py-3.5 text-right">
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                  Delivery Fee
+                                </p>
+                                <p className="text-[15px] font-bold text-[#9E2A1B]">
+                                  {dynamicFeePending
+                                      ? 'Select province'
+                                      : resolvedFee === 0
+                                          ? 'Free'
+                                          : fmt(resolvedFee)}
+                                </p>
+                              </div>
+                            </div>
+
+                            {isDynamic && (
+                                <div className="flex items-start gap-2 rounded-xl border border-[#D9E2F1] bg-[#F0F4FC] px-3.5 py-2.5 text-[11px] text-[#3A537D]">
+                                  <Info size={13} className="mt-0.5 shrink-0" />
+                                  Dynamic shipping is priced by zone — the fee depends
+                                  on whether you're in the seller's district, their
+                                  province, or elsewhere in Nepal.
+                                </div>
+                            )}
+
+                            {isDynamic && (
+                                <DeliveryZonePicker
+                                    product={product}
+                                    buyerDistrict={buyerDistrict}
+                                    buyerProvince={buyerProvince}
+                                    onDistrictChange={setBuyerDistrict}
+                                    onProvinceChange={setBuyerProvince}
+                                    fmt={fmt}
+                                />
+                            )}
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                                    Full Name *
+                                  </label>
+                                  <button
+                                      onClick={handleUseProfileName}
+                                      disabled={fetchingProfileName}
+                                      className="text-[11px] font-semibold text-[#9E2A1B] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+                                  >
+                                    {fetchingProfileName
+                                        ? 'Fetching...'
+                                        : 'Use profile name'}
+                                  </button>
+                                </div>
+                                <input
+                                    value={fullName}
+                                    onChange={(e) => setFullName(e.target.value)}
+                                    placeholder="Your full name"
+                                    className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                />
+                              </div>
+                              <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                                    Contact Number *
+                                  </label>
+                                  <button
+                                      onClick={handleUseProfileNumber}
+                                      disabled={fetchingProfileNumber}
+                                      className="text-[11px] font-semibold text-[#9E2A1B] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+                                  >
+                                    {fetchingProfileNumber
+                                        ? 'Fetching...'
+                                        : 'Use profile number'}
+                                  </button>
+                                </div>
+                                <input
+                                    value={contactNumber}
+                                    onChange={(e) => setContactNumber(e.target.value)}
+                                    placeholder="+977 98XXXXXXXX"
+                                    className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                                Delivery Notes (Optional)
+                              </label>
+                              <textarea
+                                  value={notes}
+                                  onChange={(e) => setNotes(e.target.value)}
+                                  placeholder="E.g. Please ring the bell. Gate code 1234."
+                                  maxLength={200}
+                                  rows={2}
+                                  className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                              />
+                              <span className="self-end text-[10px] text-[#A6998E]">
+                        {notes.length} / 200
+                      </span>
+                            </div>
+                          </div>
+                      )}
+
+                      {channel === 'pickup' && (
+                          <div className="mt-5 space-y-4">
+                            <div className="rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] p-4">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-start gap-2.5">
+                                  <MapPin
+                                      size={15}
+                                      className="mt-0.5 shrink-0 text-[#9E2A1B]"
+                                  />
+                                  <div>
+                                    <p className="text-[11px] font-bold text-[#1A130E]">
+                                      Pickup Details{' '}
+                                      <span className="font-normal text-[#8C7E74]">
+                                (Provided by Seller)
+                              </span>
+                                    </p>
+                                    <p className="mt-0.5 text-[13px] font-semibold text-[#1A130E]">
+                                      {product.pickupResolvedAddress ??
+                                          product.pickupArea ??
+                                          'Shared after booking'}
+                                    </p>
+                                  </div>
+                                </div>
+                                {pickupMapUrl && (
+                                    <a
+                                        href={pickupMapUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="shrink-0 text-[12px] font-bold text-[#9E2A1B] hover:underline"
+                                    >
+                                      View on Map
+                                    </a>
+                                )}
+                              </div>
+
+                              <div className="mt-3.5 grid grid-cols-3 gap-3 border-t border-[#EBE3D5] pt-3.5">
+                                <div>
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                    Pickup Hours
+                                  </p>
+                                  <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
+                                    {product.pickupTimeFrom && product.pickupTimeTo
+                                        ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
+                                        : '10:00 AM – 6:00 PM'}
+                                  </p>
+                                  <p className="text-[10px] text-[#8C7E74]">
+                                    ({formatPickupDays(product.pickupDays)}
+                                    {product.sameDayPickup ? ' · Same-day OK' : ''})
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                    Instructions
+                                  </p>
+                                  <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E] line-clamp-2">
+                                    {product.pickupInstructions ??
+                                        'Call before arriving.'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                    Contact Number
+                                  </p>
+                                  <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
+                                    {product.pickupContactNumber ??
+                                        'Shared after booking'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-[13px] font-bold text-[#1A130E]">
+                                Your Pickup Information
+                              </p>
+                              <p className="text-[11px] text-[#8C7E74]">
+                                This information will be shared with the seller to
+                                coordinate pickup.
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                                  Full Name *
+                                </label>
+                                <button
+                                    onClick={handleUseProfileName}
+                                    className="text-[11px] font-semibold text-[#9E2A1B] hover:underline"
+                                >
+                                  Use profile name
+                                </button>
+                              </div>
+                              <input
+                                  value={fullName}
+                                  onChange={(e) => setFullName(e.target.value)}
+                                  placeholder="Your full name"
+                                  className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                              />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                                  Contact Number *
+                                </label>
+                                <button
+                                    onClick={handleUseProfileNumber}
+                                    className="text-[11px] font-semibold text-[#9E2A1B] hover:underline"
+                                >
+                                  Use profile number
+                                </button>
+                              </div>
+                              <input
+                                  value={contactNumber}
+                                  onChange={(e) => setContactNumber(e.target.value)}
+                                  placeholder="+977 98XXXXXXXX"
+                                  className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                              />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                                Pickup Notes (Optional)
+                              </label>
+                              <textarea
+                                  value={notes}
+                                  onChange={(e) => setNotes(e.target.value)}
+                                  placeholder="E.g. I will come with a friend."
+                                  maxLength={200}
+                                  rows={2}
+                                  className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                              />
+                              <span className="self-end text-[10px] text-[#A6998E]">
+                        {notes.length} / 200
+                      </span>
+                            </div>
+                          </div>
+                      )}
+
+                      <div className="mt-5 flex items-center justify-between rounded-xl bg-white border border-[#EBE3D5] px-4 py-3.5">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                            Item Price
+                          </p>
+                          <p className="text-[14px] font-bold text-[#1A130E]">
+                            {fmt(basePrice)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                            {channel === 'shipping' ? 'Delivery Fee' : 'Pickup Fee'}
+                          </p>
+                          <p
+                              className={`text-[14px] font-bold ${
+                                  channel === 'shipping' && dynamicFeePending
+                                      ? 'text-[#8C7E74]'
+                                      : resolvedFee === 0
+                                          ? 'text-[#4A6B3A]'
+                                          : 'text-[#1A130E]'
+                              }`}
+                          >
+                            {channel === 'shipping' && dynamicFeePending
+                                ? '—'
+                                : resolvedFee === 0
+                                    ? 'Free'
+                                    : fmt(resolvedFee)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                            Total Amount
+                          </p>
+                          <p className="text-[16px] font-bold text-[#9E2A1B]">
+                            {channel === 'shipping' && dynamicFeePending
+                                ? '—'
+                                : fmt(total)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                          onClick={handleSaveAndAddToCart}
+                          disabled={!canSubmit}
+                          className={`mt-4 w-full rounded-xl py-3.5 text-[14px] font-bold transition ${
+                              canSubmit
+                                  ? 'bg-[#9E2A1B] text-white hover:bg-[#832215]'
+                                  : 'cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]'
+                          }`}
+                      >
+                        Save & Add to Cart
+                      </button>
+                    </>
+                )}
+              </div>
+          )}
+        </div>
       </div>
-    </div>
   );
 }
 
@@ -3295,16 +3573,16 @@ function BuyNowModal({
    Flex flow, priced for a rental: Rental Price (rate × days)
    + Security Deposit + Delivery/Pickup Fee.
 
-   Same "shipping origin missing" fix as BuyNowModal — see the
-   comments in the fields below.
+   Same district/province zone-based dynamic-shipping approach
+   as BuyNowModal — see the comments there for the full rationale.
 ══════════════════════════════════════════════════════════ */
 type RentNowStep = 'delivery' | 'added';
 
 function RentNowModal({
-  product,
-  rentInfo,
-  onClose,
-}: {
+                        product,
+                        rentInfo,
+                        onClose,
+                      }: {
   product: DeliverableProduct;
   rentInfo: {
     days: number;
@@ -3324,43 +3602,17 @@ function RentNowModal({
 
   const [step, setStep] = useState<RentNowStep>('delivery');
   const [channel, setChannel] = useState<'shipping' | 'pickup'>(
-    hasShipping ? 'shipping' : 'pickup',
+      hasShipping ? 'shipping' : 'pickup',
   );
 
   const [fullName, setFullName] = useState('');
   const [contactNumber, setContactNumber] = useState('');
   const [notes, setNotes] = useState('');
 
-  const [addressLat, setAddressLat] = useState<number | null>(null);
-  const [addressLng, setAddressLng] = useState<number | null>(null);
-  const [resolvedAddress, setResolvedAddress] = useState('');
-
-  const reverseGeocode = async (lat: number, lng: number) => {
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
-        { headers: { Accept: 'application/json' } },
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data?.display_name) setResolvedAddress(data.display_name as string);
-    } catch {
-      // Silent — nice-to-have only.
-    }
-  };
-
-  const handleAddressPin = (lat: number, lng: number) => {
-    setAddressLat(lat);
-    setAddressLng(lng);
-    reverseGeocode(lat, lng);
-  };
-
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((pos) => {
-      handleAddressPin(pos.coords.latitude, pos.coords.longitude);
-    });
-  };
+  // Buyer types their district + picks their province — no map,
+  // no coordinates. resolveZoneFromLocation does the matching.
+  const [buyerDistrict, setBuyerDistrict] = useState('');
+  const [buyerProvince, setBuyerProvince] = useState('');
 
   const handleUseProfileName = async () => {
     if (!user?.id) {
@@ -3405,18 +3657,12 @@ function RentNowModal({
   const rentalPrice = rentInfo.dailyRateNumber * rentInfo.days;
   const securityDeposit = rentInfo.securityDepositNumber;
 
-  const sellerPickupLat = product.pickupLat
-    ? toNumber(product.pickupLat)
-    : null;
-  const sellerPickupLng = product.pickupLng
-    ? toNumber(product.pickupLng)
-    : null;
-  const hasSellerOrigin = sellerPickupLat !== null && sellerPickupLng !== null;
-
   const isDynamic = isDynamicShipping(product, 'shipping');
 
-  // ── FIX: same root cause as BuyNowModal — see comments there. ──
-  const shippingOriginMissing = isDynamic && !hasSellerOrigin;
+  // Same as BuyNowModal: dynamic shipping now depends on the
+  // seller having a resolved district/province, not lat/lng.
+  const shippingOriginMissing =
+      isDynamic && !product.sellerDistrict && !product.sellerProvince;
   const noValidChannel = shippingOriginMissing && !hasPickup;
 
   useEffect(() => {
@@ -3425,53 +3671,48 @@ function RentNowModal({
     }
   }, [shippingOriginMissing, hasPickup, channel]);
 
+  const resolvedZone: DeliveryZone | null = useMemo(() => {
+    if (!isDynamic || !buyerProvince) return null;
+    return resolveZoneFromLocation(
+        product.sellerDistrict,
+        product.sellerProvince,
+        buyerDistrict,
+        buyerProvince,
+    );
+  }, [isDynamic, buyerDistrict, buyerProvince, product]);
+
   const deliveryFee = useMemo(() => {
     if (channel === 'pickup') return 0;
     if (!isDynamic) return calculateFlexDeliveryFee(product, 'shipping', null);
-    if (shippingOriginMissing) return null;
-    if (!addressLat || !addressLng) return null;
-    const km = distanceKm(
-      sellerPickupLat as number,
-      sellerPickupLng as number,
-      addressLat,
-      addressLng,
-    );
-    const bucket = resolveDistanceBucket(km);
-    return calculateFlexDeliveryFee(product, 'shipping', bucket);
-  }, [
-    channel,
-    isDynamic,
-    shippingOriginMissing,
-    addressLat,
-    addressLng,
-    sellerPickupLat,
-    sellerPickupLng,
-    product,
-  ]);
+    if (!resolvedZone) return null; // buyer hasn't picked a province yet
+    return calculateFlexDeliveryFee(product, 'shipping', resolvedZone);
+  }, [channel, isDynamic, resolvedZone, product]);
 
   const dynamicFeePending =
-    channel === 'shipping' &&
-    isDynamic &&
-    !shippingOriginMissing &&
-    deliveryFee === null;
+      channel === 'shipping' &&
+      isDynamic &&
+      !shippingOriginMissing &&
+      deliveryFee === null;
   const resolvedFee = deliveryFee ?? 0;
   const total =
-    rentalPrice + securityDeposit + (channel === 'shipping' ? resolvedFee : 0);
+      rentalPrice + securityDeposit + (channel === 'shipping' ? resolvedFee : 0);
 
   const fmt = (n: number) => `Rs. ${n.toLocaleString('en-IN')}`;
 
   const pickupMapUrl =
-    sellerPickupLat && sellerPickupLng
-      ? `https://www.google.com/maps?q=${sellerPickupLat},${sellerPickupLng}`
-      : null;
+      product.pickupLat && product.pickupLng
+          ? `https://www.google.com/maps?q=${toNumber(product.pickupLat)},${toNumber(product.pickupLng)}`
+          : null;
+
+  const zoneLabel = useMemo(() => {
+    if (!resolvedZone) return null;
+    return zoneLabelFor(product, resolvedZone);
+  }, [resolvedZone, product]);
 
   const canSubmit =
-    !noValidChannel &&
-    fullName.trim() &&
-    contactNumber.trim() &&
-    (channel === 'pickup' || (addressLat && addressLng)) &&
-    !(channel === 'shipping' && dynamicFeePending) &&
-    !(channel === 'shipping' && shippingOriginMissing);
+      fullName.trim() &&
+      contactNumber.trim() &&
+      !(channel === 'shipping' && dynamicFeePending); // dynamicFeePending is false once a province is picked
 
   const handleSaveAndAddToCart = () => {
     if (!canSubmit) return;
@@ -3490,649 +3731,631 @@ function RentNowModal({
       fulfillment: channel,
       deliveryFee: resolvedFee,
       securityDeposit: securityDeposit,
-      pickupArea:
-        channel === 'pickup'
-          ? (product.pickupResolvedAddress ?? product.pickupArea ?? undefined)
-          : undefined,
-      pickupHours:
-        channel === 'pickup'
-          ? `${product.pickupTimeFrom ?? '10:00 AM'} – ${product.pickupTimeTo ?? '6:00 PM'}${
-              product.pickupDays
-                ? ` (${formatPickupDays(product.pickupDays)})`
-                : ''
-            }`
-          : undefined,
+
+      // Rental window — display strings for the cart/order-history UI,
+      // plus real ISO dates so the backend can persist rentedFrom/rentedTo
+      // on the listing once payment succeeds (formatShortDate's output
+      // isn't parseable).
       rentalDays: rentInfo.days,
       rentalStart: formatShortDate(rentInfo.startDate),
       rentalEnd: formatShortDate(rentInfo.endDate),
+      rentalStartIso: rentInfo.startDate.toISOString().slice(0, 10),
+      rentalEndIso: rentInfo.endDate.toISOString().slice(0, 10),
       returnDeadline: `${rentInfo.endDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} (by 6:00 PM)`,
+
+      pickupArea:
+          channel === 'pickup'
+              ? (product.pickupResolvedAddress ?? product.pickupArea ?? undefined)
+              : undefined,
+      pickupHours:
+          channel === 'pickup'
+              ? `${product.pickupTimeFrom ?? '10:00 AM'} – ${product.pickupTimeTo ?? '6:00 PM'}${
+                  product.pickupDays
+                      ? ` (${formatPickupDays(product.pickupDays)})`
+                      : ''
+              }`
+              : undefined,
+
       note:
-        channel === 'shipping'
-          ? `Ship to: ${resolvedAddress || 'Pinned address'} · ${fullName} · ${contactNumber}`
-          : `Pickup by: ${fullName} · ${contactNumber}`,
+          channel === 'shipping'
+              ? `Ship to: ${buyerDistrict ? `${buyerDistrict}, ` : ''}${buyerProvince || 'Selected zone'} · ${fullName} · ${contactNumber}`
+              : `Pickup by: ${fullName} · ${contactNumber}`,
     });
     setStep('added');
   };
 
   const subtitle =
-    hasShipping && hasPickup
-      ? 'This item is available with both shipping and pickup.'
-      : hasShipping
-        ? 'This item is available with shipping.'
-        : 'This item is available with pickup.';
+      hasShipping && hasPickup
+          ? 'This item is available with both shipping and pickup.'
+          : hasShipping
+              ? 'This item is available with shipping.'
+              : 'This item is available with pickup.';
 
   return (
-    <div
-      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
       <div
-        className="relative w-full max-w-[620px] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
+          className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={onClose}
-          className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+      >
+        <div
+            className="relative w-full max-w-[620px] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#EBE3D5] bg-[#FCFAF7] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
         >
-          <X size={16} />
-        </button>
+          <button
+              onClick={onClose}
+              className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#EBE3D5] bg-white text-[#6E6053] transition hover:bg-[#F4ECE3]"
+          >
+            <X size={16} />
+          </button>
 
-        {step === 'added' ? (
-          <div className="flex flex-col items-center px-8 py-8 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#4A6B3A] bg-[#F0F6ED]">
-              <Check size={30} strokeWidth={2.2} className="text-[#4A6B3A]" />
-            </div>
-            <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
-              Added to Cart!
-            </h2>
-            <p className="mt-2 max-w-[380px] text-[13px] leading-relaxed text-[#6E6053]">
+          {step === 'added' ? (
+              <div className="flex flex-col items-center px-8 py-8 text-center">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#4A6B3A] bg-[#F0F6ED]">
+                  <Check size={30} strokeWidth={2.2} className="text-[#4A6B3A]" />
+                </div>
+                <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
+                  Added to Cart!
+                </h2>
+                <p className="mt-2 max-w-[380px] text-[13px] leading-relaxed text-[#6E6053]">
               <span className="font-semibold text-[#1A130E]">
                 {product.name}
               </span>{' '}
-              has been added to your cart — rented for{' '}
-              <span className="font-semibold text-[#1A130E]">
+                  has been added to your cart — rented for{' '}
+                  <span className="font-semibold text-[#1A130E]">
                 {rentInfo.days} day{rentInfo.days > 1 ? 's' : ''}
               </span>{' '}
-              ({formatShortDate(rentInfo.startDate)} →{' '}
-              {formatShortDate(rentInfo.endDate)}) with{' '}
-              {channel === 'shipping' ? 'shipping' : 'pickup'} selected.
-            </p>
-
-            <div className="mt-5 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
-              <div className="flex items-center gap-4">
-                <div className="relative h-[64px] w-[52px] shrink-0 overflow-hidden rounded-lg border border-[#EBE3D5] bg-[#F5F0E8]">
-                  <Image
-                    src={product.image}
-                    alt={product.name}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="truncate text-[13px] font-semibold text-[#1A130E]">
-                    {product.name}
-                  </p>
-                  <p className="text-[11px] text-[#6E6053]">
-                    {product.brand}{' '}
-                    {product.size ? `· Size ${product.size}` : ''}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-[#8C7E74]">
-                    {formatShortDate(rentInfo.startDate)} →{' '}
-                    {formatShortDate(rentInfo.endDate)}
-                  </p>
-                </div>
-                <p className="shrink-0 text-[15px] font-bold text-[#9E2A1B]">
-                  {fmt(rentInfo.dailyRateNumber)}/day
+                  ({formatShortDate(rentInfo.startDate)} →{' '}
+                  {formatShortDate(rentInfo.endDate)}) with{' '}
+                  {channel === 'shipping' ? 'shipping' : 'pickup'} selected.
                 </p>
-              </div>
-            </div>
 
-            <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] px-5 py-4 text-left overflow-hidden">
-              <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                {channel === 'shipping' ? (
-                  <Truck size={12} />
-                ) : (
-                  <MapPin size={12} />
-                )}
-                {channel === 'shipping' ? 'Shipping Details' : 'Pickup Details'}
-              </p>
-
-              {channel === 'shipping' ? (
-                <div className="mt-2 space-y-1.5">
-                  <div className="flex items-start gap-1.5">
-                    <MapPin
-                      size={13}
-                      className="mt-0.5 shrink-0 text-[#9E2A1B]"
-                    />
-                    <p className="text-[12px] text-[#4F4338]">
-                      {resolvedAddress || 'Pinned address'}
+                <div className="mt-5 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
+                  <div className="flex items-center gap-4">
+                    <div className="relative h-[64px] w-[52px] shrink-0 overflow-hidden rounded-lg border border-[#EBE3D5] bg-[#F5F0E8]">
+                      <Image
+                          src={product.image}
+                          alt={product.name}
+                          fill
+                          className="object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-[13px] font-semibold text-[#1A130E]">
+                        {product.name}
+                      </p>
+                      <p className="text-[11px] text-[#6E6053]">
+                        {product.brand}{' '}
+                        {product.size ? `· Size ${product.size}` : ''}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-[#8C7E74]">
+                        {formatShortDate(rentInfo.startDate)} →{' '}
+                        {formatShortDate(rentInfo.endDate)}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-[15px] font-bold text-[#9E2A1B]">
+                      {fmt(rentInfo.dailyRateNumber)}/day
                     </p>
                   </div>
-                  <p className="text-[12px] text-[#4F4338]">
-                    <span className="font-semibold">{fullName}</span> ·{' '}
-                    {contactNumber}
-                  </p>
-                  {notes && (
-                    <p className="text-[11px] italic text-[#8C7E74]">
-                      "{notes}"
-                    </p>
-                  )}
                 </div>
-              ) : (
-                <div className="mt-2 space-y-1.5">
-                  <div className="flex items-start gap-1.5">
-                    <MapPin
-                      size={13}
-                      className="mt-0.5 shrink-0 text-[#9E2A1B]"
-                    />
-                    <p className="text-[12px] text-[#4F4338]">
-                      {product.pickupResolvedAddress ??
-                        product.pickupArea ??
-                        'Shared after booking'}
-                    </p>
-                  </div>
-                  <p className="text-[12px] text-[#4F4338]">
-                    <span className="font-semibold">{fullName}</span> ·{' '}
-                    {contactNumber}
-                  </p>
-                  <p className="text-[11px] text-[#8C7E74]">
-                    Pickup hours:{' '}
-                    {product.pickupTimeFrom && product.pickupTimeTo
-                      ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
-                      : '10:00 AM – 6:00 PM'}
-                    {product.pickupContactNumber
-                      ? ` · Seller: ${product.pickupContactNumber}`
-                      : ''}
-                  </p>
-                  {notes && (
-                    <p className="text-[11px] italic text-[#8C7E74]">
-                      "{notes}"
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
 
-            <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
-              <div className="flex items-center justify-between text-[12px] text-[#6E6053]">
+                <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] px-5 py-4 text-left overflow-hidden">
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                    {channel === 'shipping' ? (
+                        <Truck size={12} />
+                    ) : (
+                        <MapPin size={12} />
+                    )}
+                    {channel === 'shipping' ? 'Shipping Details' : 'Pickup Details'}
+                  </p>
+
+                  {channel === 'shipping' ? (
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex items-start gap-1.5">
+                          <MapPin
+                              size={13}
+                              className="mt-0.5 shrink-0 text-[#9E2A1B]"
+                          />
+                          <p className="text-[12px] text-[#4F4338]">
+                            {buyerDistrict ? `${buyerDistrict}, ` : ''}
+                            {buyerProvince || 'Selected delivery zone'}
+                            {zoneLabel ? ` · ${zoneLabel}` : ''}
+                          </p>
+                        </div>
+                        <p className="text-[12px] text-[#4F4338]">
+                          <span className="font-semibold">{fullName}</span> ·{' '}
+                          {contactNumber}
+                        </p>
+                        {notes && (
+                            <p className="text-[11px] italic text-[#8C7E74]">
+                              "{notes}"
+                            </p>
+                        )}
+                      </div>
+                  ) : (
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex items-start gap-1.5">
+                          <MapPin
+                              size={13}
+                              className="mt-0.5 shrink-0 text-[#9E2A1B]"
+                          />
+                          <p className="text-[12px] text-[#4F4338]">
+                            {product.pickupResolvedAddress ??
+                                product.pickupArea ??
+                                'Shared after booking'}
+                          </p>
+                        </div>
+                        <p className="text-[12px] text-[#4F4338]">
+                          <span className="font-semibold">{fullName}</span> ·{' '}
+                          {contactNumber}
+                        </p>
+                        <p className="text-[11px] text-[#8C7E74]">
+                          Pickup hours:{' '}
+                          {product.pickupTimeFrom && product.pickupTimeTo
+                              ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
+                              : '10:00 AM – 6:00 PM'}
+                          {product.pickupContactNumber
+                              ? ` · Seller: ${product.pickupContactNumber}`
+                              : ''}
+                        </p>
+                        {notes && (
+                            <p className="text-[11px] italic text-[#8C7E74]">
+                              "{notes}"
+                            </p>
+                        )}
+                      </div>
+                  )}
+                </div>
+
+                <div className="mt-3 w-full rounded-xl border border-[#EBE3D5] bg-white px-5 py-4 text-left">
+                  <div className="flex items-center justify-between text-[12px] text-[#6E6053]">
                 <span>
                   Rental Price ({fmt(rentInfo.dailyRateNumber)} ×{' '}
                   {rentInfo.days} days)
                 </span>
-                <span className="font-semibold text-[#1A130E]">
+                    <span className="font-semibold text-[#1A130E]">
                   {fmt(rentalPrice)}
                 </span>
-              </div>
-              <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
-                <span>Security Deposit (Refundable)</span>
-                <span className="font-semibold text-[#1A130E]">
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
+                    <span>Security Deposit (Refundable)</span>
+                    <span className="font-semibold text-[#1A130E]">
                   {fmt(securityDeposit)}
                 </span>
-              </div>
-              <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between text-[12px] text-[#6E6053]">
                 <span>
                   {channel === 'shipping' ? 'Delivery Fee' : 'Pickup Fee'}
                 </span>
-                <span
-                  className={`font-semibold ${resolvedFee === 0 ? 'text-[#4A6B3A]' : 'text-[#1A130E]'}`}
-                >
+                    <span
+                        className={`font-semibold ${resolvedFee === 0 ? 'text-[#4A6B3A]' : 'text-[#1A130E]'}`}
+                    >
                   {resolvedFee === 0 ? 'Free' : fmt(resolvedFee)}
                 </span>
-              </div>
-              <div className="mt-2 flex items-center justify-between border-t border-[#EBE3D5] pt-2">
+                  </div>
+                  <div className="mt-2 flex items-center justify-between border-t border-[#EBE3D5] pt-2">
                 <span className="text-[13px] font-bold text-[#1A130E]">
                   Total Payable
                 </span>
-                <span className="text-[16px] font-bold text-[#9E2A1B]">
+                    <span className="text-[16px] font-bold text-[#9E2A1B]">
                   {fmt(total)}
                 </span>
-              </div>
-            </div>
+                  </div>
+                </div>
 
-            <div className="mt-5 w-full grid grid-cols-2 gap-2.5">
-              <Link
-                href="/cart"
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#9E2A1B] py-3.5 text-[14px] font-bold text-white transition hover:bg-[#832215]"
-              >
-                <ShoppingBag size={15} />
-                Go to Cart
-              </Link>
-              <button
-                onClick={onClose}
-                className="w-full rounded-xl border border-[#DDD5C8] bg-white py-3.5 text-[14px] font-semibold text-[#9E2A1B] transition hover:bg-[#FAF6F0]"
-              >
-                Continue Browsing
-              </button>
-            </div>
+                <div className="mt-5 w-full grid grid-cols-2 gap-2.5">
+                  <Link
+                      href="/cart"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#9E2A1B] py-3.5 text-[14px] font-bold text-white transition hover:bg-[#832215]"
+                  >
+                    <ShoppingBag size={15} />
+                    Go to Cart
+                  </Link>
+                  <button
+                      onClick={onClose}
+                      className="w-full rounded-xl border border-[#DDD5C8] bg-white py-3.5 text-[14px] font-semibold text-[#9E2A1B] transition hover:bg-[#FAF6F0]"
+                  >
+                    Continue Browsing
+                  </button>
+                </div>
 
-            <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#8C7E74]">
-              <ShieldCheck
-                size={12}
-                strokeWidth={1.6}
-                className="text-[#A89E94]"
-              />
-              Secure checkout. Your payment information is safe with us.
-            </p>
-          </div>
-        ) : (
-          <div className="px-6 pt-7 pb-6">
-            <div className="text-center">
-              <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
-                Choose Delivery Method
-              </h2>
-              <p className="mt-1 text-[13px] text-[#6E6053]">{subtitle}</p>
-              <p className="mt-1 text-[11px] font-semibold text-[#9E2A1B]">
-                Renting for {rentInfo.days} day{rentInfo.days > 1 ? 's' : ''} ·{' '}
-                {formatShortDate(rentInfo.startDate)} →{' '}
-                {formatShortDate(rentInfo.endDate)}
-              </p>
-            </div>
-
-            {/* ── FIX: same hard-block state as BuyNowModal. ── */}
-            {noValidChannel ? (
-              <div className="mt-5 rounded-xl border border-[#F1C9C0] bg-[#FCEEEA] p-5 text-center">
-                <AlertTriangle size={22} className="mx-auto text-[#9E2A1B]" />
-                <p className="mt-2 text-[13px] font-bold text-[#9E2A1B]">
-                  Delivery unavailable for this item
-                </p>
-                <p className="mt-1.5 text-[12px] leading-relaxed text-[#6E6053]">
-                  This listing uses distance-based shipping, but the seller
-                  hasn't set a pickup/origin location yet, so we can't calculate
-                  a delivery fee. Please message the seller or check back later.
+                <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#8C7E74]">
+                  <ShieldCheck
+                      size={12}
+                      strokeWidth={1.6}
+                      className="text-[#A89E94]"
+                  />
+                  Secure checkout. Your payment information is safe with us.
                 </p>
               </div>
-            ) : (
-              <>
-                {hasShipping && hasPickup && (
-                  <div className="mt-5 grid grid-cols-2 gap-2.5">
-                    <button
-                      onClick={() => {
-                        if (!shippingOriginMissing) setChannel('shipping');
-                      }}
-                      disabled={shippingOriginMissing}
-                      title={
-                        shippingOriginMissing
-                          ? "Shipping unavailable — seller hasn't set a pickup/origin location"
-                          : undefined
-                      }
-                      className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
-                        shippingOriginMissing
-                          ? 'cursor-not-allowed border-[#EBE3D5] bg-[#F4ECE3] text-[#B5A89E]'
-                          : channel === 'shipping'
-                            ? 'border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]'
-                            : 'border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]'
-                      }`}
-                    >
-                      <Truck size={15} /> Shipping
-                    </button>
-                    <button
-                      onClick={() => setChannel('pickup')}
-                      className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
-                        channel === 'pickup'
-                          ? 'border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]'
-                          : 'border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]'
-                      }`}
-                    >
-                      <MapPin size={15} /> Pickup
-                    </button>
-                  </div>
-                )}
+          ) : (
+              <div className="px-6 pt-7 pb-6">
+                <div className="text-center">
+                  <h2 className="font-serif text-[22px] font-normal tracking-wide text-[#1A130E]">
+                    Choose Delivery Method
+                  </h2>
+                  <p className="mt-1 text-[13px] text-[#6E6053]">{subtitle}</p>
+                  <p className="mt-1 text-[11px] font-semibold text-[#9E2A1B]">
+                    Renting for {rentInfo.days} day{rentInfo.days > 1 ? 's' : ''} ·{' '}
+                    {formatShortDate(rentInfo.startDate)} →{' '}
+                    {formatShortDate(rentInfo.endDate)}
+                  </p>
+                </div>
 
-                {shippingOriginMissing && hasPickup && (
-                  <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#F1C9C0] bg-[#FCEEEA] px-3.5 py-2.5 text-[11px] text-[#9E2A1B]">
-                    <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-                    Shipping is not available for this item right now — the
-                    seller has not set a pickup/origin location. Pickup has been
-                    selected instead.
-                  </div>
-                )}
-
-                {channel === 'shipping' && (
-                  <div className="mt-5 space-y-4">
-                    <div className="flex items-center rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] divide-x divide-[#EBE3D5]">
-                      <div className="flex flex-1 items-center gap-3 px-4 py-3.5">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white text-[#9E2A1B]">
-                          <Truck size={15} />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                            Shipping Availability
-                          </p>
-                          <p className="text-[13px] font-bold text-[#1A130E]">
-                            {product.shippingAvailability ?? 'Nationwide'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex-1 px-4 py-3.5 text-right">
-                        <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                          Delivery Fee
-                        </p>
-                        <p className="text-[15px] font-bold text-[#9E2A1B]">
-                          {dynamicFeePending
-                            ? 'Pin address'
-                            : resolvedFee === 0
-                              ? 'Free'
-                              : fmt(resolvedFee)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {isDynamic && (
-                      <div className="flex items-start gap-2 rounded-xl border border-[#D9E2F1] bg-[#F0F4FC] px-3.5 py-2.5 text-[11px] text-[#3A537D]">
-                        <Info size={13} className="mt-0.5 shrink-0" />
-                        Dynamic shipping uses the distance between your location
-                        and the sellers delivery location to calculate the
-                        delivery fee.
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="text-[13px] font-bold text-[#1A130E] mb-2">
-                        Delivery Address
+                {/* ── Same hard-block state as BuyNowModal. ── */}
+                {noValidChannel ? (
+                    <div className="mt-5 rounded-xl border border-[#F1C9C0] bg-[#FCEEEA] p-5 text-center">
+                      <AlertTriangle size={22} className="mx-auto text-[#9E2A1B]" />
+                      <p className="mt-2 text-[13px] font-bold text-[#9E2A1B]">
+                        Delivery unavailable for this item
                       </p>
-                      <div className="relative rounded-xl overflow-hidden border border-[#EBE3D5]">
-                        <PickupLocationMap
-                          lat={addressLat}
-                          lng={addressLng}
-                          onLocationSelect={handleAddressPin}
-                        />
-                        <button
-                          type="button"
-                          onClick={handleUseCurrentLocation}
-                          className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 rounded-lg bg-white/95 border border-[#DDD5C8] px-3 py-2 text-[12px] font-semibold text-[#9E2A1B] shadow-sm hover:bg-white transition"
-                        >
-                          <MapPin size={13} /> Use current location
-                        </button>
-                      </div>
-                      {addressLat && addressLng && (
-                        <div className="mt-2 flex items-start gap-2 rounded-xl border border-[#BFD0B3] bg-[#F0F6ED] px-3 py-2.5">
-                          <Check
-                            size={13}
-                            className="mt-0.5 shrink-0 text-[#4A6B3A]"
-                          />
-                          <div>
-                            <p className="text-[11px] font-bold text-[#2E7D52]">
-                              Location pinned successfully
-                            </p>
-                            {resolvedAddress && (
-                              <p className="mt-0.5 text-[11px] leading-relaxed text-[#4F4338]">
-                                {resolvedAddress}
-                              </p>
-                            )}
-                            <p className="mt-0.5 text-[10px] text-[#8C7E74]">
-                              (Tap on map to change location)
-                            </p>
+                      <p className="mt-1.5 text-[12px] leading-relaxed text-[#6E6053]">
+                        This listing uses zone-based shipping, but the seller
+                        hasn't set an origin district/province yet, so we can't
+                        calculate a delivery fee. Please message the seller or
+                        check back later.
+                      </p>
+                    </div>
+                ) : (
+                    <>
+                      {hasShipping && hasPickup && (
+                          <div className="mt-5 grid grid-cols-2 gap-2.5">
+                            <button
+                                onClick={() => {
+                                  if (!shippingOriginMissing) setChannel('shipping');
+                                }}
+                                disabled={shippingOriginMissing}
+                                title={
+                                  shippingOriginMissing
+                                      ? "Shipping unavailable — seller hasn't set an origin district/province"
+                                      : undefined
+                                }
+                                className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
+                                    shippingOriginMissing
+                                        ? 'cursor-not-allowed border-[#EBE3D5] bg-[#F4ECE3] text-[#B5A89E]'
+                                        : channel === 'shipping'
+                                            ? 'border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]'
+                                            : 'border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]'
+                                }`}
+                            >
+                              <Truck size={15} /> Shipping
+                            </button>
+                            <button
+                                onClick={() => setChannel('pickup')}
+                                className={`flex items-center justify-center gap-2 rounded-xl border-2 py-3 text-[13px] font-bold transition ${
+                                    channel === 'pickup'
+                                        ? 'border-[#9E2A1B] bg-[#9E2A1B]/6 text-[#9E2A1B]'
+                                        : 'border-[#DDD5C8] bg-white text-[#594E46] hover:bg-[#FAF6F0]'
+                                }`}
+                            >
+                              <MapPin size={15} /> Pickup
+                            </button>
                           </div>
-                        </div>
                       )}
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                            Full Name *
-                          </label>
-                          <button
-                            onClick={handleUseProfileName}
-                            disabled={fetchingProfileName}
-                            className="text-[11px] font-semibold text-[#9E2A1B] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
-                          >
-                            {fetchingProfileName
-                              ? 'Fetching...'
-                              : 'Use profile name'}
-                          </button>
-                        </div>
-                        <input
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
-                          placeholder="Your full name"
-                          className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                            Contact Number *
-                          </label>
-                          <button
-                            onClick={handleUseProfileNumber}
-                            disabled={fetchingProfileNumber}
-                            className="text-[11px] font-semibold text-[#9E2A1B] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
-                          >
-                            {fetchingProfileNumber
-                              ? 'Fetching...'
-                              : 'Use profile number'}
-                          </button>
-                        </div>
-                        <input
-                          value={contactNumber}
-                          onChange={(e) => setContactNumber(e.target.value)}
-                          placeholder="+977 98XXXXXXXX"
-                          className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                        />
-                      </div>
-                    </div>
+                      {shippingOriginMissing && hasPickup && (
+                          <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#F1C9C0] bg-[#FCEEEA] px-3.5 py-2.5 text-[11px] text-[#9E2A1B]">
+                            <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                            Shipping is not available for this item right now — the
+                            seller has not set an origin district/province. Pickup has
+                            been selected instead.
+                          </div>
+                      )}
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                        Delivery Notes (Optional)
-                      </label>
-                      <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="E.g. Please ring the bell. Gate code 1234."
-                        maxLength={200}
-                        rows={2}
-                        className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                      />
-                      <span className="self-end text-[10px] text-[#A6998E]">
+                      {channel === 'shipping' && (
+                          <div className="mt-5 space-y-4">
+                            <div className="flex items-center rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] divide-x divide-[#EBE3D5]">
+                              <div className="flex flex-1 items-center gap-3 px-4 py-3.5">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E6DED1] bg-white text-[#9E2A1B]">
+                                  <Truck size={15} />
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                    Shipping Availability
+                                  </p>
+                                  <p className="text-[13px] font-bold text-[#1A130E]">
+                                    {product.shippingAvailability ?? 'Nationwide'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex-1 px-4 py-3.5 text-right">
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                  Delivery Fee
+                                </p>
+                                <p className="text-[15px] font-bold text-[#9E2A1B]">
+                                  {dynamicFeePending
+                                      ? 'Select province'
+                                      : resolvedFee === 0
+                                          ? 'Free'
+                                          : fmt(resolvedFee)}
+                                </p>
+                              </div>
+                            </div>
+
+                            {isDynamic && (
+                                <div className="flex items-start gap-2 rounded-xl border border-[#D9E2F1] bg-[#F0F4FC] px-3.5 py-2.5 text-[11px] text-[#3A537D]">
+                                  <Info size={13} className="mt-0.5 shrink-0" />
+                                  Dynamic shipping is priced by zone — the fee depends
+                                  on whether you're in the seller's district, their
+                                  province, or elsewhere in Nepal.
+                                </div>
+                            )}
+
+                            {isDynamic && (
+                                <DeliveryZonePicker
+                                    product={product}
+                                    buyerDistrict={buyerDistrict}
+                                    buyerProvince={buyerProvince}
+                                    onDistrictChange={setBuyerDistrict}
+                                    onProvinceChange={setBuyerProvince}
+                                    fmt={fmt}
+                                />
+                            )}
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                                    Full Name *
+                                  </label>
+                                  <button
+                                      onClick={handleUseProfileName}
+                                      disabled={fetchingProfileName}
+                                      className="text-[11px] font-semibold text-[#9E2A1B] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+                                  >
+                                    {fetchingProfileName
+                                        ? 'Fetching...'
+                                        : 'Use profile name'}
+                                  </button>
+                                </div>
+                                <input
+                                    value={fullName}
+                                    onChange={(e) => setFullName(e.target.value)}
+                                    placeholder="Your full name"
+                                    className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                />
+                              </div>
+                              <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                                    Contact Number *
+                                  </label>
+                                  <button
+                                      onClick={handleUseProfileNumber}
+                                      disabled={fetchingProfileNumber}
+                                      className="text-[11px] font-semibold text-[#9E2A1B] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+                                  >
+                                    {fetchingProfileNumber
+                                        ? 'Fetching...'
+                                        : 'Use profile number'}
+                                  </button>
+                                </div>
+                                <input
+                                    value={contactNumber}
+                                    onChange={(e) => setContactNumber(e.target.value)}
+                                    placeholder="+977 98XXXXXXXX"
+                                    className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                                Delivery Notes (Optional)
+                              </label>
+                              <textarea
+                                  value={notes}
+                                  onChange={(e) => setNotes(e.target.value)}
+                                  placeholder="E.g. Please ring the bell. Gate code 1234."
+                                  maxLength={200}
+                                  rows={2}
+                                  className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                              />
+                              <span className="self-end text-[10px] text-[#A6998E]">
                         {notes.length} / 200
                       </span>
-                    </div>
-                  </div>
-                )}
+                            </div>
+                          </div>
+                      )}
 
-                {channel === 'pickup' && (
-                  <div className="mt-5 space-y-4">
-                    <div className="rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-2.5">
-                          <MapPin
-                            size={15}
-                            className="mt-0.5 shrink-0 text-[#9E2A1B]"
-                          />
-                          <div>
-                            <p className="text-[11px] font-bold text-[#1A130E]">
-                              Pickup Details{' '}
-                              <span className="font-normal text-[#8C7E74]">
+                      {channel === 'pickup' && (
+                          <div className="mt-5 space-y-4">
+                            <div className="rounded-xl border border-[#EBE3D5] bg-[#FAF0E6] p-4">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-start gap-2.5">
+                                  <MapPin
+                                      size={15}
+                                      className="mt-0.5 shrink-0 text-[#9E2A1B]"
+                                  />
+                                  <div>
+                                    <p className="text-[11px] font-bold text-[#1A130E]">
+                                      Pickup Details{' '}
+                                      <span className="font-normal text-[#8C7E74]">
                                 (Provided by Seller)
                               </span>
-                            </p>
-                            <p className="mt-0.5 text-[13px] font-semibold text-[#1A130E]">
-                              {product.pickupResolvedAddress ??
-                                product.pickupArea ??
-                                'Shared after booking'}
-                            </p>
-                          </div>
-                        </div>
-                        {pickupMapUrl && (
-                          <a
-                            href={pickupMapUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="shrink-0 text-[12px] font-bold text-[#9E2A1B] hover:underline"
-                          >
-                            View on Map
-                          </a>
-                        )}
-                      </div>
+                                    </p>
+                                    <p className="mt-0.5 text-[13px] font-semibold text-[#1A130E]">
+                                      {product.pickupResolvedAddress ??
+                                          product.pickupArea ??
+                                          'Shared after booking'}
+                                    </p>
+                                  </div>
+                                </div>
+                                {pickupMapUrl && (
+                                    <a
+                                        href={pickupMapUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="shrink-0 text-[12px] font-bold text-[#9E2A1B] hover:underline"
+                                    >
+                                      View on Map
+                                    </a>
+                                )}
+                              </div>
 
-                      <div className="mt-3.5 grid grid-cols-3 gap-3 border-t border-[#EBE3D5] pt-3.5">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                            Pickup Hours
-                          </p>
-                          <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
-                            {product.pickupTimeFrom && product.pickupTimeTo
-                              ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
-                              : '10:00 AM – 6:00 PM'}
-                          </p>
-                          <p className="text-[10px] text-[#8C7E74]">
-                            ({formatPickupDays(product.pickupDays)}
-                            {product.sameDayPickup ? ' · Same-day OK' : ''})
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                            Instructions
-                          </p>
-                          <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E] line-clamp-2">
-                            {product.pickupInstructions ??
-                              'Call before arriving.'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
-                            Contact Number
-                          </p>
-                          <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
-                            {product.pickupContactNumber ??
-                              'Shared after booking'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                              <div className="mt-3.5 grid grid-cols-3 gap-3 border-t border-[#EBE3D5] pt-3.5">
+                                <div>
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                    Pickup Hours
+                                  </p>
+                                  <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
+                                    {product.pickupTimeFrom && product.pickupTimeTo
+                                        ? `${product.pickupTimeFrom} – ${product.pickupTimeTo}`
+                                        : '10:00 AM – 6:00 PM'}
+                                  </p>
+                                  <p className="text-[10px] text-[#8C7E74]">
+                                    ({formatPickupDays(product.pickupDays)}
+                                    {product.sameDayPickup ? ' · Same-day OK' : ''})
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                    Instructions
+                                  </p>
+                                  <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E] line-clamp-2">
+                                    {product.pickupInstructions ??
+                                        'Call before arriving.'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E74]">
+                                    Contact Number
+                                  </p>
+                                  <p className="mt-0.5 text-[12px] font-semibold text-[#1A130E]">
+                                    {product.pickupContactNumber ??
+                                        'Shared after booking'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
 
-                    <div>
-                      <p className="text-[13px] font-bold text-[#1A130E]">
-                        Your Pickup Information
-                      </p>
-                      <p className="text-[11px] text-[#8C7E74]">
-                        This information will be shared with the seller to
-                        coordinate pickup.
-                      </p>
-                    </div>
+                            <div>
+                              <p className="text-[13px] font-bold text-[#1A130E]">
+                                Your Pickup Information
+                              </p>
+                              <p className="text-[11px] text-[#8C7E74]">
+                                This information will be shared with the seller to
+                                coordinate pickup.
+                              </p>
+                            </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                          Full Name *
-                        </label>
-                        <button
-                          onClick={handleUseProfileName}
-                          className="text-[11px] font-semibold text-[#9E2A1B] hover:underline"
-                        >
-                          Use profile name
-                        </button>
-                      </div>
-                      <input
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Your full name"
-                        className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                      />
-                    </div>
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                                  Full Name *
+                                </label>
+                                <button
+                                    onClick={handleUseProfileName}
+                                    className="text-[11px] font-semibold text-[#9E2A1B] hover:underline"
+                                >
+                                  Use profile name
+                                </button>
+                              </div>
+                              <input
+                                  value={fullName}
+                                  onChange={(e) => setFullName(e.target.value)}
+                                  placeholder="Your full name"
+                                  className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                              />
+                            </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                          Contact Number *
-                        </label>
-                        <button
-                          onClick={handleUseProfileNumber}
-                          className="text-[11px] font-semibold text-[#9E2A1B] hover:underline"
-                        >
-                          Use profile number
-                        </button>
-                      </div>
-                      <input
-                        value={contactNumber}
-                        onChange={(e) => setContactNumber(e.target.value)}
-                        placeholder="+977 98XXXXXXXX"
-                        className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                      />
-                    </div>
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                                  Contact Number *
+                                </label>
+                                <button
+                                    onClick={handleUseProfileNumber}
+                                    className="text-[11px] font-semibold text-[#9E2A1B] hover:underline"
+                                >
+                                  Use profile number
+                                </button>
+                              </div>
+                              <input
+                                  value={contactNumber}
+                                  onChange={(e) => setContactNumber(e.target.value)}
+                                  placeholder="+977 98XXXXXXXX"
+                                  className="w-full rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                              />
+                            </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[12px] font-semibold text-[#3D2B1F]">
-                        Pickup Notes (Optional)
-                      </label>
-                      <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="E.g. I will come with a friend."
-                        maxLength={200}
-                        rows={2}
-                        className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
-                      />
-                      <span className="self-end text-[10px] text-[#A6998E]">
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[12px] font-semibold text-[#3D2B1F]">
+                                Pickup Notes (Optional)
+                              </label>
+                              <textarea
+                                  value={notes}
+                                  onChange={(e) => setNotes(e.target.value)}
+                                  placeholder="E.g. I will come with a friend."
+                                  maxLength={200}
+                                  rows={2}
+                                  className="w-full resize-none rounded-lg border border-[#DDD5C8] bg-white px-3.5 py-2.5 text-[13px] text-[#1A130E] focus:outline-none focus:border-[#9E2A1B] focus:ring-2 focus:ring-[#9E2A1B]/10"
+                              />
+                              <span className="self-end text-[10px] text-[#A6998E]">
                         {notes.length} / 200
                       </span>
-                    </div>
-                  </div>
-                )}
+                            </div>
+                          </div>
+                      )}
 
-                <div className="mt-5 rounded-xl bg-white border border-[#EBE3D5] px-4 py-3.5 space-y-1.5">
-                  <div className="flex items-center justify-between text-[12px]">
+                      <div className="mt-5 rounded-xl bg-white border border-[#EBE3D5] px-4 py-3.5 space-y-1.5">
+                        <div className="flex items-center justify-between text-[12px]">
                     <span className="text-[#6E6053]">
                       Rental Price ({fmt(rentInfo.dailyRateNumber)} ×{' '}
                       {rentInfo.days} days)
                     </span>
-                    <span className="font-bold text-[#1A130E]">
+                          <span className="font-bold text-[#1A130E]">
                       {fmt(rentalPrice)}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[12px]">
+                        </div>
+                        <div className="flex items-center justify-between text-[12px]">
                     <span className="text-[#6E6053]">
                       Security Deposit (Refundable)
                     </span>
-                    <span className="font-bold text-[#1A130E]">
+                          <span className="font-bold text-[#1A130E]">
                       {fmt(securityDeposit)}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[12px]">
+                        </div>
+                        <div className="flex items-center justify-between text-[12px]">
                     <span className="text-[#6E6053]">
                       {channel === 'shipping' ? 'Delivery Fee' : 'Pickup Fee'}
                     </span>
-                    <span
-                      className={`font-bold ${channel === 'shipping' && dynamicFeePending ? 'text-[#8C7E74]' : resolvedFee === 0 ? 'text-[#4A6B3A]' : 'text-[#1A130E]'}`}
-                    >
+                          <span
+                              className={`font-bold ${channel === 'shipping' && dynamicFeePending ? 'text-[#8C7E74]' : resolvedFee === 0 ? 'text-[#4A6B3A]' : 'text-[#1A130E]'}`}
+                          >
                       {channel === 'shipping' && dynamicFeePending
-                        ? '—'
-                        : resolvedFee === 0
-                          ? 'Free'
-                          : fmt(resolvedFee)}
+                          ? '—'
+                          : resolvedFee === 0
+                              ? 'Free'
+                              : fmt(resolvedFee)}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-[#EBE3D5] pt-1.5">
+                        </div>
+                        <div className="flex items-center justify-between border-t border-[#EBE3D5] pt-1.5">
                     <span className="text-[13px] font-bold text-[#1A130E]">
                       Total Payable
                     </span>
-                    <span className="text-[16px] font-bold text-[#9E2A1B]">
+                          <span className="text-[16px] font-bold text-[#9E2A1B]">
                       {channel === 'shipping' && dynamicFeePending
-                        ? '—'
-                        : fmt(total)}
+                          ? '—'
+                          : fmt(total)}
                     </span>
-                  </div>
-                </div>
+                        </div>
+                      </div>
 
-                <button
-                  onClick={handleSaveAndAddToCart}
-                  disabled={!canSubmit}
-                  className={`mt-4 w-full rounded-xl py-3.5 text-[14px] font-bold transition ${
-                    canSubmit
-                      ? 'bg-[#9E2A1B] text-white hover:bg-[#832215]'
-                      : 'cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]'
-                  }`}
-                >
-                  Save & Add to Cart
-                </button>
-              </>
-            )}
-          </div>
-        )}
+                      <button
+                          onClick={handleSaveAndAddToCart}
+                          disabled={!canSubmit}
+                          className={`mt-4 w-full rounded-xl py-3.5 text-[14px] font-bold transition ${
+                              canSubmit
+                                  ? 'bg-[#9E2A1B] text-white hover:bg-[#832215]'
+                                  : 'cursor-not-allowed bg-[#DCD3C4] text-[#8C7E74]'
+                          }`}
+                      >
+                        Save & Add to Cart
+                      </button>
+                    </>
+                )}
+              </div>
+          )}
+        </div>
       </div>
-    </div>
   );
 }

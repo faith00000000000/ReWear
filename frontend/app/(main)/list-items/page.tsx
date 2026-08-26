@@ -114,6 +114,12 @@ interface FormState {
   rateWithinProvince: string;
   rateNationwide: string;
   dispatchTime: string;
+  sellerLat: string;
+  sellerLng: string;
+  sellerLocationConfirmed: boolean;
+  sellerResolvedAddress: string;
+  sellerDistrict: string;
+  sellerProvince: string;
 
   pickupArea: string;
   pickupLat: string;
@@ -503,6 +509,12 @@ export default function ListItemPage() {
     rateWithinProvince: '',
     rateNationwide: '',
     dispatchTime: 'Within 1 Day',
+    sellerLat: '',
+    sellerLng: '',
+    sellerLocationConfirmed: false,
+    sellerResolvedAddress: '',
+    sellerDistrict: '',
+    sellerProvince: '',
 
     pickupArea: '',
     pickupLat: '',
@@ -517,6 +529,169 @@ export default function ListItemPage() {
     pickupInstructions: '',
     sameDayPickup: false,
   });
+
+  const NEPAL_PROVINCES = [
+    'Koshi', 'Madhesh', 'Bagmati', 'Gandaki',
+    'Lumbini', 'Karnali', 'Sudurpashchim',
+  ] as const;
+
+// Best-effort match of Nominatim's free-text province/state name against
+// our fixed dropdown options — handles "Bagmati Province", "Bāgmatī
+// Pradesh", "Province No. 2" (~Madhesh), etc. Falls back to '' so the
+// seller can pick manually if we can't confidently match.
+  function normalizeForMatch(s: string): string {
+    return s
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // strip diacritics (ā → a)
+        .replace(/[^a-z]/g, '');          // strip spaces/punctuation/digits
+  }
+
+  // function matchProvince(raw: string | undefined): string {
+  //   if (!raw) return '';
+  //   const s = normalizeForMatch(raw);
+  //
+  //   for (const p of NEPAL_PROVINCES) {
+  //     const pNorm = normalizeForMatch(p);
+  //     // Direct substring match either way (handles "bagamati" containing
+  //     // "bagmati" reversed — i.e. check if a shortened prefix of one
+  //     // appears in the other, absorbing minor spelling drift).
+  //     if (s.includes(pNorm) || pNorm.includes(s)) return p;
+  //     // Prefix match: compare first 5 chars — catches "bagamati" vs
+  //     // "bagmati" (both start "bagm"/"baga") without a full fuzzy-match lib.
+  //     const prefixLen = Math.min(5, pNorm.length);
+  //     if (s.includes(pNorm.slice(0, prefixLen))) return p;
+  //   }
+  //
+  //   // Numbered provinces some Nominatim data still uses
+  //   if (/province\s*(no\.?\s*)?1\b/.test(s) || s.includes('provinceno1')) return 'Koshi';
+  //   if (/province\s*(no\.?\s*)?2\b/.test(s) || s.includes('provinceno2')) return 'Madhesh';
+  //
+  //   return '';
+  // }
+
+  // Standard Levenshtein (edit) distance — counts the minimum insertions,
+// deletions, substitutions needed to turn `a` into `b`. Used to fuzzy-match
+// Nominatim's inconsistent province spellings ("Bagamati" vs "Bagmati") —
+// substring matching fails here because the letters are in a different
+// order/position, not just a prefix/suffix difference.
+  function levenshteinDistance(a: string, b: string): number {
+    const m = a.length, n = b.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = a[i - 1] === b[j - 1]
+            ? dp[i - 1][j - 1]
+            : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+    return dp[m][n];
+  }
+
+  function matchProvince(raw: string | undefined): string {
+    if (!raw) return '';
+
+    const words = raw
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // strip diacritics (ā → a)
+        .replace(/[^a-z\s]/g, '')
+        .split(/\s+/)
+        .filter(Boolean);
+
+    let best = '';
+    let bestDist = Infinity;
+
+    for (const word of words) {
+      for (const p of NEPAL_PROVINCES) {
+        const dist = levenshteinDistance(word, p.toLowerCase());
+        // Allow up to 2 character edits — covers "Bagamati"→"Bagmati" (1),
+        // similar minor spelling drift, without accidentally matching
+        // unrelated short words.
+        if (dist <= 2 && dist < bestDist) {
+          bestDist = dist;
+          best = p;
+        }
+      }
+    }
+    if (best) return best;
+
+    const flat = normalizeForMatch(raw);
+    if (/province\s*(no\.?\s*)?1\b/.test(raw.toLowerCase()) || flat.includes('provinceno1')) return 'Koshi';
+    if (/province\s*(no\.?\s*)?2\b/.test(raw.toLowerCase()) || flat.includes('provinceno2')) return 'Madhesh';
+
+    return '';
+  }
+
+// Reverse-geocode the seller's pinned origin into district/province —
+// auto-fills the fields below the map so the seller doesn't have to
+// type them (and can't accidentally submit with district blank).
+  const reverseGeocodeSeller = async (lat: number, lng: number) => {
+    try {
+      const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+          { headers: { Accept: 'application/json' } },
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const addr = data.address ?? {};
+
+      // Try the most likely district-holding fields, in priority order.
+      // Nominatim's tagging for Nepal is inconsistent across regions, so
+      // we check several candidates and skip any that accidentally hold
+      // a province name (e.g. if 'county' is missing and 'state_district'
+      // holds "Bagmati Province" instead of an actual district).
+      const districtCandidates = [
+        addr.state_district,
+        addr.county,
+        addr.city_district,
+        addr.district,
+        addr.city,
+        addr.town,
+      ];
+      const district = districtCandidates.find(
+          (v) => v && !normalizeForMatch(v).includes('province'),
+      ) ?? '';
+
+      const matchedProvince = matchProvince(addr.state);
+
+      setForm((prev) => ({
+        ...prev,
+        sellerDistrict: district || prev.sellerDistrict,
+        sellerProvince: matchedProvince || prev.sellerProvince,
+        sellerResolvedAddress: data.display_name ?? '',
+      }));
+    } catch {
+      // Silent — the confirmation chip / fallback error message in the UI
+      // will tell the seller if detection failed.
+    }
+  };
+
+  const handleSellerLocationChange = (lat: number, lng: number) => {
+    setForm((prev) => ({
+      ...prev,
+      sellerLat: lat.toFixed(6),
+      sellerLng: lng.toFixed(6),
+      sellerLocationConfirmed: true,
+    }));
+    reverseGeocodeSeller(lat, lng);
+  };
+
+  const handleUseMySellerLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          handleSellerLocationChange(pos.coords.latitude, pos.coords.longitude);
+          toast.success('Origin location captured!');
+        },
+        () => toast.error("Couldn't fetch your location. Please allow location access."),
+    );
+  };
 
   // ── Real File objects for upload, kept separate from blob preview URLs ──
   const [photoFiles, setPhotoFiles] = useState<(File | null)[]>([
@@ -730,12 +905,23 @@ export default function ListItemPage() {
       // seller's origin point. Without pickupLat/pickupLng, the buyer-side
       // Buy Now / Rent Now modal has no way to price delivery and gets
       // permanently stuck on "Delivery unavailable for this item".
+      // if (
+      //     form.shippingFeeType === 'Dynamic Shipping' &&
+      //     !form.pickupLocationConfirmed
+      // )
+      //   return 'Please pin your origin location on the map — required for Dynamic Shipping to calculate delivery fees.';
+
       if (
           form.shippingFeeType === 'Dynamic Shipping' &&
-          !form.pickupLocationConfirmed
+          !form.sellerLocationConfirmed
       )
-        return 'Please pin your origin location on the map — required for Dynamic Shipping to calculate delivery fees.';
-      if (!form.dispatchTime) return 'Dispatch time is required.';
+        return 'Please pin your origin location on the map for Dynamic Shipping.';
+
+      if (
+          form.shippingFeeType === 'Dynamic Shipping' &&
+          (!form.sellerDistrict.trim() || !form.sellerProvince.trim())
+      )
+        return "We couldn't detect your district/province from the pin — try moving the pin slightly or re-selecting your location.";
     }
 
     if (
@@ -820,6 +1006,8 @@ export default function ListItemPage() {
       if (form.shippingFeeType === 'Fixed Fee')
         fd.append('fixedShippingFee', stripCommas(form.fixedShippingFee));
       if (form.shippingFeeType === 'Dynamic Shipping') {
+        fd.append('sellerDistrict', form.sellerDistrict.trim());
+        fd.append('sellerProvince', form.sellerProvince);
         fd.append('rateWithinDistrict', stripCommas(form.rateWithinDistrict));
         fd.append('rateWithinProvince', stripCommas(form.rateWithinProvince));
         fd.append('rateNationwide', stripCommas(form.rateNationwide));
@@ -1442,81 +1630,101 @@ export default function ListItemPage() {
                   {/*  </div>*/}
                   {/*)}*/}
 
-                  {/* NEW — Origin location for Dynamic Shipping. Only shown
-                      for pure "Shipping" mode; "Flex (Both)" already gets
-                      this map from the Pickup section below, so we don't
-                      duplicate it. */}
-                  {form.shippingFeeType === 'Dynamic Shipping' &&
-                      form.deliveryOption === 'Shipping' && (
-                          <div>
-                            <label className="text-[13px] font-medium text-[#3D2B1F] block mb-1">
-                              Origin Location (for Dynamic Shipping){' '}
-                              <span className="text-[#A33214]">*</span>
-                            </label>
-                            <p className="text-[12px] text-[#8A7060] mb-2.5">
-                              Pin your shipping origin — the buyer's delivery fee
-                              is calculated as distance from this point. Without
-                              this, buyers can't check out.
-                            </p>
+                  {form.shippingFeeType === 'Dynamic Shipping' && (
+                      <div>
+                        <div className="flex items-center gap-1.5 bg-[#FDF6EC] border border-[#EBE0D4] rounded-xl px-3.5 py-2.5 mb-3">
+                          <Info size={12} className="text-[#8A7060] flex-shrink-0" />
+                          <p className="text-[11px] text-[#6F6258]">
+                            Pin your shipping origin below — buyers pin their delivery location
+                            at checkout, and we match district/province to apply the rate below automatically.
+                          </p>
+                        </div>
 
-                            <div className="relative rounded-xl overflow-hidden border border-[#DDD0C4]">
-                              <PickupLocationMap
-                                  lat={
-                                    form.pickupLat
-                                        ? parseFloat(form.pickupLat)
-                                        : null
-                                  }
-                                  lng={
-                                    form.pickupLng
-                                        ? parseFloat(form.pickupLng)
-                                        : null
-                                  }
-                                  onLocationSelect={handlePickupLocationChange}
-                              />
-                              <button
-                                  type="button"
-                                  onClick={handleUseMyLocation}
-                                  className="absolute top-3 right-3 z-[1000] px-2.5 sm:px-3 py-2 rounded-lg bg-white/95 border border-[#DDD0C4] text-[#A33214] text-[11px] sm:text-[12px] font-semibold shadow-sm hover:bg-white transition-colors flex items-center gap-1.5"
-                              >
-                                <Navigation size={13} />
-                                <span className="hidden xs:inline">
-                              {form.pickupLocationConfirmed
-                                  ? 'Update Pin'
-                                  : 'Select My Location'}
-                            </span>
-                              </button>
+                        <label className="text-[13px] font-medium text-[#3D2B1F] block mb-1.5">
+                          Your Location <span className="text-[#A33214]">*</span>
+                        </label>
+
+                        <div className="relative rounded-xl overflow-hidden border border-[#DDD0C4] mb-3">
+                          {/*<PickupLocationMap*/}
+                          {/*    lat={form.sellerLat ? parseFloat(form.sellerLat) : null}*/}
+                          {/*    lng={form.sellerLng ? parseFloat(form.sellerLng) : null}*/}
+                          {/*    onLocationSelect={handleSellerLocationChange}*/}
+                          {/*/>*/}
+                          {/* Dynamic Shipping origin map */}
+                          <PickupLocationMap
+                              key="seller-origin-map"
+                              lat={form.sellerLat ? parseFloat(form.sellerLat) : null}
+                              lng={form.sellerLng ? parseFloat(form.sellerLng) : null}
+                              onLocationSelect={handleSellerLocationChange}
+                          />
+                          <button
+                              type="button"
+                              onClick={handleUseMySellerLocation}
+                              className="absolute top-3 right-3 z-[1000] px-2.5 sm:px-3 py-2 rounded-lg bg-white/95 border border-[#DDD0C4] text-[#A33214] text-[11px] sm:text-[12px] font-semibold shadow-sm hover:bg-white transition-colors flex items-center gap-1.5"
+                          >
+                            <Navigation size={13} />
+                            <span className="hidden xs:inline">
+            {form.sellerLocationConfirmed ? 'Update Pin' : 'Select My Location'}
+          </span>
+                          </button>
+                        </div>
+
+                        {form.sellerResolvedAddress && (
+                            <div className="mb-3 flex items-start gap-1.5 bg-[#FDFAF6] border border-[#EBE0D4] rounded-xl px-3 py-2">
+                              <MapPin size={12} className="text-[#8A7060] mt-0.5 flex-shrink-0" />
+                              <p className="text-[11px] text-[#6F6258] leading-relaxed">
+                                {form.sellerResolvedAddress}
+                              </p>
                             </div>
+                        )}
 
-                            {form.pickupResolvedAddress && (
-                                <div className="mt-2 flex items-start gap-1.5 bg-[#FDFAF6] border border-[#EBE0D4] rounded-xl px-3 py-2">
-                                  <MapPin
-                                      size={12}
-                                      className="text-[#8A7060] mt-0.5 flex-shrink-0"
-                                  />
-                                  <p className="text-[11px] text-[#6F6258] leading-relaxed">
-                                    {form.pickupResolvedAddress}
-                                  </p>
-                                </div>
-                            )}
-
-                            {form.pickupLocationConfirmed ? (
-                                <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 bg-[#F2FAF0] border border-[#D8E8D0] rounded-xl px-3.5 py-2.5">
-                                  <div className="flex items-center gap-1.5 text-[12px] text-[#3D5C30] font-medium">
-                                    <CheckCircle size={13} />
-                                    Origin location set
-                                  </div>
-                                  <span className="text-[10px] text-[#6F9060] tabular-nums">
-                              {form.pickupLat}, {form.pickupLng}
-                            </span>
+                        {form.sellerLocationConfirmed ? (
+                            form.sellerDistrict && form.sellerProvince ? (
+                                <div className="mb-4 flex items-center gap-1.5 bg-[#F2FAF0] border border-[#D8E8D0] rounded-xl px-3.5 py-2.5 text-[12px] text-[#3D5C30] font-medium">
+                                  <CheckCircle size={13} className="flex-shrink-0" />
+                                  Origin set — {form.sellerDistrict}, {form.sellerProvince}
                                 </div>
                             ) : (
-                                <p className="text-[11px] text-[#8A7060] mt-2">
-                                  No pin set yet — click on the map or use
-                                  &quot;Select My Location&quot;.
-                                </p>
-                            )}
-                          </div>
-                      )}
+                                <div className="mb-4 flex items-center gap-1.5 bg-[#FFF8F6] border border-[#F0D8D0] rounded-xl px-3.5 py-2.5 text-[12px] text-[#A33214]">
+                                  <AlertCircle size={13} className="flex-shrink-0" />
+                                  Couldn't detect your district/province automatically — try
+                                  re-pinning, or moving the pin slightly.
+                                </div>
+                            )
+                        ) : (
+                            <p className="text-[11px] text-[#8A7060] mb-4">
+                              No pin set yet — click on the map or use &quot;Select My Location&quot;.
+                            </p>
+                        )}
+
+                        <p className="text-[12px] font-medium text-[#3D2B1F] mb-2">
+                          Shipping Rate Structure
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <InputField
+                              label="Within District" required
+                              value={form.rateWithinDistrict}
+                              onChange={(v) => update('rateWithinDistrict', v)}
+                              placeholder="100" prefix="Rs" inputClassName="pl-10"
+                          />
+                          <InputField
+                              label="Within Province" required
+                              value={form.rateWithinProvince}
+                              onChange={(v) => update('rateWithinProvince', v)}
+                              placeholder="150" prefix="Rs" inputClassName="pl-10"
+                          />
+                          <InputField
+                              label="Nationwide" required
+                              value={form.rateNationwide}
+                              onChange={(v) => update('rateNationwide', v)}
+                              placeholder="250" prefix="Rs" inputClassName="pl-10"
+                          />
+                        </div>
+                        <p className="text-[11px] text-[#8A7060] mt-2">
+                          These rates are shown to buyers based on their pinned delivery location.
+                        </p>
+                      </div>
+                  )}
 
                   <SelectField
                     label="Ready to Dispatch In"
@@ -1571,10 +1779,17 @@ export default function ListItemPage() {
                     </p>
 
                     <div className="relative rounded-xl overflow-hidden border border-[#DDD0C4]">
+                      {/*<PickupLocationMap*/}
+                      {/*  lat={form.pickupLat ? parseFloat(form.pickupLat) : null}*/}
+                      {/*  lng={form.pickupLng ? parseFloat(form.pickupLng) : null}*/}
+                      {/*  onLocationSelect={handlePickupLocationChange}*/}
+                      {/*/>*/}
+                      {/* Pickup location map */}
                       <PickupLocationMap
-                        lat={form.pickupLat ? parseFloat(form.pickupLat) : null}
-                        lng={form.pickupLng ? parseFloat(form.pickupLng) : null}
-                        onLocationSelect={handlePickupLocationChange}
+                          key="pickup-location-map"
+                          lat={form.pickupLat ? parseFloat(form.pickupLat) : null}
+                          lng={form.pickupLng ? parseFloat(form.pickupLng) : null}
+                          onLocationSelect={handlePickupLocationChange}
                       />
                       <button
                         type="button"

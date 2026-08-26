@@ -84,6 +84,9 @@ public class ListingRequestDTO {
             message = "Fixed shipping fee must be positive")
     private BigDecimal fixedShippingFee;
 
+    private String sellerDistrict;
+    private String sellerProvince;
+
     @DecimalMin(value = "0.0", inclusive = false,
             message = "Shipping rate must be positive")
     private BigDecimal rateWithinDistrict;

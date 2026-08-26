@@ -31,6 +31,8 @@ export type CartItem = {
     rentalStart?: string;          // formatted, e.g. "May 20"
     rentalEnd?: string;            // formatted, e.g. "May 23"
     returnDeadline?: string;       // formatted, e.g. "May 23, 2025 (by 6:00 PM)"
+    rentalStartIso?: string; // "YYYY-MM-DD"
+    rentalEndIso?: string;
 
     // NEW: per-item refundable security deposit (rent only). This comes
     // straight from Listing.securityDeposit on the backend — see

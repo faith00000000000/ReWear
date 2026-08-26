@@ -46,6 +46,8 @@ public class ListingResponseDTO {
 
     // Section 5: Delivery Options
     private DeliveryOption deliveryOption;
+    private String sellerDistrict;
+    private String sellerProvince;
 
     private String shippingAvailability;
     private ShippingFeeType shippingFeeType;
@@ -65,6 +67,9 @@ public class ListingResponseDTO {
     private String pickupTimeTo;
     private String pickupInstructions;
     private Boolean sameDayPickup;
+    // Section 5 area, near availability
+    private java.time.LocalDate rentedFrom;
+    private java.time.LocalDate rentedTo;
 
     // Section 6
     private BigDecimal thriftPrice;

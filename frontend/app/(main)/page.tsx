@@ -213,96 +213,105 @@ const TAG_STYLES: Record<ProductItem["tag"], string> = {
 };
 
 interface ProductRailCardProps {
-  item: ProductItem;
-  detailHref: string;
+    item: ProductItem;
+    detailHref: string;
 }
 
 function ProductRailCard({ item, detailHref }: ProductRailCardProps) {
-  const { authed } = useAuth();
-  const { isFavorite, toggleFavorite } = useFavorites();
+    const { authed } = useAuth();
+    const { isFavorite, toggleFavorite } = useFavorites();
 
-  const isFav = authed && isFavorite(String(item.id));
+    const isFav = authed && isFavorite(String(item.id));
 
-  function handleToggleFavorite(e: React.MouseEvent<HTMLButtonElement>) {
-    e.preventDefault();
-    e.stopPropagation();
+    function handleToggleFavorite(e: React.MouseEvent<HTMLButtonElement>) {
+        e.preventDefault();
+        e.stopPropagation();
 
-    const nowFavorited = toggleFavorite({
-      id: String(item.id),
-      name: item.name,
-      brand: item.brand ?? "",
-      image: item.image,
-      price: item.price,
-      status: FAVORITE_STATUS_MAP[item.tag],
-      category: "thrift",
-      size: item.size ?? "",
-      availability: mapAvailability(item.availability ?? "AVAILABLE"),
-    });
+        const nowFavorited = toggleFavorite({
+            id: String(item.id),
+            name: item.name,
+            brand: item.brand ?? "",
+            image: item.image,
+            price: item.price,
+            status: FAVORITE_STATUS_MAP[item.tag],
+            category: "thrift",
+            size: item.size ?? "",
+            availability: mapAvailability(item.availability ?? "AVAILABLE"),
+        });
 
-    toast[nowFavorited ? "success" : "info"](
-        nowFavorited
-            ? "Added to favourites"
-            : "Removed from favourites",
-        { autoClose: 2000 }
-    );
-  }
+        toast[nowFavorited ? "success" : "info"](
+            nowFavorited
+                ? "Added to favourites"
+                : "Removed from favourites",
+            { autoClose: 2000 }
+        );
+    }
 
-  return (
-      <article className="group flex flex-col rounded-xl bg-white p-2 shadow-[0_4px_20px_rgba(0,0,0,0.01)] transition hover:shadow-[0_4px_24px_rgba(0,0,0,0.05)] sm:rounded-2xl sm:p-3">
-        <div className="relative aspect-[1/1.05] w-full overflow-hidden rounded-lg bg-[#EFECE8] sm:rounded-xl">
-          <Link
-              href={detailHref}
-              className="block h-full w-full"
-              aria-label={`View ${item.name}`}
-          >
-            <Image
-                src={item.image}
-                alt={item.name}
-                fill
-                sizes="(min-width: 1024px) 25vw, 50vw"
-                className="object-cover transition duration-500 group-hover:scale-103"
-            />
-          </Link>
+    return (
+        <article className="group flex flex-col rounded-xl bg-white p-2 shadow-[0_4px_20px_rgba(0,0,0,0.01)] transition hover:shadow-[0_4px_24px_rgba(0,0,0,0.05)] sm:rounded-2xl sm:p-3">
+            <div className="relative aspect-[1/1.05] w-full overflow-hidden rounded-lg bg-[#EFECE8] sm:rounded-xl">
+                <Link
+                    href={detailHref}
+                    className="block h-full w-full"
+                    aria-label={`View ${item.name}`}
+                >
+                    <Image
+                        src={item.image}
+                        alt={item.name}
+                        fill
+                        sizes="(min-width: 1024px) 25vw, 50vw"
+                        className="object-cover transition duration-500 group-hover:scale-103"
+                    />
+                </Link>
 
-          <span
-              className={`absolute left-2 top-2 z-10 rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-white shadow-sm sm:left-3 sm:top-3 sm:px-3 sm:py-1 sm:text-[9px] ${TAG_STYLES[item.tag]}`}
-          >
+                {/* Tag / Mode Badge */}
+                <span
+                    className={`absolute left-2 top-2 z-10 rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-white shadow-sm sm:left-3 sm:top-3 sm:px-3 sm:py-1 sm:text-[9px] ${TAG_STYLES[item.tag]}`}
+                >
           {item.tag}
         </span>
 
-          <button
-              type="button"
-              onClick={handleToggleFavorite}
-              aria-label={
-                isFav
-                    ? `Remove ${item.name} from favourites`
-                    : `Save ${item.name}`
-              }
-              aria-pressed={isFav}
-              className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-[#1A1A1A] shadow-sm transition hover:bg-white hover:text-[#962D18] sm:right-3 sm:top-3 sm:h-8 sm:w-8"
-          >
-            <Heart
-                size={14}
-                strokeWidth={2}
-                className={isFav ? "fill-[#962D18] text-[#962D18]" : ""}
-            />
-          </button>
-        </div>
+                {/* Reserved Badge */}
+                {(item.availability === "RESERVED" || item.availability === "Reserved") && (
+                    <span className="absolute left-2 bottom-2 z-10 rounded-full bg-[#92740E] px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-white shadow-sm sm:left-3 sm:bottom-3 sm:px-2.5 sm:py-1 sm:text-[9px]">
+            Reserved
+          </span>
+                )}
 
-        <Link
-            href={detailHref}
-            className="mt-3 flex flex-col gap-1 px-1 pb-1 sm:mt-4"
-        >
-          <h3 className="line-clamp-1 text-[12px] font-bold tracking-tight text-[#1A1A1A] sm:text-[14px]">
-            {item.name}
-          </h3>
+                {/* Favorite Button */}
+                <button
+                    type="button"
+                    onClick={handleToggleFavorite}
+                    aria-label={
+                        isFav
+                            ? `Remove ${item.name} from favourites`
+                            : `Save ${item.name}`
+                    }
+                    aria-pressed={isFav}
+                    className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-[#1A1A1A] shadow-sm transition hover:bg-white hover:text-[#962D18] sm:right-3 sm:top-3 sm:h-8 sm:w-8"
+                >
+                    <Heart
+                        size={14}
+                        strokeWidth={2}
+                        className={isFav ? "fill-[#962D18] text-[#962D18]" : ""}
+                    />
+                </button>
+            </div>
 
-          <p className="text-xs font-semibold text-gray-600 sm:text-sm">
-            Rs. {item.price}
-          </p>
-        </Link>
-      </article>
-  );
+            <Link
+                href={detailHref}
+                className="mt-3 flex flex-col gap-1 px-1 pb-1 sm:mt-4"
+            >
+                <h3 className="line-clamp-1 text-[12px] font-bold tracking-tight text-[#1A1A1A] sm:text-[14px]">
+                    {item.name}
+                </h3>
+
+                <p className="text-xs font-semibold text-gray-600 sm:text-sm">
+                    Rs. {item.price}
+                </p>
+            </Link>
+        </article>
+    );
 }
 
 /* ──────────────────────────────────────────────────────────────────────

@@ -630,18 +630,27 @@ function RentalCard({
             />
           </Link>
 
+          {/* Mode / Status Badge */}
           <span
               className={`absolute left-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}
           >
           {product.status}
         </span>
 
+          {/* Availability Badge */}
+          {product.availability === "Reserved" && (
+              <span className="absolute right-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#92740E] text-white">
+            Reserved
+          </span>
+          )}
+
+          {/* Favorite Button (positioned at bottom-right to prevent overlap) */}
           {authed && (
               <button
                   type="button"
                   onClick={handleToggleFavorite}
                   aria-label={isFav ? `Remove ${product.name} from favourites` : `Save ${product.name}`}
-                  className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm transition hover:bg-white/90"
+                  className="absolute right-2 bottom-2 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm transition hover:bg-white/90"
               >
                 <Heart
                     size={13}
@@ -670,7 +679,6 @@ function RentalCard({
       </article>
   );
 }
-
 function Pagination() {
   return (
       <div className="flex items-center justify-center gap-1.5 border-t border-[#EBE3D5] py-6">

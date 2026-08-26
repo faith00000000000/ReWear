@@ -45,6 +45,8 @@ public class OrderService {
                         .itemStatus(i.getStatus())
                         .rentalStart(i.getRentalStart())
                         .rentalEnd(i.getRentalEnd())
+                        .rentalStartIso(i.getRentalStartIso())
+                        .rentalEndIso(i.getRentalEndIso())
                         .rentalDays(i.getRentalDays())
                         .returnDeadline(i.getReturnDeadline())
                         .build())

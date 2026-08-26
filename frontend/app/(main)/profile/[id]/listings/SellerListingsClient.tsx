@@ -10,6 +10,16 @@ import { useFavorites } from "@/lib/FavoritesContext";
 import { Profile } from "@/lib/types/profile";
 import { Product } from "@/lib/types/product";
 
+function availabilityBadge(availability?: string) {
+    if (availability === "Sold Out") {
+        return { label: "Sold Out", className: "bg-[#3D332C] text-white" };
+    }
+    if (availability === "Reserved") {
+        return { label: "Reserved", className: "bg-[#92740E] text-white" };
+    }
+    return null;
+}
+
 function listingTag(status: Product["status"]) {
     if (status === "THRIFT + RENT") return { label: "THRIFT + RENT", className: "bg-[#5C5C5C] text-white" };
     if (status === "THRIFT") return { label: "THRIFT", className: "bg-[#1A130E] text-white" };
@@ -130,11 +140,19 @@ export default function SellerListingsClient({
                                         <span className={`absolute left-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${tag.className}`}>
                                             {tag.label}
                                         </span>
+                                        {(() => {
+                                            const avail = availabilityBadge(item.availability);
+                                            return avail ? (
+                                                <span className={`absolute right-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${avail.className}`}>
+                                                    {avail.label}
+                                                </span>
+                                            ) : null;
+                                        })()}
                                         {authed && (
                                             <button
                                                 onClick={() => handleSave(item)}
                                                 aria-label={isFav ? `Remove ${item.name} from favourites` : `Save ${item.name}`}
-                                                className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm"
+                                                className="absolute right-2 bottom-2 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm"
                                             >
                                                 <Heart size={13} className={isFav ? "fill-[#9E2A1B] text-[#9E2A1B]" : "text-[#707070]"} />
                                             </button>

@@ -1,6 +1,10 @@
 package com.rewear.backend.payment.service;
 
+import com.rewear.backend.listing.entity.Listing;
+import com.rewear.backend.listing.enums.Availability;
+import com.rewear.backend.listing.repository.ListingRepository;
 import com.rewear.backend.order.modal.Order;
+import com.rewear.backend.order.modal.OrderItem;
 import com.rewear.backend.order.repository.OrderRepository;
 import com.rewear.backend.payment.enums.PaymentGateway;
 import com.rewear.backend.payment.mapper.PaymentMapper;
@@ -31,6 +35,7 @@ public class PaymentService {
 
     private final PaymentTransactionRepository transactionRepository;
     private final OrderRepository orderRepository;
+    private final ListingRepository listingRepository;
     private final EsewaGatewayService esewaService;
     private final KhaltiGatewayService khaltiService;
     private final PaymentMapper paymentMapper;
@@ -141,9 +146,15 @@ public class PaymentService {
             order.setStatus("CONFIRMED");
             orderRepository.save(order);
 
+            // ── NEW — apply the paid order's items to their listings.
+            // THRIFT items are marked permanently sold and hidden from
+            // the browse feed. RENT items are reserved for the booked
+            // window and stay visible with a "Reserved" tag until
+            // rentedTo passes.
+            applyOrderToListings(order);
+
             log.info("Payment verified SUCCESS: ref={}", tx.getReferenceId());
 
-            // ── Send transaction receipt email ──
             try {
                 String formattedDate = tx.getCompletedAt()
                         .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
@@ -160,17 +171,61 @@ public class PaymentService {
                         formattedDate
                 );
             } catch (Exception e) {
-                // Never let email failure break the payment verification flow
                 log.error("Could not queue payment receipt email for ref={}: {}",
                         tx.getReferenceId(), e.getMessage());
             }
 
         } else {
             tx.setPaymentStatus(PaymentStatus.FAILED);
-            log.warn("Payment verification FAILED: ref={} gateway={}",
-                    tx.getReferenceId(), tx.getPaymentGateway());
+
+            // ── NEW — a failed/declined payment cancels the order.
+            // Listings are deliberately left untouched: since we only
+            // mutate availability on confirmed SUCCESS, nothing was ever
+            // reserved for this order, so there's nothing to roll back.
+            Order order = tx.getOrder();
+            order.setStatus("CANCELLED");
+            orderRepository.save(order);
+
+            log.warn("Payment verification FAILED: ref={} gateway={} — order {} cancelled",
+                    tx.getReferenceId(), tx.getPaymentGateway(), order.getId());
         }
 
         return paymentMapper.toResponse(transactionRepository.save(tx));
+    }
+
+    /**
+     * Applies a successfully paid order's line items to their listings:
+     * THRIFT → SOLD_OUT (removed from browse feed permanently).
+     * RENT   → RESERVED, with rentedFrom/rentedTo set to the booked
+     *          window (stays visible with a "Reserved" tag; automatically
+     *          bookable again once rentedTo passes — see frontend
+     *          getDayState()/parseRentDurationRange()).
+     */
+    private void applyOrderToListings(Order order) {
+        for (OrderItem item : order.getItems()) {
+            Listing listing = listingRepository.findById(item.getListingId())
+                    .orElse(null);
+            if (listing == null) {
+                // Listing may have been deleted since checkout — order
+                // history (snapshotted on OrderItem) stays intact
+                // regardless, so this is safe to skip rather than fail
+                // the whole payment.
+                log.warn("Listing {} referenced by order {} no longer exists — skipping availability update",
+                        item.getListingId(), order.getId());
+                continue;
+            }
+
+            boolean isRental = item.getRentalStartIso() != null && item.getRentalEndIso() != null;
+
+            if (isRental) {
+                listing.setAvailability(Availability.RESERVED);
+                listing.setRentedFrom(java.time.LocalDate.parse(item.getRentalStartIso()));
+                listing.setRentedTo(java.time.LocalDate.parse(item.getRentalEndIso()));
+            } else {
+                listing.setAvailability(Availability.SOLD_OUT);
+            }
+
+            listingRepository.save(listing);
+        }
     }
 }

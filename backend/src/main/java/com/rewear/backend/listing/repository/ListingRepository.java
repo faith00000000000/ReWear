@@ -69,4 +69,18 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
     // Powers the "Sold / Rented" stat — RESERVED covers active rentals,
     // SOLD_OUT covers completed thrift sales
     long countBySellerIdAndAvailabilityIn(Long sellerId, Collection<Availability> availabilities);
+
+    // Public browse feed: published AND not sold out. RESERVED rent items
+    // stay visible (with a "Reserved" tag on the frontend) — only SOLD_OUT
+    // thrift items disappear.
+    @Query("""
+        SELECT l FROM Listing l
+        WHERE l.status = :status
+        AND l.availability <> :hiddenAvailability
+        """)
+    Page<Listing> findByStatusAndAvailabilityNot(
+            @Param("status") ListingStatus status,
+            @Param("hiddenAvailability") Availability hiddenAvailability,
+            Pageable pageable
+    );
 }

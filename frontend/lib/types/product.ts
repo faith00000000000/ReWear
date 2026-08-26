@@ -46,6 +46,8 @@ export interface Product {
     // Delivery Fields
     // ==========================
     deliveryOption?: "SHIPPING" | "PICKUP" | "FLEX";
+    sellerDistrict?: string;   // ADD
+    sellerProvince?: string;   // ADD
 
     shippingAvailability?: string;
     shippingFeeType?:

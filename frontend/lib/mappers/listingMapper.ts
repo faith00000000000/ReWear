@@ -45,6 +45,13 @@ function toDisplayAvailability(
     }
 }
 
+function formatRentDuration(from?: string | null, to?: string | null): string | undefined {
+    if (!from || !to) return undefined;
+    const fmt = (iso: string) =>
+        new Date(iso).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
+    return `${fmt(from)} to ${fmt(to)}`;
+}
+
 export function mapListingToProduct(
     dto: ListingResponseDTO
 ): Product {
@@ -59,8 +66,8 @@ export function mapListingToProduct(
         id: dto.id,
         name: dto.productTitle,
         category: dto.clothingType ?? undefined,
-        gender: dto.gender ?? undefined,             // <-- ADD
-        styleOccasion: dto.styleOccasion ?? undefined, // <-- ADD
+        gender: dto.gender ?? undefined,
+        styleOccasion: dto.styleOccasion ?? undefined,
         status: toDisplayStatus(dto.listingMode),
 
         image:
@@ -80,6 +87,7 @@ export function mapListingToProduct(
         oldPrice: formatMoney(dto.originalPrice),
         rentalPrice: formatMoney(dto.rentPerDay),
         rentPerDay: dto.rentPerDay ?? undefined,
+        rentDuration: formatRentDuration(dto.rentedFrom, dto.rentedTo),
 
         securityDeposit: formatMoney(dto.securityDeposit),
         securityDepositValue: dto.securityDeposit ?? 0,
@@ -100,6 +108,12 @@ export function mapListingToProduct(
         // Delivery Fields
         // ==========================
         deliveryOption: dto.deliveryOption,
+
+        sellerDistrict:
+            dto.sellerDistrict ?? undefined,
+
+        sellerProvince:
+            dto.sellerProvince ?? undefined,
 
         shippingAvailability:
             dto.shippingAvailability ?? undefined,
@@ -140,7 +154,7 @@ export function mapListingToProduct(
         pickupDays: dto.pickupDays
             ? dto.pickupDays
                 .split(",")
-                .map((d: string) => d.trim()) // Explicitly typing 'd' fixes TS7006
+                .map((d: string) => d.trim())
                 .filter(Boolean)
             : undefined,
 
@@ -161,8 +175,6 @@ export function mapListingToProduct(
         // ==========================
         defectFlaws:
             dto.defectFlaws ?? undefined,
-
-        rentDuration: undefined,
 
         seller: {
             id: dto.seller.id,

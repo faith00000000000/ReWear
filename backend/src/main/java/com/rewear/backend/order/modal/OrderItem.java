@@ -53,4 +53,10 @@ public class OrderItem {
 
     @Column(name = "return_deadline")
     private String returnDeadline;
+
+    @Column(name = "rental_start_iso")
+    private String rentalStartIso;
+
+    @Column(name = "rental_end_iso")
+    private String rentalEndIso;
 }

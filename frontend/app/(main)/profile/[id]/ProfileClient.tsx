@@ -672,11 +672,20 @@ function OwnProfileView({
    Avatar here is display-only — no camera overlay, no upload input — since
    only the profile owner may change their own picture.)
 ══════════════════════════════════════════════════════════ */
+
+function availabilityBadge(availability?: string) {
+    if (availability === "Sold Out") {
+        return { label: "Sold Out", className: "bg-[#3D332C] text-white" };
+    }
+    if (availability === "Reserved") {
+        return { label: "Reserved", className: "bg-[#92740E] text-white" };
+    }
+    return null;
+}
+
 function PublicProfileView({ profile, listings }: { profile: Profile; listings: Product[] }) {
     const { isFavorite, toggleFavorite } = useFavorites();
     const [filter, setFilter] = useState<"all" | "thrift" | "rent" | "both">("all");
-    const listingsPosted = listings.length;
-    const activeItems = listings.filter((p) => p.availability === "Available").length;
 
     const filtered = useMemo(() => {
         if (filter === "all") return listings;
@@ -707,9 +716,7 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
         <div className="min-h-screen bg-[#FAF6F0] text-[#1A130E]">
             <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
-                {/* ── Header banner — same two-section spacing as owner view
-                     (avatar+name fixed, info fields flex-1), but no camera
-                     overlay/upload — display-only avatar for visitors. ── */}
+                {/* Header banner */}
                 <div className="flex flex-col gap-5 rounded-xl border border-[#EBE3D5] bg-white p-6 sm:flex-row sm:items-center sm:gap-8">
                     <div className="flex items-center gap-4 sm:shrink-0 sm:border-r sm:border-[#EBE3D5] sm:pr-8">
                         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border-2 border-[#EBE3D5] bg-[#9E2A1B] text-white">
@@ -737,13 +744,7 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
                     </div>
                 </div>
 
-                {/*<div className="mt-4 flex flex-col divide-y divide-[#EBE3D5] rounded-xl border border-[#EBE3D5] bg-white sm:flex-row sm:divide-x sm:divide-y-0">*/}
-                {/*    <StatBlock icon={ShoppingBag} value={profile.stats.listingsPosted} label="Items Listed" description="Total items listed by seller" />*/}
-                {/*    <StatBlock icon={Tag} value={profile.stats.activeItems} label="Active Items" description="Currently available" />*/}
-                {/*    <StatBlock icon={ShoppingBag} value={profile.stats.soldOrRented} label="Sold / Rented" description="Successfully completed" />*/}
-                {/*    <StatBlock icon={Heart} value={profile.stats.savedByUsers} label="Saved by Users" description="Users who saved this profile" />*/}
-                {/*</div>*/}
-
+                {/* Stats */}
                 <div className="mt-4 flex flex-col divide-y divide-[#EBE3D5] rounded-xl border border-[#EBE3D5] bg-white sm:flex-row sm:divide-x sm:divide-y-0">
                     <StatBlock icon={ShoppingBag} value={profile.stats.listingsPosted} label="Items Listed" description="Total items listed by seller" />
                     <StatBlock icon={Tag} value={profile.stats.activeItems} label="Active Items" description="Currently available" />
@@ -751,6 +752,7 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
                     <StatBlock icon={Heart} value={profile.stats.savedByUsers} label="Saved by Users" description="Users who saved this profile" />
                 </div>
 
+                {/* Filter and Title */}
                 <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h2 className="font-serif text-[20px] font-normal text-[#1A130E]">Listings by {profile.name.split(" ")[0]}</h2>
@@ -776,6 +778,7 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
                     </div>
                 </div>
 
+                {/* Items Grid */}
                 <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4">
                     {filtered.map((item) => {
                         const tag = listingTag(item.status);
@@ -795,10 +798,18 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
                                     <span className={`absolute left-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${tag.className}`}>
                                         {tag.label}
                                     </span>
+                                    {(() => {
+                                        const avail = availabilityBadge(item.availability);
+                                        return avail ? (
+                                            <span className={`absolute right-2 top-2 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${avail.className}`}>
+                                                {avail.label}
+                                            </span>
+                                        ) : null;
+                                    })()}
                                     <button
                                         onClick={() => handleSave(item)}
                                         aria-label={isFav ? `Remove ${item.name} from favourites` : `Save ${item.name}`}
-                                        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm"
+                                        className="absolute right-2 bottom-2 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm"
                                     >
                                         <Heart size={13} className={isFav ? "fill-[#9E2A1B] text-[#9E2A1B]" : "text-[#707070]"} />
                                     </button>
@@ -818,12 +829,13 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
                 <div className="mt-6 text-center">
                     <Link
                         href={`/profile/${profile.id}/listings`}
-                        className="inline-block rounded-lg border border-[#9E2A1B] bg-white px-6 py-2.5 text-[13px] font-bold text-[#9E2A1B] transition hover:bg-[#9E2A1B]/6"
+                        className="inline-block rounded-lg border border-[#9E2A1B] bg-[#9E2A1B]/5 px-6 py-2.5 text-[13px] font-bold text-[#9E2A1B] transition hover:bg-[#9E2A1B]/10"
                     >
                         View All Listings
                     </Link>
                 </div>
 
+                {/* About & Policies */}
                 <div className="mt-8 grid gap-5 sm:grid-cols-2">
                     <div className="rounded-xl border border-[#EBE3D5] bg-white p-5">
                         <h3 className="text-[14px] font-bold text-[#1A130E]">About the Seller</h3>
@@ -857,7 +869,6 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
         </div>
     );
 }
-
 /* ─── Shared small pieces ─────────────────────────────────── */
 
 function InfoItem({ icon: Icon, label, value }: { icon: typeof Heart; label: string; value: string }) {

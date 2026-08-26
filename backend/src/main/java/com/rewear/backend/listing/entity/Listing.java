@@ -113,6 +113,12 @@ public class Listing {
     @Column(name = "fixed_shipping_fee", precision = 10, scale = 2)
     private BigDecimal fixedShippingFee;
 
+    @Column(name = "seller_district")
+    private String sellerDistrict;
+
+    @Column(name = "seller_province")
+    private String sellerProvince;
+
     @Column(name = "rate_within_district", precision = 10, scale = 2)
     private BigDecimal rateWithinDistrict;
 
@@ -192,4 +198,13 @@ public class Listing {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    // ── Rental reservation window — populated on successful payment for
+// RENT / THRIFT_AND_RENT listings. Drives the "Currently on Rent" card
+// and the buyer calendar's blocked-date range on the frontend.
+    @Column(name = "rented_from")
+    private java.time.LocalDate rentedFrom;
+
+    @Column(name = "rented_to")
+    private java.time.LocalDate rentedTo;
 }

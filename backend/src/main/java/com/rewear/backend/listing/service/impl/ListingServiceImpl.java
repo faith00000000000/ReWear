@@ -7,6 +7,7 @@ import com.rewear.backend.exception.ResourceNotFoundException;
 import com.rewear.backend.listing.dto.request.ListingRequestDTO;
 import com.rewear.backend.listing.dto.response.ListingResponseDTO;
 import com.rewear.backend.listing.entity.Listing;
+import com.rewear.backend.listing.enums.Availability;
 import com.rewear.backend.listing.enums.DeliveryOption;
 import com.rewear.backend.listing.enums.ListingStatus;
 import com.rewear.backend.listing.enums.ShippingFeeType;
@@ -76,7 +77,7 @@ public class ListingServiceImpl implements ListingService {
     @Transactional(readOnly = true)
     public Page<ListingResponseDTO> getAllListings(Pageable pageable) {
         return listingRepository
-                .findByStatus(ListingStatus.PUBLISHED, pageable)
+                .findByStatusAndAvailabilityNot(ListingStatus.PUBLISHED, Availability.SOLD_OUT, pageable)
                 .map(listingMapper::toResponseDTO);
     }
 
@@ -209,18 +210,19 @@ public class ListingServiceImpl implements ListingService {
                     || dto.getRateWithinProvince() == null
                     || dto.getRateNationwide() == null))
                 throw new InvalidListingDataException("All dynamic shipping rates are required.");
-            // NEW — Dynamic Shipping prices delivery using distance from the
-            // seller's origin point (pickupLat/pickupLng). Without this, the
-            // buyer-side Buy Now / Rent Now flow has no way to calculate a
-            // delivery fee and gets permanently stuck showing "Delivery
-            // unavailable for this item". This must be enforced here even
-            // though "Pickup" as a delivery *option* isn't selected — the
-            // frontend map validation can be bypassed via direct API calls,
-            // so this is the authoritative check.
+
+            // Dynamic Shipping resolves the buyer's rate by matching the buyer's
+            // reverse-geocoded district/province against the seller's own
+            // district/province (entered as plain text at listing time — no map).
+            // Without these, the buyer-side Buy Now / Rent Now flow has no way to
+            // resolve a zone and gets stuck on "Delivery unavailable for this
+            // item". Enforced here as the authoritative check since the frontend
+            // form validation can be bypassed via direct API calls.
             if (dto.getShippingFeeType() == ShippingFeeType.DYNAMIC_SHIPPING
-                    && (dto.getPickupLat() == null || dto.getPickupLng() == null))
+                    && (isBlank(dto.getSellerDistrict()) || isBlank(dto.getSellerProvince())))
                 throw new InvalidListingDataException(
-                        "Origin location (pickupLat/pickupLng) must be pinned when using Dynamic Shipping.");
+                        "Seller district and province are required when using Dynamic Shipping.");
+
             if (isBlank(dto.getDispatchTime()))
                 throw new InvalidListingDataException("Dispatch time is required.");
         }

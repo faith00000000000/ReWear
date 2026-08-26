@@ -46,6 +46,8 @@
                     .shippingAvailability(dto.getShippingAvailability())
                     .shippingFeeType(dto.getShippingFeeType())
                     .fixedShippingFee(dto.getFixedShippingFee())
+                    .sellerDistrict(dto.getSellerDistrict())
+                    .sellerProvince(dto.getSellerProvince())
                     .rateWithinDistrict(dto.getRateWithinDistrict())
                     .rateWithinProvince(dto.getRateWithinProvince())
                     .rateNationwide(dto.getRateNationwide())
@@ -102,6 +104,8 @@
                     .shippingAvailability(listing.getShippingAvailability())
                     .shippingFeeType(listing.getShippingFeeType())
                     .fixedShippingFee(listing.getFixedShippingFee())
+                    .sellerDistrict(listing.getSellerDistrict())
+                    .sellerProvince(listing.getSellerProvince())
                     .rateWithinDistrict(listing.getRateWithinDistrict())
                     .rateWithinProvince(listing.getRateWithinProvince())
                     .rateNationwide(listing.getRateNationwide())
@@ -116,6 +120,8 @@
                     .pickupTimeTo(listing.getPickupTimeTo())
                     .pickupInstructions(listing.getPickupInstructions())
                     .sameDayPickup(listing.isSameDayPickup())
+                    .rentedFrom(listing.getRentedFrom())
+                    .rentedTo(listing.getRentedTo())
 
                     .thriftPrice(listing.getThriftPrice())
                     .rentPerDay(listing.getRentPerDay())
@@ -154,6 +160,8 @@
             if (dto.getShippingAvailability()  != null) listing.setShippingAvailability(dto.getShippingAvailability());
             if (dto.getShippingFeeType()       != null) listing.setShippingFeeType(dto.getShippingFeeType());
             if (dto.getFixedShippingFee()      != null) listing.setFixedShippingFee(dto.getFixedShippingFee());
+            if (dto.getSellerDistrict()        != null) listing.setSellerDistrict(dto.getSellerDistrict());
+            if (dto.getSellerProvince()        != null) listing.setSellerProvince(dto.getSellerProvince());
             if (dto.getRateWithinDistrict()    != null) listing.setRateWithinDistrict(dto.getRateWithinDistrict());
             if (dto.getRateWithinProvince()    != null) listing.setRateWithinProvince(dto.getRateWithinProvince());
             if (dto.getRateNationwide()        != null) listing.setRateNationwide(dto.getRateNationwide());

@@ -130,6 +130,8 @@ export default function CartPage() {
           status: i.status,
           rentalStart: i.rentalStart ?? null,
           rentalEnd: i.rentalEnd ?? null,
+          rentalStartIso: i.rentalStartIso ?? null,
+          rentalEndIso: i.rentalEndIso ?? null,
           rentalDays: i.rentalDays ?? null,
           returnDeadline: i.returnDeadline ?? null,
         })),

@@ -5,12 +5,12 @@ import { useRouter, useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import axios from "axios";
 import { toast } from "react-toastify";
-import api from "@/lib/axios";
 import { isAuthenticated } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
 import { fetchProfile } from "@/lib/api/profileApi";
 import { fetchListingById, updateListing } from "@/lib/api/listings";
 import { ListingResponseDTO } from "@/lib/types/listing";
+import { reverseGeocodeToDistrictProvince } from "@/lib/geo";
 import {
     Upload,
     Play,
@@ -27,6 +27,7 @@ import {
     Shield,
     Navigation,
     Phone,
+    Info,
 } from "lucide-react";
 
 const PickupLocationMap = dynamic(() => import("@/components/PickupLocationMap"), {
@@ -52,6 +53,10 @@ function numToStr(n: number | null | undefined): string {
 function listingModeFromDto(v: ListingResponseDTO["listingMode"]): ListingModeUI {
     if (v === "THRIFT") return "Thrift";
     if (v === "RENT") return "Rent";
+    if (v === "THRIFT_AND_RENT") return "Thrift + Rent";
+    // Defensive fallback in case the backend ever adds a mode we don't know
+    // about yet — better to show the combined UI than crash on an unhandled
+    // value.
     return "Thrift + Rent";
 }
 function deliveryOptionFromDto(v: ListingResponseDTO["deliveryOption"]): DeliveryOptionUI {
@@ -100,6 +105,12 @@ interface FormState {
     rateWithinProvince: string;
     rateNationwide: string;
     dispatchTime: string;
+    sellerLat: string;
+    sellerLng: string;
+    sellerLocationConfirmed: boolean;
+    sellerResolvedAddress: string;
+    sellerDistrict: string;
+    sellerProvince: string;
     pickupArea: string;
     pickupLat: string;
     pickupLng: string;
@@ -327,6 +338,41 @@ export default function EditListingPage() {
     const [fetchingProfileNumber, setFetchingProfileNumber] = useState(false);
     const [selectedMedia] = useState<{ type: "image" | "video"; index: number }>({ type: "image", index: 0 });
 
+    const reverseGeocodeSeller = async (lat: number, lng: number) => {
+        const result = await reverseGeocodeToDistrictProvince(lat, lng);
+        if (!result) return; // Silent — confirmation chip / fallback message in UI tells the seller.
+        setForm((prev) => prev ? {
+            ...prev,
+            sellerDistrict: result.district || prev.sellerDistrict,
+            sellerProvince: result.province || prev.sellerProvince,
+            sellerResolvedAddress: result.displayName,
+        } : prev);
+    };
+
+    const handleSellerLocationChange = (lat: number, lng: number) => {
+        setForm((prev) => prev ? {
+            ...prev,
+            sellerLat: lat.toFixed(6),
+            sellerLng: lng.toFixed(6),
+            sellerLocationConfirmed: true,
+        } : prev);
+        reverseGeocodeSeller(lat, lng);
+    };
+
+    const handleUseMySellerLocation = () => {
+        if (!navigator.geolocation) {
+            toast.error('Geolocation is not supported by your browser.');
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                handleSellerLocationChange(pos.coords.latitude, pos.coords.longitude);
+                toast.success('Origin location captured!');
+            },
+            () => toast.error("Couldn't fetch your location. Please allow location access."),
+        );
+    };
+
     const objectUrlsRef = useRef<Set<string>>(new Set());
 
     const createPreviewUrl = (file: File) => {
@@ -386,23 +432,29 @@ export default function EditListingPage() {
                     condition: dto.condition ?? "Very Good",
                     color: dto.color ?? "",
                     material: dto.material ?? "Cotton",
-                    originalPrice: numToStr(dto.originalPrice as unknown as number),
+                    originalPrice: numToStr(dto.originalPrice),
                     availability: availabilityFromDto(dto.availability),
                     defectFlaws: dto.defectFlaws ?? "",
-                    thriftPrice: numToStr(dto.thriftPrice as unknown as number),
-                    rentPerDay: numToStr(dto.rentPerDay as unknown as number),
-                    securityDeposit: numToStr(dto.securityDeposit as unknown as number),
+                    thriftPrice: numToStr(dto.thriftPrice),
+                    rentPerDay: numToStr(dto.rentPerDay),
+                    securityDeposit: numToStr(dto.securityDeposit),
                     photos: [dto.photoFrontUrl ?? null, dto.photoBackUrl ?? null, dto.photoLabelUrl ?? null, dto.photoDetailUrl ?? null],
                     video: dto.videoUrl ?? null,
                     pricingMode: listingModeFromDto(dto.listingMode),
                     deliveryOption: deliveryOptionFromDto(dto.deliveryOption),
                     shippingAvailability: dto.shippingAvailability ?? "Nationwide (All Districts)",
                     shippingFeeType: shippingFeeTypeFromDto(dto.shippingFeeType),
-                    fixedShippingFee: numToStr(dto.fixedShippingFee as unknown as number),
-                    rateWithinDistrict: numToStr(dto.rateWithinDistrict as unknown as number),
-                    rateWithinProvince: numToStr(dto.rateWithinProvince as unknown as number),
-                    rateNationwide: numToStr(dto.rateNationwide as unknown as number),
+                    fixedShippingFee: numToStr(dto.fixedShippingFee),
+                    rateWithinDistrict: numToStr(dto.rateWithinDistrict),
+                    rateWithinProvince: numToStr(dto.rateWithinProvince),
+                    rateNationwide: numToStr(dto.rateNationwide),
                     dispatchTime: dto.dispatchTime ?? "Within 1 Day",
+                    sellerLat: "",
+                    sellerLng: "",
+                    sellerLocationConfirmed: dto.sellerDistrict != null && dto.sellerProvince != null,
+                    sellerResolvedAddress: "",
+                    sellerDistrict: dto.sellerDistrict ?? "",
+                    sellerProvince: dto.sellerProvince ?? "",
                     pickupArea: dto.pickupArea ?? "",
                     pickupLat: dto.pickupLat != null ? String(dto.pickupLat) : "",
                     pickupLng: dto.pickupLng != null ? String(dto.pickupLng) : "",
@@ -452,24 +504,13 @@ export default function EditListingPage() {
         setVideoFile(file);
     };
 
-    const reverseGeocode = async (lat: number, lng: number) => {
-        try {
-            const res = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
-                { headers: { Accept: "application/json" } }
-            );
-            if (!res.ok) return;
-            const data = await res.json();
-            if (data?.display_name) {
-                update("pickupResolvedAddress", data.display_name);
-                update("pickupArea", data.display_name);
-            }
-        } catch { /* best-effort */ }
-    };
-
-    const handlePickupLocationChange = (lat: number, lng: number) => {
+    const handlePickupLocationChange = async (lat: number, lng: number) => {
         setForm((prev) => prev ? { ...prev, pickupLat: lat.toFixed(6), pickupLng: lng.toFixed(6), pickupLocationConfirmed: true } : prev);
-        reverseGeocode(lat, lng);
+        const result = await reverseGeocodeToDistrictProvince(lat, lng);
+        if (result?.displayName) {
+            update("pickupResolvedAddress", result.displayName);
+            update("pickupArea", result.displayName);
+        }
     };
 
     const handleUseMyLocation = () => {
@@ -499,24 +540,19 @@ export default function EditListingPage() {
         if (!f.condition) return "Condition is required.";
         if (!f.color.trim()) return "Color is required.";
         if (!f.material) return "Material is required.";
-        // if (f.deliveryOption === "Shipping" || f.deliveryOption === "Flex (Both)") {
-        //     if (!f.shippingAvailability) return "Shipping availability is required.";
-        //     if (!f.shippingFeeType) return "Shipping fee type is required.";
-        //     if (f.shippingFeeType === "Fixed Fee" && !f.fixedShippingFee.trim()) return "Please enter a fixed shipping fee.";
-        //     if (f.shippingFeeType === "Dynamic Shipping" && (!f.rateWithinDistrict.trim() || !f.rateWithinProvince.trim() || !f.rateNationwide.trim())) return "Please fill in all dynamic shipping rates.";
-        //     if (!f.dispatchTime) return "Dispatch time is required.";
-        // }
+
         if (f.deliveryOption === "Shipping" || f.deliveryOption === "Flex (Both)") {
             if (!f.shippingAvailability) return "Shipping availability is required.";
             if (!f.shippingFeeType) return "Shipping fee type is required.";
             if (f.shippingFeeType === "Fixed Fee" && !f.fixedShippingFee.trim()) return "Please enter a fixed shipping fee.";
-            if (f.shippingFeeType === "Dynamic Shipping" && (!f.rateWithinDistrict.trim() || !f.rateWithinProvince.trim() || !f.rateNationwide.trim())) return "Please fill in all dynamic shipping rates.";
-            // NEW — Dynamic Shipping calculates fees using distance from the
-            // seller's origin point. Without pickupLat/pickupLng, the buyer-side
-            // Buy Now / Rent Now modal has no way to price delivery and gets
-            // permanently stuck on "Delivery unavailable for this item".
-            if (f.shippingFeeType === "Dynamic Shipping" && !f.pickupLocationConfirmed) return "Please pin your origin location on the map — required for Dynamic Shipping to calculate delivery fees.";
-            if (!f.dispatchTime) return "Dispatch time is required.";
+            // Dynamic Shipping calculates fees using distance from the seller's
+            // origin point. Without a confirmed pin (and the district/province
+            // it resolves to), the buyer-side checkout has no way to price
+            // delivery and gets stuck on "Delivery unavailable for this item".
+            if (f.shippingFeeType === "Dynamic Shipping" && !f.sellerLocationConfirmed)
+                return "Please pin your origin location on the map for Dynamic Shipping.";
+            if (f.shippingFeeType === "Dynamic Shipping" && (!f.sellerDistrict.trim() || !f.sellerProvince.trim()))
+                return "We couldn't detect your district/province from the pin — try moving the pin slightly.";
         }
         if (f.deliveryOption === "Pickup" || f.deliveryOption === "Flex (Both)") {
             if (!f.pickupArea.trim()) return "Pickup area is required.";
@@ -561,6 +597,8 @@ export default function EditListingPage() {
             fd.append("shippingFeeType", f.shippingFeeType);
             if (f.shippingFeeType === "Fixed Fee") fd.append("fixedShippingFee", stripCommas(f.fixedShippingFee));
             if (f.shippingFeeType === "Dynamic Shipping") {
+                fd.append("sellerDistrict", f.sellerDistrict.trim());
+                fd.append("sellerProvince", f.sellerProvince);
                 fd.append("rateWithinDistrict", stripCommas(f.rateWithinDistrict));
                 fd.append("rateWithinProvince", stripCommas(f.rateWithinProvince));
                 fd.append("rateNationwide", stripCommas(f.rateNationwide));
@@ -638,10 +676,6 @@ export default function EditListingPage() {
             </div>
 
             {/* ── Two-column on desktop, stacked on mobile ── */}
-            {/*
-                On mobile  (<lg): form full-width, preview below form
-                On desktop (lg+): side-by-side flex row
-            */}
             <div className="px-4 sm:px-8 lg:px-16 pb-12 flex flex-col lg:flex-row gap-5 lg:gap-7 items-start">
 
                 {/* ── Form column ── */}
@@ -656,7 +690,6 @@ export default function EditListingPage() {
                                 placeholder="e.g. Floral Print Midi Dress" maxLength={80}
                             />
 
-                            {/* Listing Mode — full width, wraps naturally */}
                             <div>
                                 <label className="text-[13px] font-medium text-[#3D2B1F] block mb-2">
                                     Listing Mode <span className="text-[#A33214]">*</span>
@@ -674,7 +707,6 @@ export default function EditListingPage() {
                                 </div>
                             </div>
 
-                            {/* Gender + Clothing Type: 2-col on mobile, keep 2-col on tablet, 3-col on desktop via parent */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <SelectField label="Gender" required value={form.gender} onChange={(v) => update("gender", v)} options={["Women", "Men", "Kids", "Unisex"]} />
                                 <SelectField label="Clothing Type" required value={form.clothingType} onChange={(v) => update("clothingType", v)} options={["Dresses", "Tops", "Bottoms", "Outerwear", "Accessories", "Footwear", "Activewear"]} />
@@ -695,7 +727,6 @@ export default function EditListingPage() {
                                 <p className="text-[13px] font-semibold text-[#3D2B1F] mb-3">
                                     Photos <span className="font-normal text-[#8A7060]">(Max 4)</span>
                                 </p>
-                                {/* 2-col on mobile, 4-col on sm+ */}
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                     {[
                                         { label: "Front", sub: "Main view", icon: <Upload size={18} /> },
@@ -765,7 +796,6 @@ export default function EditListingPage() {
                     {/* 5. Delivery Options */}
                     <SectionCard step={5} title="Delivery Options" subtitle="Choose how buyers can receive this item.">
                         <div className="flex flex-col gap-5">
-                            {/* Delivery mode cards: stack on mobile, 3-col on sm+ */}
                             <div className="grid grid-cols-3 gap-2 sm:gap-3">
                                 <DeliveryOptionCard icon={<Truck size={15} />} title="Shipping" active={form.deliveryOption === "Shipping"} onClick={() => update("deliveryOption", "Shipping")} />
                                 <DeliveryOptionCard icon={<MapPin size={15} />} title="Pickup" active={form.deliveryOption === "Pickup"} onClick={() => update("deliveryOption", "Pickup")} />
@@ -780,7 +810,6 @@ export default function EditListingPage() {
                                         <label className="text-[13px] font-medium text-[#3D2B1F] block mb-2.5">
                                             Shipping Fee Type <span className="text-[#A33214]">*</span>
                                         </label>
-                                        {/* Fee type cards: 1-col on mobile, 3-col on sm+ */}
                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                             <FeeTypeCard title="Free Shipping" desc="You'll cover the shipping cost" active={form.shippingFeeType === "Free Shipping"} onClick={() => update("shippingFeeType", "Free Shipping")} />
                                             <FeeTypeCard title="Fixed Fee" desc="Set a fixed fee for all buyers" active={form.shippingFeeType === "Fixed Fee"} onClick={() => update("shippingFeeType", "Fixed Fee")} />
@@ -790,13 +819,6 @@ export default function EditListingPage() {
                                     {form.shippingFeeType === "Fixed Fee" && (
                                         <InputField label="Shipping Fee" required value={form.fixedShippingFee} onChange={(v) => update("fixedShippingFee", v)} placeholder="150" prefix="Rs" inputClassName="pl-10" />
                                     )}
-                                    {/*{form.shippingFeeType === "Dynamic Shipping" && (*/}
-                                    {/*    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">*/}
-                                    {/*        <InputField label="Within District" required value={form.rateWithinDistrict} onChange={(v) => update("rateWithinDistrict", v)} placeholder="100" prefix="Rs" inputClassName="pl-10" />*/}
-                                    {/*        <InputField label="Within Province" required value={form.rateWithinProvince} onChange={(v) => update("rateWithinProvince", v)} placeholder="150" prefix="Rs" inputClassName="pl-10" />*/}
-                                    {/*        <InputField label="Nationwide" required value={form.rateNationwide} onChange={(v) => update("rateNationwide", v)} placeholder="250" prefix="Rs" inputClassName="pl-10" />*/}
-                                    {/*    </div>*/}
-                                    {/*)}*/}
                                     {form.shippingFeeType === "Dynamic Shipping" && (
                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                             <InputField label="Within District" required value={form.rateWithinDistrict} onChange={(v) => update("rateWithinDistrict", v)} placeholder="100" prefix="Rs" inputClassName="pl-10" />
@@ -805,59 +827,64 @@ export default function EditListingPage() {
                                         </div>
                                     )}
 
-                                    {/* NEW — Origin location for Dynamic Shipping. Only shown
-                                        for pure "Shipping" mode; "Flex (Both)" already gets
-                                        this map from the Pickup section below, so we don't
-                                        duplicate it. */}
-                                    {form.shippingFeeType === "Dynamic Shipping" && form.deliveryOption === "Shipping" && (
+                                    {form.shippingFeeType === "Dynamic Shipping" && (
                                         <div>
-                                            <label className="text-[13px] font-medium text-[#3D2B1F] block mb-1">
-                                                Origin Location (for Dynamic Shipping) <span className="text-[#A33214]">*</span>
+                                            <div className="flex items-center gap-1.5 bg-[#FDF6EC] border border-[#EBE0D4] rounded-xl px-3.5 py-2.5 mb-3">
+                                                <Info size={12} className="text-[#8A7060] flex-shrink-0" />
+                                                <p className="text-[11px] text-[#6F6258]">
+                                                    Pin your shipping origin below — buyers pin their delivery location
+                                                    at checkout, and we match district/province to apply the rate below automatically.
+                                                </p>
+                                            </div>
+
+                                            <label className="text-[13px] font-medium text-[#3D2B1F] block mb-1.5">
+                                                Your Location <span className="text-[#A33214]">*</span>
                                             </label>
-                                            <p className="text-[12px] text-[#8A7060] mb-2.5">
-                                                Pin your shipping origin — the buyer's delivery fee is calculated as
-                                                distance from this point. Without this, buyers can't check out.
-                                            </p>
-                                            <div className="relative rounded-xl overflow-hidden border border-[#DDD0C4]">
+
+                                            <div className="relative rounded-xl overflow-hidden border border-[#DDD0C4] mb-3">
                                                 <PickupLocationMap
-                                                    lat={form.pickupLat ? parseFloat(form.pickupLat) : null}
-                                                    lng={form.pickupLng ? parseFloat(form.pickupLng) : null}
-                                                    onLocationSelect={handlePickupLocationChange}
+                                                    key="edit-seller-origin-map"
+                                                    lat={form.sellerLat ? parseFloat(form.sellerLat) : null}
+                                                    lng={form.sellerLng ? parseFloat(form.sellerLng) : null}
+                                                    onLocationSelect={handleSellerLocationChange}
                                                 />
                                                 <button
-                                                    type="button" onClick={handleUseMyLocation}
+                                                    type="button"
+                                                    onClick={handleUseMySellerLocation}
                                                     className="absolute top-3 right-3 z-[1000] px-2.5 py-1.5 rounded-lg bg-white/95 border border-[#DDD0C4] text-[#A33214] text-[11px] sm:text-[12px] font-semibold shadow-sm hover:bg-white transition-colors flex items-center gap-1.5"
                                                 >
                                                     <Navigation size={12} />
-                                                    {form.pickupLocationConfirmed ? "Update Pin" : "Select My Location"}
+                                                    {form.sellerLocationConfirmed ? 'Update Pin' : 'Select My Location'}
                                                 </button>
                                             </div>
-                                            {form.pickupResolvedAddress && (
-                                                <div className="mt-2 flex items-start gap-1.5 bg-[#FDFAF6] border border-[#EBE0D4] rounded-xl px-3 py-2">
+
+                                            {form.sellerResolvedAddress && (
+                                                <div className="mb-3 flex items-start gap-1.5 bg-[#FDFAF6] border border-[#EBE0D4] rounded-xl px-3 py-2">
                                                     <MapPin size={12} className="text-[#8A7060] mt-0.5 flex-shrink-0" />
-                                                    <p className="text-[11px] text-[#6F6258] leading-relaxed">
-                                                        {form.pickupResolvedAddress}
-                                                    </p>
+                                                    <p className="text-[11px] text-[#6F6258] leading-relaxed">{form.sellerResolvedAddress}</p>
                                                 </div>
                                             )}
-                                            {form.pickupLocationConfirmed ? (
-                                                <div className="mt-2 flex items-center justify-between gap-2 bg-[#F2FAF0] border border-[#D8E8D0] rounded-xl px-3.5 py-2.5">
-                                                    <div className="flex items-center gap-1.5 text-[12px] text-[#3D5C30] font-medium">
-                                                        <CheckCircle size={13} /> Origin location set
+
+                                            {form.sellerLocationConfirmed ? (
+                                                form.sellerDistrict && form.sellerProvince ? (
+                                                    <div className="mb-4 flex items-center gap-1.5 bg-[#F2FAF0] border border-[#D8E8D0] rounded-xl px-3.5 py-2.5 text-[12px] text-[#3D5C30] font-medium">
+                                                        <CheckCircle size={13} className="flex-shrink-0" />
+                                                        Origin set — {form.sellerDistrict}, {form.sellerProvince}
                                                     </div>
-                                                    <span className="text-[10px] text-[#6F9060] tabular-nums">
-                                                        {form.pickupLat}, {form.pickupLng}
-                                                    </span>
-                                                </div>
+                                                ) : (
+                                                    <div className="mb-4 flex items-center gap-1.5 bg-[#FFF8F6] border border-[#F0D8D0] rounded-xl px-3.5 py-2.5 text-[12px] text-[#A33214]">
+                                                        <AlertCircle size={13} className="flex-shrink-0" />
+                                                        Couldn't detect your district/province automatically — try re-pinning, or moving the pin slightly.
+                                                    </div>
+                                                )
                                             ) : (
-                                                <p className="text-[11px] text-[#8A7060] mt-2">
-                                                    No pin set yet — click on the map or use "Select My Location".
+                                                <p className="text-[11px] text-[#8A7060] mb-4">
+                                                    No pin set yet — click on the map or use &quot;Select My Location&quot;.
                                                 </p>
                                             )}
                                         </div>
                                     )}
 
-                                    <SelectField label="Ready to Dispatch In" required value={form.dispatchTime} onChange={(v) => update("dispatchTime", v)} options={["Same Day", "Within 1 Day", "Within 2-3 Days", "Within 1 Week"]} />
                                     <SelectField label="Ready to Dispatch In" required value={form.dispatchTime} onChange={(v) => update("dispatchTime", v)} options={["Same Day", "Within 1 Day", "Within 2-3 Days", "Within 1 Week"]} />
                                 </div>
                             )}
@@ -873,6 +900,7 @@ export default function EditListingPage() {
                                         </label>
                                         <div className="relative rounded-xl overflow-hidden border border-[#DDD0C4]">
                                             <PickupLocationMap
+                                                key="edit-pickup-location-map"
                                                 lat={form.pickupLat ? parseFloat(form.pickupLat) : null}
                                                 lng={form.pickupLng ? parseFloat(form.pickupLng) : null}
                                                 onLocationSelect={handlePickupLocationChange}
@@ -895,7 +923,6 @@ export default function EditListingPage() {
                                         )}
                                     </div>
 
-                                    {/* Contact + Instructions: stack on mobile */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="flex flex-col gap-1.5">
                                             <div className="flex items-center justify-between flex-wrap gap-1">
@@ -965,7 +992,6 @@ export default function EditListingPage() {
 
                     {/* 6. Pricing */}
                     <SectionCard step={6} title="Pricing" subtitle="Update pricing based on item quality, brand, and market value.">
-                        {/* Pricing cards: 1-col on mobile, 3-col on md+ */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                             {/* Thrift */}
                             <div
@@ -1045,10 +1071,7 @@ export default function EditListingPage() {
                     </div>
                 </div>
 
-                {/* ── Preview column ──
-                    Desktop: sticky sidebar 400px wide
-                    Mobile/Tablet: full-width below form, not sticky
-                */}
+                {/* ── Preview column ── */}
                 <div className="w-full lg:w-[360px] xl:w-[400px] lg:flex-shrink-0">
                     <div className="lg:sticky lg:top-6">
                         <div className="bg-white rounded-xl border border-[#E8DDD0] overflow-hidden">
@@ -1056,7 +1079,6 @@ export default function EditListingPage() {
                                 <p className="text-[14px] sm:text-[15px] font-serif font-bold text-[#2A1F1A]">Listing Preview</p>
                             </div>
 
-                            {/* Photo/video preview */}
                             <div className="relative bg-[#F8F4EF] aspect-[4/5] overflow-hidden">
                                 {showVideo ? (
                                     <video src={form.video!} controls className="w-full h-full object-cover" />
@@ -1075,7 +1097,6 @@ export default function EditListingPage() {
                                 )}
                             </div>
 
-                            {/* Thumbnail strip — photos + video */}
                             {(form.photos.some(Boolean) || form.video) && (
                                 <div className="flex gap-2 px-4 py-3 border-b border-[#F0E6DA] overflow-x-auto">
                                     {form.photos.map((p, i) =>
