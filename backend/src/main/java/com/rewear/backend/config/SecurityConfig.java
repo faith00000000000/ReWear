@@ -62,6 +62,8 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/ws/notifications").permitAll()
+                        .requestMatchers("/api/admin/earnings", "/api/admin/earnings/**").hasRole("ADMIN")
 //                        .requestMatchers(
 //                                "/api/auth/signup",
 //                                "/api/auth/login",

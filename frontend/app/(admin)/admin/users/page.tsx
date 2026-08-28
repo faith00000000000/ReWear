@@ -65,7 +65,7 @@ export default function UsersPage() {
             (data ?? []).filter(
               (u): u is AdminUser =>
                 u != null &&
-                u.role !== 'ADMIN' &&
+                // API role describes BUYER/SELLER activity, not account permissions.
                 u.email !== 'admin@rewear.com',
             ),
           );

@@ -52,6 +52,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 return;
             }
 
+            if ((request.getServletPath().startsWith("/api/notifications") || request.getServletPath().startsWith("/api/admin/earnings"))
+                    && (jwtService.extractUserId(jwt) == null || jwtService.extractRole(jwt) == null)) {
+                response.sendError(401, "Access token required");
+                return;
+            }
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 try {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(email);

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
+import { fetchAdminEarnings } from "@/lib/api/earnings";
+import type { EarningsDashboard, EarningsTransaction as Transaction } from "@/lib/types/earnings";
 import Image from "next/image";
 import {
   Wallet,
@@ -8,9 +10,6 @@ import {
   Tag,
   Clock,
   Search,
-  Filter,
-  DollarSign,
-  ArrowUpRight,
   PieChart as PieIcon,
   BarChart2,
   Receipt,
@@ -20,152 +19,58 @@ import {
 
 type TransactionType = "thrift" | "rent";
 
-interface Transaction {
-  id: string;
-  orderId: string;
-  itemTitle: string;
-  itemImage: string;
-  sellerName: string;
-  buyerName: string;
-  type: TransactionType;
-  grossAmount: number; // In NPR / Rs.
-  date: string;
-}
-
-// Fixed commission rates
-const THRIFT_COMMISSION_RATE = 0.12; // 12%
-const RENT_COMMISSION_RATE = 0.2; // 20%
-
-// Mock transaction data
-const INITIAL_TRANSACTIONS: Transaction[] = [
-  {
-    id: "TXN-8801",
-    orderId: "ORD-9901",
-    itemTitle: "Vintage Denim Jacket - Oversized",
-    itemImage:
-      "https://images.unsplash.com/photo-1544441893-675973e31985?w=300",
-    sellerName: "RetroWardrobe",
-    buyerName: "Siddharth Shrestha",
-    type: "thrift",
-    grossAmount: 4500,
-    date: "2026-08-10",
-  },
-  {
-    id: "TXN-8802",
-    orderId: "ORD-9902",
-    itemTitle: "Silk Evening Gown - Crimson Red",
-    itemImage:
-      "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=300",
-    sellerName: "GlamRentals",
-    buyerName: "Aayusha Thapa",
-    type: "rent",
-    grossAmount: 7500,
-    date: "2026-08-08",
-  },
-  {
-    id: "TXN-8803",
-    orderId: "ORD-9903",
-    itemTitle: "North Face Puffer Jacket - Black",
-    itemImage:
-      "https://images.unsplash.com/photo-1548883354-7622d03aca27?w=300",
-    sellerName: "HimalayanThrift",
-    buyerName: "Rohan Adhikari",
-    type: "thrift",
-    grossAmount: 11000,
-    date: "2026-08-05",
-  },
-  {
-    id: "TXN-8804",
-    orderId: "ORD-9904",
-    itemTitle: "Traditional Cultural Dress - Lehenga",
-    itemImage:
-      "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=300",
-    sellerName: "HeritageWear",
-    buyerName: "Prashna Basnet",
-    type: "rent",
-    grossAmount: 12000,
-    date: "2026-08-01",
-  },
-  {
-    id: "TXN-8805",
-    orderId: "ORD-9905",
-    itemTitle: "Leather Biker Jacket",
-    itemImage:
-      "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=300",
-    sellerName: "UrbanThrift",
-    buyerName: "Kiran Gurung",
-    type: "thrift",
-    grossAmount: 8500,
-    date: "2026-07-28",
-  },
-];
-
-// Monthly overview data for the bar chart
-const MONTHLY_EARNINGS = [
-  { month: "Mar", thriftComm: 18400, rentComm: 21000 },
-  { month: "Apr", thriftComm: 22100, rentComm: 28500 },
-  { month: "May", thriftComm: 29000, rentComm: 34000 },
-  { month: "Jun", thriftComm: 31200, rentComm: 41000 },
-  { month: "Jul", thriftComm: 38500, rentComm: 48000 },
-  { month: "Aug", thriftComm: 44200, rentComm: 56000 },
-];
-
 export default function EarningsPage() {
-  const [transactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
+  const [data, setData] = useState<EarningsDashboard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [typeFilter, setTypeFilter] = useState<"all" | TransactionType>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
 
-  // Compute platform metrics
-  const metrics = useMemo(() => {
-    let totalGMV = 0;
-    let totalThriftGMV = 0;
-    let totalRentGMV = 0;
-    let thriftCommission = 0;
-    let rentCommission = 0;
-
-    transactions.forEach((txn) => {
-      totalGMV += txn.grossAmount;
-      if (txn.type === "thrift") {
-        totalThriftGMV += txn.grossAmount;
-        thriftCommission += txn.grossAmount * THRIFT_COMMISSION_RATE;
-      } else {
-        totalRentGMV += txn.grossAmount;
-        rentCommission += txn.grossAmount * RENT_COMMISSION_RATE;
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setLoading(true); setError(null);
+      try {
+        const result = await fetchAdminEarnings(typeFilter, searchQuery, page, controller.signal);
+        if (!controller.signal.aborted) setData(result);
+      } catch {
+        if (!controller.signal.aborted) setError("Could not load earnings. Check your admin session and retry.");
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
       }
-    });
+    }, 200);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [typeFilter, searchQuery, page, refreshKey]);
 
-    const totalCommission = thriftCommission + rentCommission;
+  useEffect(() => {
+    const refresh = () => setRefreshKey(key => key + 1);
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setSelectedTxn(null); };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("keydown", escape);
+    return () => { window.removeEventListener("focus", refresh); window.removeEventListener("keydown", escape); };
+  }, []);
 
-    return {
-      totalGMV,
-      totalThriftGMV,
-      totalRentGMV,
-      thriftCommission,
-      rentCommission,
-      totalCommission,
-    };
-  }, [transactions]);
+  if (!data) return <div className="p-8" role="status">{error ?? "Loading verified payment earnings…"}{error && <button onClick={() => setRefreshKey(key => key + 1)} className="ml-3 underline">Retry</button>}</div>;
 
-  // Filtered transactions for table
-  const filteredTransactions = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    return transactions.filter((txn) => {
-      const matchesType = typeFilter === "all" || txn.type === typeFilter;
-      const matchesSearch =
-        !q ||
-        txn.itemTitle.toLowerCase().includes(q) ||
-        txn.sellerName.toLowerCase().includes(q) ||
-        txn.buyerName.toLowerCase().includes(q) ||
-        txn.id.toLowerCase().includes(q) ||
-        txn.orderId.toLowerCase().includes(q);
-
-      return matchesType && matchesSearch;
-    });
-  }, [transactions, typeFilter, searchQuery]);
+  const transactions = data.transactions;
+  const filteredTransactions = transactions;
+  const metrics = { ...data.metrics, totalThriftGMV: data.metrics.thriftGMV, totalRentGMV: data.metrics.rentGMV };
+  const monthlyEarnings = data.monthly;
 
   return (
     <div className="flex flex-col gap-8 max-w-[1400px]">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-amber-200 bg-amber-50 p-3 text-xs">
+        <p>Verified sandbox payments · calculated commission allocations, not transferred payouts. Deposits/shipping are excluded. Cancellation, extension and refund adjustments are not implemented yet.</p>
+        <button disabled={loading} onClick={() => setRefreshKey(key => key + 1)} className="font-bold underline">{loading ? "Refreshing…" : "Refresh"}</button>
+      </div>
+      {error && <p role="alert" className="text-sm text-red-700">{error} Previously loaded figures are shown.</p>}
+      {data.reviewCount > 0 && <details className="border border-amber-400 bg-amber-50 p-4 text-sm">
+        <summary className="cursor-pointer font-semibold">{data.reviewCount} successful payment(s) need review and are excluded from commission totals</summary>
+        <ul className="mt-3 space-y-2">{data.reviewIssues.map(issue => <li key={issue.reference}>{issue.reference} · Order #{issue.orderId}: {issue.reason}</li>)}</ul>
+      </details>}
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b-2 border-[#1C1C1C]/15 pb-4">
         <div>
@@ -184,7 +89,7 @@ export default function EarningsPage() {
 
         <div className="flex items-center gap-2">
           <div className="px-3 py-1 bg-[#1C1C1C] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider">
-            Total Revenue: Rs {metrics.totalCommission.toLocaleString()}
+            Calculated Commission: Rs {metrics.totalCommission.toLocaleString()}
           </div>
         </div>
       </div>
@@ -195,7 +100,7 @@ export default function EarningsPage() {
         <div className="border-2 border-[#1C1C1C]/15 bg-white/60 p-5 relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-[11px] uppercase tracking-[0.14em] text-[#1C1C1C]/60 font-semibold">
-              Net Platform Commission
+              Platform Commission Allocation
             </span>
             <TrendingUp size={18} className="text-[#A33214]" />
           </div>
@@ -281,7 +186,7 @@ export default function EarningsPage() {
               style={{ fontFamily: "Georgia, serif" }}
             >
               <BarChart2 size={18} className="text-[#A33214]" />
-              Monthly Commission Revenue (NPR)
+              Monthly Calculated Commission (NPR)
             </h2>
             <div className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider">
               <span className="flex items-center gap-1">
@@ -297,8 +202,8 @@ export default function EarningsPage() {
 
           {/* SVG Bar Chart */}
           <div className="h-48 w-full flex items-end justify-between gap-3 pt-6 px-2">
-            {MONTHLY_EARNINGS.map((item) => {
-              const maxVal = 110000;
+            {monthlyEarnings.map((item) => {
+              const maxVal = Math.max(1, ...monthlyEarnings.flatMap(row => [row.thriftComm, row.rentComm]));
               const thriftHeight = (item.thriftComm / maxVal) * 100;
               const rentHeight = (item.rentComm / maxVal) * 100;
 
@@ -360,7 +265,7 @@ export default function EarningsPage() {
                     metrics.totalCommission > 0
                       ? (metrics.thriftCommission / metrics.totalCommission) *
                         100
-                      : 50
+                      : 0
                   } 100`}
                 />
                 <circle
@@ -373,13 +278,13 @@ export default function EarningsPage() {
                   strokeDasharray={`${
                     metrics.totalCommission > 0
                       ? (metrics.rentCommission / metrics.totalCommission) * 100
-                      : 50
+                      : 0
                   } 100`}
                   strokeDashoffset={`-${
                     metrics.totalCommission > 0
                       ? (metrics.thriftCommission / metrics.totalCommission) *
                         100
-                      : 50
+                      : 0
                   }`}
                 />
               </svg>
@@ -434,17 +339,17 @@ export default function EarningsPage() {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           <div className="flex items-center bg-[#FDF6EC] border border-[#1C1C1C]/20 p-1 self-start rounded-xs shadow-xs">
             <button
-              onClick={() => setTypeFilter("all")}
+              onClick={() => { setTypeFilter("all"); setPage(0); }}
               className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xs ${
                 typeFilter === "all"
                   ? "bg-[#1C1C1C] text-[#FDF6EC]"
                   : "text-[#1C1C1C]/80 hover:text-[#1C1C1C]"
               }`}
             >
-              All Items ({transactions.length})
+              All Items
             </button>
             <button
-              onClick={() => setTypeFilter("thrift")}
+              onClick={() => { setTypeFilter("thrift"); setPage(0); }}
               className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xs flex items-center gap-1.5 ${
                 typeFilter === "thrift"
                   ? "bg-[#1C1C1C] text-[#FDF6EC]"
@@ -455,7 +360,7 @@ export default function EarningsPage() {
               Thrift Sales
             </button>
             <button
-              onClick={() => setTypeFilter("rent")}
+              onClick={() => { setTypeFilter("rent"); setPage(0); }}
               className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xs flex items-center gap-1.5 ${
                 typeFilter === "rent"
                   ? "bg-[#A33214] text-[#FDF6EC]"
@@ -476,7 +381,7 @@ export default function EarningsPage() {
               type="text"
               placeholder="Search by ID, item, seller..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
               className="w-full bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xs pl-9 pr-3 py-1.5 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
             />
           </div>
@@ -490,10 +395,10 @@ export default function EarningsPage() {
                 <th className="p-3">Txn ID / Order</th>
                 <th className="p-3">Item</th>
                 <th className="p-3">Type</th>
-                <th className="p-3">Gross Amount</th>
+                <th className="p-3">Item / Rental Fee</th>
                 <th className="p-3">Comm. Rate</th>
                 <th className="p-3">Platform Cut</th>
-                <th className="p-3">Seller Payout</th>
+                <th className="p-3">Seller Share (Pending)</th>
                 <th className="p-3 text-right">Inspect</th>
               </tr>
             </thead>
@@ -509,12 +414,9 @@ export default function EarningsPage() {
                 </tr>
               ) : (
                 filteredTransactions.map((txn) => {
-                  const rate =
-                    txn.type === "thrift"
-                      ? THRIFT_COMMISSION_RATE
-                      : RENT_COMMISSION_RATE;
-                  const platformCut = txn.grossAmount * rate;
-                  const sellerPayout = txn.grossAmount - platformCut;
+                  const rate = txn.commissionRate;
+                  const platformCut = txn.platformCut;
+                  const sellerPayout = txn.sellerShare;
 
                   return (
                     <tr
@@ -587,6 +489,14 @@ export default function EarningsPage() {
         </div>
       </section>
 
+      <div className="flex items-center justify-between text-sm">
+        <span>{data.totalElements} item allocations · Page {page + 1}</span>
+        <div className="flex gap-3">
+          <button disabled={page === 0 || loading} onClick={() => setPage(value => value - 1)} className="disabled:opacity-40">Previous</button>
+          <button disabled={(page + 1) * data.size >= data.totalElements || loading} onClick={() => setPage(value => value + 1)} className="disabled:opacity-40">Next</button>
+        </div>
+      </div>
+      <p className="text-xs text-stone-600">Seller share allocated: Rs {metrics.sellerShare.toLocaleString()} · Recorded successful collections: Rs {metrics.verifiedCollections.toLocaleString()} · Non-commissionable charges on included orders: Rs {metrics.excludedCharges.toLocaleString()}. Legacy seller identities may be unavailable.</p>
       {/* Transaction Detail Modal */}
       {selectedTxn && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1C1C]/50 backdrop-blur-xs">
@@ -599,6 +509,7 @@ export default function EarningsPage() {
                 Commission Slip: {selectedTxn.id}
               </h2>
               <button
+                aria-label="Close commission details"
                 onClick={() => setSelectedTxn(null)}
                 className="text-[#1C1C1C]/60 hover:text-[#A33214] p-1 transition-colors"
               >
@@ -621,12 +532,14 @@ export default function EarningsPage() {
                     Order ID: {selectedTxn.orderId}
                   </p>
                   <p className="text-[#1C1C1C]/60">Date: {selectedTxn.date}</p>
+<p className="text-[#1C1C1C]/60">{selectedTxn.gateway} · {selectedTxn.paymentReference}</p>
+<p className="text-[#1C1C1C]/60">Source: {selectedTxn.source === "CHECKOUT_SNAPSHOT" ? "Stored checkout fee snapshot" : "Legacy thrift price snapshot"}</p>
                 </div>
               </div>
 
               <div className="bg-white/80 p-4 border border-[#1C1C1C]/15 space-y-2">
                 <div className="flex justify-between border-b border-[#1C1C1C]/10 pb-1">
-                  <span>Gross Item Price</span>
+                  <span>Commissionable Item / Rental Fee</span>
                   <span className="font-bold">
                     Rs {selectedTxn.grossAmount.toLocaleString()}
                   </span>
@@ -634,29 +547,18 @@ export default function EarningsPage() {
                 <div className="flex justify-between border-b border-[#1C1C1C]/10 pb-1 text-[#A33214]">
                   <span>
                     Platform Commission (
-                    {selectedTxn.type === "thrift" ? "12%" : "20%"})
+                    {(selectedTxn.commissionRate * 100).toFixed(0) + "%"})
                   </span>
                   <span className="font-bold">
                     +Rs{" "}
-                    {(
-                      selectedTxn.grossAmount *
-                      (selectedTxn.type === "thrift"
-                        ? THRIFT_COMMISSION_RATE
-                        : RENT_COMMISSION_RATE)
-                    ).toLocaleString()}
+                    {selectedTxn.platformCut.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between pt-1 font-bold text-sm">
-                  <span>Seller Payable Net</span>
+                  <span>Seller Share (Not Paid Out)</span>
                   <span>
                     Rs{" "}
-                    {(
-                      selectedTxn.grossAmount *
-                      (1 -
-                        (selectedTxn.type === "thrift"
-                          ? THRIFT_COMMISSION_RATE
-                          : RENT_COMMISSION_RATE))
-                    ).toLocaleString()}
+                    {selectedTxn.sellerShare.toLocaleString()}
                   </span>
                 </div>
               </div>

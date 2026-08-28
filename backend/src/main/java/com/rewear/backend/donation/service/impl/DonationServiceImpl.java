@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional
 public class DonationServiceImpl implements DonationService {
+    private final com.rewear.backend.notification.service.NotificationService notificationService;
 
     private final DonationRepository donationRepository;
     private final OrganizationRepository organizationRepository;
@@ -49,7 +50,14 @@ public class DonationServiceImpl implements DonationService {
 
         Donation donation = DonationMapper.toEntity(dto, organization);
         donation.setDonorUserId(resolveCurrentUserId()); // null for guests — that's fine
-        return DonationMapper.toResponseDto(donationRepository.save(donation));
+        Donation saved = donationRepository.save(donation);
+        notificationService.notifyUser(saved.getDonorUserId(), "donation-created:" + saved.getId(),
+            com.rewear.backend.notification.enums.NotificationType.DONATION,
+            "Donation submitted", "Your donation request has been received.", "/profile/donations");
+        notificationService.notifyAdmins("donation-created:" + saved.getId(),
+            com.rewear.backend.notification.enums.NotificationType.DONATION,
+            "New donation", "A donation request is waiting for review.", "/admin/donations");
+        return DonationMapper.toResponseDto(saved);
     }
 
     @Override
@@ -69,6 +77,12 @@ public class DonationServiceImpl implements DonationService {
     @Override
     public DonationResponseDto updateStatus(Long id, DonationStatus status) {
         Donation donation = findOrThrow(id);
+        if (donation.getStatus() != status) {
+            notificationService.notifyUser(donation.getDonorUserId(),
+                "donation-status:" + id + ":" + java.util.UUID.randomUUID(),
+                com.rewear.backend.notification.enums.NotificationType.DONATION,
+                "Donation status updated", "Your donation is now " + status.name().toLowerCase() + ".", "/profile/donations");
+        }
         donation.setStatus(status);
         return DonationMapper.toResponseDto(donationRepository.save(donation));
     }

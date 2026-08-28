@@ -1,4 +1,5 @@
 "use client";
+import { Suspense } from "react";
 
 import { useState } from "react";
 import Image from "next/image";
@@ -37,7 +38,7 @@ function Label({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function SignupPage() {
+function SignupPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/";
@@ -288,4 +289,7 @@ export default function SignupPage() {
 
       </div>
   );
+}
+export default function SignupPage() {
+  return <Suspense fallback={<p className="p-8 text-center">Loading…</p>}><SignupPageContent /></Suspense>;
 }

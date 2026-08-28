@@ -22,6 +22,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class AdminUserService {
+    private final com.rewear.backend.notification.service.NotificationService notificationService;
 
     private final UserRepository userRepository;
     private final ListingRepository listingRepository;
@@ -60,6 +61,9 @@ public class AdminUserService {
         user.setIsActive(false); // banned accounts must not be able to log in
 
         User saved = userRepository.save(user);
+        notificationService.notifyUser(id, "account-ban:" + java.util.UUID.randomUUID(),
+            com.rewear.backend.notification.enums.NotificationType.ACCOUNT,
+            "Account restricted", "Your account has been restricted. Contact support for assistance.", "/notifications");
         log.info("User {} banned (reason: {})", id, reason);
         return mapWithCounts(saved);
     }
@@ -68,12 +72,16 @@ public class AdminUserService {
     public AdminUserResponseDto unbanUser(Long id) {
         User user = findUserById(id);
 
+        boolean wasBanned = user.getStatus() == UserStatus.BANNED;
         user.setStatus(UserStatus.ACTIVE);
         user.setBanReason(null);
         user.setBannedAt(null);
         user.setIsActive(true);
 
         User saved = userRepository.save(user);
+        if (wasBanned) notificationService.notifyUser(id, "account-unban:" + java.util.UUID.randomUUID(),
+            com.rewear.backend.notification.enums.NotificationType.ACCOUNT,
+            "Account restored", "Your account access has been restored.", "/notifications");
         log.info("User {} unbanned", id);
         return mapWithCounts(saved);
     }

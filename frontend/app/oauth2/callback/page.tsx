@@ -1,4 +1,5 @@
 "use client";
+import { Suspense } from "react";
 
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -10,7 +11,7 @@ import { saveTokens, saveUser } from "@/lib/auth";
  *
  * This page reads those params, stores them, and sends the user to /dashboard.
  */
-export default function OAuth2CallbackPage() {
+function OAuth2CallbackPageContent() {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -49,4 +50,8 @@ export default function OAuth2CallbackPage() {
       </p>
     </div>
   );
+}
+
+export default function OAuth2CallbackPage() {
+  return <Suspense fallback={<p className="p-8 text-center">Loading…</p>}><OAuth2CallbackPageContent /></Suspense>;
 }

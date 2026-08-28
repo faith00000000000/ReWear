@@ -77,8 +77,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     const cartCount = cartItems.length;
     const subtotal = cartItems.reduce((acc, item) => {
-        const n = parseFloat(item.price.replace(/[^0-9]/g, "")) || 0;
-        return acc + n;
+        const unit = Number(item.price.replace(/[^0-9.]/g, "").replace(/^\./, "")) || 0;
+        const days = item.price.includes("/ day") ? Math.max(1, item.rentalDays ?? 1) : 1;
+        return acc + unit * days;
     }, 0);
 
     function addToCart(item: CartItem) {

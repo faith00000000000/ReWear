@@ -8,6 +8,7 @@ import {
 } from "next/font/google";
 import { ToastContainer } from "react-toastify";
 
+import { NotificationProvider } from "@/lib/NotificationContext";
 import { AuthProvider } from "@/lib/AuthContext";
 import { CartProvider } from "@/lib/CartContext";
 import { FavoritesProvider } from "@/lib/FavoritesContext";
@@ -55,11 +56,13 @@ export const metadata: Metadata = {
 // ── Combined App Context Providers ───────────────────────────────────────────
 const AppProviders = ({ children }: { children: React.ReactNode }) => (
   <AuthProvider>
+    <NotificationProvider>
     <CartProvider>
       <FavoritesProvider>
         <RecentlyViewedProvider>{children}</RecentlyViewedProvider>
       </FavoritesProvider>
     </CartProvider>
+  </NotificationProvider>
   </AuthProvider>
 );
 

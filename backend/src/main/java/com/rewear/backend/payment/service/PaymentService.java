@@ -32,6 +32,7 @@ import java.util.Random;
 @Slf4j
 @RequiredArgsConstructor
 public class PaymentService {
+    private final com.rewear.backend.notification.service.NotificationService notificationService;
 
     private final PaymentTransactionRepository transactionRepository;
     private final OrderRepository orderRepository;
@@ -47,6 +48,8 @@ public class PaymentService {
         Order order = orderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new RuntimeException("Order not found: " + request.getOrderId()));
 
+        if (!java.util.Objects.equals(request.getAmountNpr(), order.getTotalAmountNpr()))
+            throw new IllegalArgumentException("Payment amount does not match the stored order total");
         String referenceId =
                 "RWR-" + Year.now().getValue() + "-"
                         + String.format("%06d", new Random().nextInt(999999));
@@ -152,6 +155,18 @@ public class PaymentService {
             // window and stay visible with a "Reserved" tag until
             // rentedTo passes.
             applyOrderToListings(order);
+            notificationService.notifyUser(order.getBuyer().getId(), "payment:" + tx.getReferenceId(),
+                    com.rewear.backend.notification.enums.NotificationType.PAYMENT,
+                    "Payment confirmed", "Payment for order #" + order.getId() + " was confirmed. Delivery is still pending.",
+                    "/profile/order-history");
+            order.getItems().stream().map(OrderItem::getListingId).distinct().forEach(listingId ->
+                listingRepository.findById(listingId).ifPresent(listing ->
+                    notificationService.notifyUser(listing.getSeller().getId(),
+                        "sale:" + tx.getReferenceId() + ":" + listingId,
+                        com.rewear.backend.notification.enums.NotificationType.SALE,
+                        "New paid order", "An item from your listings has been ordered: " + listing.getProductTitle(),
+                        "/profile/listings")));
+
 
             log.info("Payment verified SUCCESS: ref={}", tx.getReferenceId());
 

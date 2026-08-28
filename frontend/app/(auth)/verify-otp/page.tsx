@@ -1,4 +1,5 @@
 "use client";
+import { Suspense } from "react";
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
@@ -26,7 +27,7 @@ const RESEND_COOLDOWN = 30;
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export default function VerifyOtpPage() {
+function VerifyOtpPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const email = searchParams?.get("email") ?? "";
@@ -353,4 +354,7 @@ export default function VerifyOtpPage() {
             </main>
         </div>
     );
+}
+export default function VerifyOtpPage() {
+  return <Suspense fallback={<p className="p-8 text-center">Loading…</p>}><VerifyOtpPageContent /></Suspense>;
 }

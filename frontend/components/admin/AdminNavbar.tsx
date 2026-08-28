@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import { useNotifications } from "@/lib/NotificationContext";
 
 import { useState, useRef, useEffect } from "react";
 import {
@@ -20,7 +22,6 @@ interface AdminNavbarProps {
   adminName?: string;
   adminEmail?: string;
   adminInitials?: string;
-  notificationCount?: number;
 }
 
 export default function AdminNavbar({
@@ -29,12 +30,11 @@ export default function AdminNavbar({
   adminName = "Admin User",
   adminEmail = "admin@rewear.com",
   adminInitials = "AD",
-  notificationCount = 3,
 }: AdminNavbarProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(notificationCount);
+  const { unreadCount, items: notifications, markRead, markAllRead, error } = useNotifications();
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -71,31 +71,6 @@ export default function AdminNavbar({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
-
-  // Dummy notifications
-  const sampleNotifications = [
-    {
-      id: "1",
-      title: "Account Flagged",
-      desc: "User USR-902 flagged for counterfeit listings.",
-      time: "10m ago",
-      unread: true,
-    },
-    {
-      id: "2",
-      title: "New Seller Application",
-      desc: "ThriftNepal applied for a seller badge.",
-      time: "1h ago",
-      unread: true,
-    },
-    {
-      id: "3",
-      title: "Payout Request",
-      desc: "Pending payout request of $420.00.",
-      time: "3h ago",
-      unread: true,
-    },
-  ];
 
   return (
     <header className="sticky top-0 z-30 bg-[#FDF6EC] border-b-2 border-[#1C1C1C]/15 px-4 sm:px-6 py-4 transition-all">
@@ -166,7 +141,7 @@ export default function AdminNavbar({
             >
               <Bell size={18} />
               {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[20px] h-[20px] px-1 bg-[#A33214] text-[#FDF6EC] text-[10px] font-black border-2 border-[#FDF6EC] rounded-xs animate-pulse">
+                <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[20px] h-[20px] px-1 bg-[#A33214] text-[#FDF6EC] text-[10px] font-black border-2 border-[#FDF6EC] rounded-full">
                   {unreadCount}
                 </span>
               )}
@@ -187,7 +162,7 @@ export default function AdminNavbar({
                   </div>
                   {unreadCount > 0 && (
                     <button
-                      onClick={() => setUnreadCount(0)}
+                      onClick={() => void markAllRead()}
                       className="text-[10px] font-extrabold text-[#A33214] hover:underline flex items-center gap-1 uppercase"
                     >
                       <CheckCheck size={12} /> Mark Read
@@ -196,30 +171,34 @@ export default function AdminNavbar({
                 </div>
 
                 <div className="max-h-72 overflow-y-auto divide-y divide-[#1C1C1C]/10">
-                  {sampleNotifications.map((item) => (
-                    <div
+                  {error && <p role="alert" className="p-3 text-xs text-red-700">{error}</p>}
+                  {notifications.length === 0 && <p className="p-3 text-xs">No notifications yet.</p>}
+                  {notifications.slice(0, 5).map((item) => (
+                    <Link
+                      href={item.href}
+                      onClick={() => { void markRead(item.id); setNotificationsOpen(false); }}
                       key={item.id}
-                      className={`p-3 text-xs transition-colors hover:bg-white/80 cursor-pointer ${
-                        item.unread && unreadCount > 0 ? "bg-[#A33214]/5" : ""
+                      className={`block p-3 text-xs transition-colors hover:bg-white/80 cursor-pointer ${
+                        !item.readAt ? "bg-[#A33214]/5" : ""
                       }`}
                     >
                       <div className="flex items-center justify-between font-bold text-[#1C1C1C]">
                         <span>{item.title}</span>
                         <span className="text-[10px] font-normal text-[#1C1C1C]/50">
-                          {item.time}
+                          {new Date(item.createdAt).toLocaleDateString()}
                         </span>
                       </div>
                       <p className="text-[11px] text-[#1C1C1C]/70 mt-1">
-                        {item.desc}
+                        {item.message}
                       </p>
-                    </div>
+                    </Link>
                   ))}
                 </div>
 
                 <div className="p-2 border-t-2 border-[#1C1C1C]/10 bg-stone-100 text-center">
-                  <button className="text-[11px] uppercase font-bold text-[#1C1C1C] hover:text-[#A33214] transition-colors">
-                    View All Activity Logs →
-                  </button>
+                  <Link href="/notifications" className="text-[11px] uppercase font-bold text-[#1C1C1C] hover:text-[#A33214] transition-colors">
+                    View all notifications →
+                  </Link>
                 </div>
               </div>
             )}

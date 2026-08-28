@@ -46,6 +46,7 @@ public class Order {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
+    @org.hibernate.annotations.BatchSize(size = 50)
     private List<OrderItem> items = new ArrayList<>();
 
     @PrePersist

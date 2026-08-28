@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Transactional
 public class ListingServiceImpl implements ListingService {
+    private final com.rewear.backend.notification.service.NotificationService notificationService;
 
     private final ListingRepository      listingRepository;
     private final ListingMapper          listingMapper;
@@ -58,6 +59,11 @@ public class ListingServiceImpl implements ListingService {
         }
 
         Listing saved = listingRepository.save(listing);
+        if (saved.getStatus() == ListingStatus.PENDING_REVIEW) {
+            notificationService.notifyAdmins("listing-review:" + saved.getId(),
+                com.rewear.backend.notification.enums.NotificationType.LISTING,
+                "Listing awaiting review", "A seller submitted a listing for moderation.", "/admin/listings");
+        }
         log.info("Listing created [id={}] [status={}]", saved.getId(), saved.getStatus());
 
         return listingMapper.toResponseDTO(saved);
@@ -125,6 +131,9 @@ public class ListingServiceImpl implements ListingService {
         // updateListing()
         if (request.isPublish() && existing.getStatus() == ListingStatus.DRAFT) {
             existing.setStatus(ListingStatus.PENDING_REVIEW);
+            notificationService.notifyAdmins("listing-review:" + existing.getId(),
+                com.rewear.backend.notification.enums.NotificationType.LISTING,
+                "Listing awaiting review", "A seller submitted a listing for moderation.", "/admin/listings");
         }
         Listing updated = listingRepository.save(existing);
         log.info("Listing updated [id={}]", updated.getId());
@@ -142,7 +151,14 @@ public class ListingServiceImpl implements ListingService {
     @Override
     public ListingResponseDTO updateListingStatus(Long id, ListingStatus status) {
         Listing listing = findOrThrow(id);
-        listing.setStatus(status);
+        if (listing.getStatus() != status) {
+            listing.setStatus(status);
+            notificationService.notifyUser(listing.getSeller().getId(),
+                "listing-status:" + id + ":" + java.util.UUID.randomUUID(),
+                com.rewear.backend.notification.enums.NotificationType.LISTING,
+                "Listing status updated", "Your listing is now " + status.name().toLowerCase().replace('_', ' ') + ".",
+                "/profile/listings");
+        }
         return listingMapper.toResponseDTO(listingRepository.save(listing));
     }
 

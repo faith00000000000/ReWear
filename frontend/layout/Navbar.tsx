@@ -1,4 +1,5 @@
 "use client";
+import { useNotifications } from "@/lib/NotificationContext";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -97,7 +98,7 @@ export default function Navbar() {
   const [dropOpen, setDropOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [notificationCount] = useState(2);
+  const { unreadCount: notificationCount } = useNotifications();
   const dropRef = useRef<HTMLDivElement>(null);
 
   // Synchronize state with URL search parameters on route change

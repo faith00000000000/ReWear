@@ -45,6 +45,7 @@ export default function CartPage() {
   const { cartItems: items, removeFromCart: removeItem, subtotal } = useCart();
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
+  const [checkoutTotal, setCheckoutTotal] = useState<number | null>(null);
   const [orderId, setOrderId] = useState<number | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const hadItemsBefore = useRef(false);
@@ -124,6 +125,8 @@ export default function CartPage() {
       const { data } = await api.post("/api/orders", {
         items: items.map((i) => ({
           listingId: i.id,
+          fulfillment: i.fulfillment,
+          deliveryFee: i.deliveryFee ?? 0,
           name: i.name,
           image: i.image,
           price: i.price,
@@ -138,6 +141,7 @@ export default function CartPage() {
         totalAmountNpr: total,
       });
       setOrderId(data.id);
+      setCheckoutTotal(data.totalAmountNpr);
       setPaymentModalOpen(true);
     } catch (err) {
       console.error(err);
@@ -566,7 +570,7 @@ export default function CartPage() {
 
         {paymentModalOpen && orderId !== null && (
           <PaymentModal
-            total={total}
+            total={checkoutTotal ?? total}
             orderId={orderId}
             onClose={() => setPaymentModalOpen(false)}
           />

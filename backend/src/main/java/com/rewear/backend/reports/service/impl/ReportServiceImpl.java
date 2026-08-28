@@ -33,6 +33,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ReportServiceImpl implements ReportService {
+    private final com.rewear.backend.notification.service.NotificationService notificationService;
 
     private final ReportRepository reportRepository;
     private final ReportMapper reportMapper;
@@ -54,6 +55,9 @@ public class ReportServiceImpl implements ReportService {
         enrichWithReporterSnapshot(report, reporterEmail);
 
         Report saved = reportRepository.save(report);
+        notificationService.notifyAdmins("report-created:" + saved.getId(),
+            com.rewear.backend.notification.enums.NotificationType.REPORT,
+            "New report", "A report has been submitted for review.", "/admin/reports");
         return reportMapper.toResponse(saved);
     }
 
@@ -75,6 +79,13 @@ public class ReportServiceImpl implements ReportService {
     public ReportResponse updateReportStatus(Long id, ReportStatusUpdateRequest request, String reviewerEmail) {
         Report report = findReportOrThrow(id);
 
+        if (report.getStatus() != request.getStatus()) {
+            notificationService.notifyUser(report.getReporterId(),
+                "report-status:" + id + ":" + java.util.UUID.randomUUID(),
+                com.rewear.backend.notification.enums.NotificationType.REPORT,
+                "Report status updated", "Your report #" + id + " is now " + request.getStatus().name().toLowerCase() + ".",
+                "/notifications");
+        }
         report.setStatus(request.getStatus());
         if (request.getActionTaken() != null) {
             report.setActionTaken(request.getActionTaken());

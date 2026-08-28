@@ -703,10 +703,10 @@ function ListingStatusBadge({ status }: { status: BackendListingStatus }) {
           <AlertTriangle size={11} /> Rejected
         </span>
       );
-    case 'REMOVED':
+    case 'ARCHIVED':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-red-100 text-red-900 border border-red-300 rounded-xs">
-          <XCircle size={11} /> Removed
+          <XCircle size={11} /> Archived
         </span>
       );
     case 'DRAFT':

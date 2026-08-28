@@ -1,4 +1,5 @@
 "use client";
+import { Suspense } from "react";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -40,7 +41,7 @@ const THRIFT_BADGE_CLASS: Record<string, string> = {
 
 type SortOption = "newest" | "price-low" | "price-high";
 
-export default function BrowseFindsPage() {
+function BrowseFindsPageContent() {
     const searchParams = useSearchParams();
     const searchQuery = searchParams.get("q") || "";
 
@@ -622,4 +623,7 @@ function Pagination() {
             </span>
         </div>
     );
+}
+export default function BrowseFindsPage() {
+  return <Suspense fallback={<p className="p-8 text-center">Loading…</p>}><BrowseFindsPageContent /></Suspense>;
 }

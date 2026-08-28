@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { Suspense, useEffect, useState, useMemo, useCallback } from "react";
 import {
   ArrowRight,
   ChevronDown,
@@ -50,7 +50,7 @@ const DEFAULT_OPEN_SECTIONS = ["category", "brand", "size"];
 
 type SortOption = "recommended" | "newest" | "price-low" | "price-high";
 
-export default function RentPage() {
+function RentPageContent() {
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get("q") || "";
 
@@ -687,4 +687,7 @@ function Pagination() {
       </span>
       </div>
   );
+}
+export default function RentPage() {
+  return <Suspense fallback={<p className="p-8 text-center">Loading rentals…</p>}><RentPageContent /></Suspense>;
 }

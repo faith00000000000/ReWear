@@ -15,6 +15,8 @@ public class OrderCreateRequest {
     @Setter
     public static class OrderItemRequest {
         private Long listingId;
+        private String fulfillment;
+        private java.math.BigDecimal deliveryFee;
         private String name;
         private String image;
         private String price;

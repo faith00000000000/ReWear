@@ -27,6 +27,13 @@ public class OrderItem {
     @Column(name = "listing_id", nullable = false)
     private Long listingId;
 
+    @Column(precision=14,scale=2) private java.math.BigDecimal feeAmountNpr;
+    @Column(precision=14,scale=2) private java.math.BigDecimal depositAmountNpr;
+    @Column(precision=14,scale=2) private java.math.BigDecimal shippingAmountNpr;
+    @Column(precision=5,scale=4) private java.math.BigDecimal commissionRate;
+    private Long sellerId;
+    private String sellerName;
+
     // Snapshot fields — captured at checkout time so history stays accurate
     // even if the listing is later edited or removed
     @Column(nullable = false)
