@@ -34,6 +34,13 @@ public class OrderItem {
     private Long sellerId;
     private String sellerName;
 
+    // Null means an existing, open rental. Closed states are irreversible.
+    private String rentalState;
+    private java.time.Instant rentalClosedAt;
+    @Column(precision=14,scale=2) private java.math.BigDecimal cancellationFeeNpr;
+    @Column(precision=14,scale=2) private java.math.BigDecimal refundDueNpr;
+    private String refundState;
+
     // Snapshot fields — captured at checkout time so history stays accurate
     // even if the listing is later edited or removed
     @Column(nullable = false)

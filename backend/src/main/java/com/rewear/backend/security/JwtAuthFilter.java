@@ -52,7 +52,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 return;
             }
 
-            if ((request.getServletPath().startsWith("/api/notifications") || request.getServletPath().startsWith("/api/admin/earnings"))
+            if ((request.getServletPath().startsWith("/api/notifications") || request.getServletPath().startsWith("/api/admin/earnings") || request.getServletPath().startsWith("/api/rentals") || request.getServletPath().startsWith("/api/seller/earnings"))
                     && (jwtService.extractUserId(jwt) == null || jwtService.extractRole(jwt) == null)) {
                 response.sendError(401, "Access token required");
                 return;

@@ -13,6 +13,10 @@ public class OrderEarningsSnapshotService {
  private final ListingRepository listings;
  public OrderItem snapshot(OrderItem item,OrderCreateRequest.OrderItemRequest request) {
   var listing=listings.findById(item.getListingId()).orElseThrow(()->new IllegalArgumentException("Listing unavailable"));
+  if(listing.getAvailability()!=com.rewear.backend.listing.enums.Availability.AVAILABLE)
+   throw new IllegalArgumentException("Item is reserved or sold; wait for seller return confirmation");
+  if(item.getOrder()!=null && item.getOrder().getBuyer()!=null && listing.getSeller().getId().equals(item.getOrder().getBuyer().getId()))
+   throw new IllegalArgumentException("You cannot purchase or rent your own listing");
   boolean rental=request.getRentalStartIso()!=null || request.getRentalEndIso()!=null || "RENT".equals(request.getStatus());
   int days=1;
   if(rental) {

@@ -24,6 +24,11 @@ public class EarningsCalculator {
   if(gross.signum()<0 || rate==null || rate.signum()<0 || rate.compareTo(BigDecimal.ONE)>0)
    throw new IllegalArgumentException("Invalid commission snapshot");
   gross=gross.setScale(2,RoundingMode.UNNECESSARY);
+  if(rental && "CANCELLED".equals(item.getRentalState())) {
+   BigDecimal cancellation=item.getCancellationFeeNpr();
+   if(cancellation==null || cancellation.signum()<0 || cancellation.compareTo(gross)>0) throw new IllegalArgumentException("Cancellation fee snapshot missing or invalid");
+   return new Amounts("rent",cancellation,BigDecimal.ONE,cancellation,BigDecimal.ZERO,"CANCELLATION_7_PERCENT");
+  }
   BigDecimal cut=gross.multiply(rate).setScale(2,RoundingMode.HALF_UP);
   return new Amounts(rental?"rent":"thrift",gross,rate,cut,gross.subtract(cut),source);
  }

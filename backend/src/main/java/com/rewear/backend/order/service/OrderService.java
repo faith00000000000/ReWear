@@ -28,6 +28,8 @@ public class OrderService {
     public OrderResponse createOrder(String userEmail, OrderCreateRequest request) {
 
         if(request.getItems()==null || request.getItems().isEmpty()) throw new IllegalArgumentException("Cart is empty");
+        if(request.getItems().stream().map(OrderCreateRequest.OrderItemRequest::getListingId).distinct().count()!=request.getItems().size())
+            throw new IllegalArgumentException("A clothing item can only appear once in an order");
         User buyer = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userEmail));
 

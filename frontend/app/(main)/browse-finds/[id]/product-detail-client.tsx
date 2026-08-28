@@ -366,7 +366,7 @@ export default function ProductDetailClient({
       value?: string,
   ): 'Available' | 'Limited Dates' | 'Unavailable' | 'Sold' {
     if (value === 'Available') return 'Available';
-    if (value === 'Reserved') return 'Limited Dates';
+    if (value === 'Reserved') return 'Unavailable';
     return 'Unavailable';
   }
 
@@ -2951,6 +2951,10 @@ function BuyNowModal({
       !(channel === 'shipping' && dynamicFeePending); // dynamicFeePending is false once a province is picked
 
   const handleSaveAndAddToCart = () => {
+    if (product.availability !== 'Available') {
+      toast.info('This item is reserved or sold. Please wait for the seller to confirm its return.');
+      return;
+    }
     if (!canSubmit) return;
     addToCart({
       id: product.id,
@@ -3715,6 +3719,10 @@ function RentNowModal({
       !(channel === 'shipping' && dynamicFeePending); // dynamicFeePending is false once a province is picked
 
   const handleSaveAndAddToCart = () => {
+    if (product.availability !== 'Available') {
+      toast.info('This item is reserved or sold. Please wait for the seller to confirm its return.');
+      return;
+    }
     if (!canSubmit) return;
 
     addToCart({

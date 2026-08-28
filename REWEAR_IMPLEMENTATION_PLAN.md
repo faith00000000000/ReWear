@@ -476,3 +476,8 @@ Replace label-only arrays with `{ label, href }` and real internal links:
 Implement **trusted order-item records and money foundations first**, then fulfillment and rentals, then connect earnings screens. Notifications should be emitted as those workflows are added. Do not begin with dashboard totals: accurate earnings depend on accurate delivery, cancellation, return and refund events.
 
 
+
+
+## Rental and seller settlement update — 2026-08-28
+
+Buyer/seller rental views, guarded cancellation/return, **7% rental cancellation fee** (supersedes the former 10% proposal), refund-due tracking, admin deposit reporting, seller earnings and pending withdrawal requests are implemented. Actual gateway refunds and seller payouts remain unimplemented; requests do not transfer money. See [rental settlement details](backend/RENTAL_SETTLEMENT.md) for accounting policies, API details, limitations and verification.

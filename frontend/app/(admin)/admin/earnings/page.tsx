@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import AdminSettlementPanel from "@/components/AdminSettlementPanel";
 import { fetchAdminEarnings } from "@/lib/api/earnings";
 import type { EarningsDashboard, EarningsTransaction as Transaction } from "@/lib/types/earnings";
 import Image from "next/image";
@@ -63,7 +64,7 @@ export default function EarningsPage() {
   return (
     <div className="flex flex-col gap-8 max-w-[1400px]">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-amber-200 bg-amber-50 p-3 text-xs">
-        <p>Verified sandbox payments · calculated commission allocations, not transferred payouts. Deposits/shipping are excluded. Cancellation, extension and refund adjustments are not implemented yet.</p>
+        <p>Verified sandbox payments · calculated commission allocations, not transferred payouts. Deposits/shipping are excluded. Cancelled rentals retain a 7% fee instead of 20% commission. Refunds and withdrawals remain pending until provider processing is integrated.</p>
         <button disabled={loading} onClick={() => setRefreshKey(key => key + 1)} className="font-bold underline">{loading ? "Refreshing…" : "Refresh"}</button>
       </div>
       {error && <p role="alert" className="text-sm text-red-700">{error} Previously loaded figures are shown.</p>}
@@ -94,6 +95,7 @@ export default function EarningsPage() {
         </div>
       </div>
 
+      <AdminSettlementPanel refreshKey={refreshKey} />
       {/* Metric Cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Total Platform Earnings */}
@@ -463,7 +465,7 @@ export default function EarningsPage() {
                         Rs {txn.grossAmount.toLocaleString()}
                       </td>
                       <td className="p-3 font-bold text-[#A33214]">
-                        {(rate * 100).toFixed(0)}%
+                        {txn.source === "CANCELLATION_7_PERCENT" ? "7% cancellation fee" : `${(rate * 100).toFixed(0)}%`}
                       </td>
                       <td className="p-3 font-bold text-emerald-800 bg-emerald-50/50">
                         +Rs {platformCut.toLocaleString()}
@@ -533,21 +535,20 @@ export default function EarningsPage() {
                   </p>
                   <p className="text-[#1C1C1C]/60">Date: {selectedTxn.date}</p>
 <p className="text-[#1C1C1C]/60">{selectedTxn.gateway} · {selectedTxn.paymentReference}</p>
-<p className="text-[#1C1C1C]/60">Source: {selectedTxn.source === "CHECKOUT_SNAPSHOT" ? "Stored checkout fee snapshot" : "Legacy thrift price snapshot"}</p>
+<p className="text-[#1C1C1C]/60">Source: {selectedTxn.source === "CANCELLATION_7_PERCENT" ? "Retained 7% of original rental fee; no seller share" : selectedTxn.source === "CHECKOUT_SNAPSHOT" ? "Stored checkout fee snapshot" : "Legacy thrift price snapshot"}</p>
                 </div>
               </div>
 
               <div className="bg-white/80 p-4 border border-[#1C1C1C]/15 space-y-2">
                 <div className="flex justify-between border-b border-[#1C1C1C]/10 pb-1">
-                  <span>Commissionable Item / Rental Fee</span>
+                  <span>{selectedTxn.source === "CANCELLATION_7_PERCENT" ? "Retained cancellation fee" : "Commissionable Item / Rental Fee"}</span>
                   <span className="font-bold">
                     Rs {selectedTxn.grossAmount.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between border-b border-[#1C1C1C]/10 pb-1 text-[#A33214]">
                   <span>
-                    Platform Commission (
-                    {(selectedTxn.commissionRate * 100).toFixed(0) + "%"})
+                    {selectedTxn.source === "CANCELLATION_7_PERCENT" ? "Cancellation fee (7% of original rental fee)" : `Platform Commission (${(selectedTxn.commissionRate * 100).toFixed(0)}%)`}
                   </span>
                   <span className="font-bold">
                     +Rs{" "}

@@ -51,6 +51,7 @@ const AUTH_LINKS: NavLink[] = [
 const DROPDOWN_LINKS: NavLink[] = [
   { label: "My Listings", href: "/profile/listings", icon: Package },
   { label: "Active Rentals", href: "/profile/rentals", icon: CalendarClock },
+  { label: "Earnings", href: "/profile/earnings", icon: Package },
   { label: "Saved", href: "/saved", icon: Heart },
   { label: "My Donations", href: "/dashboard/donations", icon: Gift },
 ];

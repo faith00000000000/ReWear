@@ -43,7 +43,7 @@ public class EarningsService {
     boolean structured=true;
     for(var item:order.getItems()) {
      var a=calculator.calculate(item);
-     fee=fee.add(a.gross());
+     fee=fee.add(item.getFeeAmountNpr()==null?a.gross():item.getFeeAmountNpr());
      structured &= item.getDepositAmountNpr()!=null && item.getShippingAmountNpr()!=null;
      if(item.getDepositAmountNpr()!=null) charges=charges.add(item.getDepositAmountNpr());
      if(item.getShippingAmountNpr()!=null) charges=charges.add(item.getShippingAmountNpr());

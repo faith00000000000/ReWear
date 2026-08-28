@@ -39,15 +39,18 @@ public class PaymentService {
     private final ListingRepository listingRepository;
     private final EsewaGatewayService esewaService;
     private final KhaltiGatewayService khaltiService;
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
     private final PaymentMapper paymentMapper;
     private final EmailService emailService;
 
     @Transactional
     public PaymentInitiateResponse initiatePayment(PaymentInitiateRequest request) throws Exception {
 
-        Order order = orderRepository.findById(request.getOrderId())
+        Order order = orderRepository.lockOrder(request.getOrderId())
                 .orElseThrow(() -> new RuntimeException("Order not found: " + request.getOrderId()));
 
+        if (!"PENDING_PAYMENT".equals(order.getStatus()))
+            throw new IllegalArgumentException("Order is not awaiting payment");
         if (!java.util.Objects.equals(request.getAmountNpr(), order.getTotalAmountNpr()))
             throw new IllegalArgumentException("Payment amount does not match the stored order total");
         String referenceId =
@@ -119,6 +122,13 @@ public class PaymentService {
                 .findByReferenceId(request.getReferenceId())
                 .orElseThrow(() -> new RuntimeException("Transaction not found: " + request.getReferenceId()));
 
+        orderRepository.lockOrder(tx.getOrder().getId()).orElseThrow();
+        entityManager.refresh(tx);
+        entityManager.refresh(tx.getOrder());
+        if ("CONFIRMED".equals(tx.getOrder().getStatus()) && tx.getPaymentStatus()!=PaymentStatus.SUCCESS)
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                "Order already paid. Any additional gateway collection requires reconciliation.");
+
         log.info("Verifying payment: ref={} gateway={} currentStatus={}",
                 tx.getReferenceId(), tx.getPaymentGateway(), tx.getPaymentStatus());
 
@@ -141,7 +151,8 @@ public class PaymentService {
 
         if (verified) {
             tx.setPaymentStatus(PaymentStatus.SUCCESS);
-            tx.setGatewayTransactionId(request.getGatewayTransactionId());
+            if (tx.getPaymentGateway() == PaymentGateway.ESEWA)
+                tx.setGatewayTransactionId(request.getGatewayTransactionId());
             tx.setGatewayResponse(request.getGatewayResponseData());
             tx.setCompletedAt(java.time.LocalDateTime.now());
 

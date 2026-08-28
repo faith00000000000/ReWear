@@ -19,6 +19,10 @@ import java.util.Optional;
 @Repository
 public interface ListingRepository extends JpaRepository<Listing, Long> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select l from Listing l where l.id=:id")
+    Optional<Listing> lockListing(@Param("id") Long id);
+
     // All listings by seller, newest first
     List<Listing> findBySeller_IdOrderByCreatedAtDesc(Long sellerId);
 

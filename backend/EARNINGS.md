@@ -46,3 +46,8 @@ Run:
 Frontend: npm run build and targeted ESLint for the earnings page/API/types.
 
 The tests use isolated H2, not the user's database or eSewa/Khalti network calls. Live sandbox checkout and disposable-MySQL verification are separate release checks. Reporting currently reads successful payments with batched order items and computes summaries in memory; use database aggregation/ledger projections before large-volume deployment.
+
+
+## Rental and seller settlement update — 2026-08-28
+
+Buyer/seller rental views, guarded cancellation/return, **7% rental cancellation fee** (supersedes the former 10% proposal), refund-due tracking, admin deposit reporting, seller earnings and pending withdrawal requests are implemented. Actual gateway refunds and seller payouts remain unimplemented; requests do not transfer money. See [rental settlement details](RENTAL_SETTLEMENT.md) for accounting policies, API details, limitations and verification.

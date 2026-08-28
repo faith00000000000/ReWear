@@ -97,3 +97,8 @@ Notification data now belongs to the backend, unlike local-only cart/favorites. 
 ## Admin earnings update — 27 August 2026
 
 The earnings module reads verified SUCCESS payments and stored order-item fee snapshots. Admin-only reporting supplies cards, monthly chart, paginated item allocations and review warnings. Backend rates: 12% thrift, 20% rental usage fee; deposits/shipping are excluded. New checkout snapshots preserve seller identity and rates; legacy incomplete rentals require review. Seller payouts/refunds/extension adjustments remain unimplemented. See [backend/EARNINGS.md](backend/EARNINGS.md).
+
+
+## Rental and seller settlement update — 2026-08-28
+
+Buyer/seller rental views, guarded cancellation/return, **7% rental cancellation fee** (supersedes the former 10% proposal), refund-due tracking, admin deposit reporting, seller earnings and pending withdrawal requests are implemented. Actual gateway refunds and seller payouts remain unimplemented; requests do not transfer money. See [rental settlement details](backend/RENTAL_SETTLEMENT.md) for accounting policies, API details, limitations and verification.
