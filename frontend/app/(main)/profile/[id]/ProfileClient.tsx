@@ -12,7 +12,6 @@ import {
     Camera,
     ChevronRight,
     Clock,
-    CreditCard,
     Gift,
     Heart,
     HelpCircle,
@@ -81,23 +80,6 @@ export default function ProfileClient({
     const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // useEffect(() => {
-    //     let cancelled = false;
-    //
-    //     async function loadProfile() {
-    //         try {
-    //             const data = await fetchProfile(userId);
-    //             if (!cancelled) setProfile(data);
-    //         } finally {
-    //             if (!cancelled) setLoading(false);
-    //         }
-    //     }
-    //
-    //     loadProfile();
-    //     return () => {
-    //         cancelled = true;
-    //     };
-    // }, [userId]);
 
     useEffect(() => {
         let cancelled = false;
@@ -221,10 +203,6 @@ function OwnProfileView({
         };
     }, [profile.id]);
 
-    // Listings count comes from the `listings` prop (fetched server-side via
-    // fetchListingsBySeller in page.tsx) rather than profile.stats, so this
-    // number always reflects the actual listings the seller currently has —
-    // not a stale/mocked stat.
     const listingsCount = listings.length;
 
     async function handleSavePhone(newPhone: string) {
@@ -257,11 +235,6 @@ function OwnProfileView({
 
         setSavingAvatar(true);
         try {
-            // Backend uploads `file` to Supabase Storage and persists the
-            // returned public URL against the user record. Since public
-            // profile visitors fetch this same URL fresh via fetchProfile(),
-            // the new picture shows up there automatically too — no separate
-            // sync needed for that side, only the local page + navbar here.
             const { avatarUrl } = await updateUserAvatar(profile.id, file);
             onProfileUpdate({ avatarUrl });
             updateUser({ profilePictureUrl: avatarUrl }); // syncs AuthContext + Navbar avatar
@@ -289,10 +262,10 @@ function OwnProfileView({
                                         fill
                                         className="object-cover transition duration-300 group-hover:scale-105"
                                     />
-                                ) : (
+                                    ) : (
                                     <span className="flex h-full w-full items-center justify-center text-xl font-bold tracking-wider">
-                  {getInitials(profile.name)}
-                </span>
+                                      {getInitials(profile.name)}
+                                    </span>
                                 )}
 
                                 {/* Hover Overlay */}
@@ -501,7 +474,7 @@ function OwnProfileView({
                             {orders.slice(0, 3).map((o) => (
                                 <Link
                                     key={o.id}
-                                    href="/order-history"
+                                    href="/profile/order-history"
                                     className="group flex items-center gap-3.5 rounded-xl border border-[#EBE3D5]/60 bg-stone-50/50 p-2.5 transition duration-200 hover:border-[#EBE3D5] hover:bg-white hover:shadow-sm"
                                 >
                                     <div className="relative h-12 w-10 shrink-0 overflow-hidden rounded-lg bg-[#F5F0E8] ring-1 ring-black/5">
@@ -535,120 +508,33 @@ function OwnProfileView({
                     </SectionCard>
                 </div>
 
-                {/* ── Grid Row 3: Account Details & Settings ── */}
-                <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+                {/* ── Grid Row 3: Account Details ── */}
+                <div className="mt-6">
                     {/* Account Information Section */}
-                    <div className="flex flex-col justify-between rounded-2xl border border-[#EBE3D5] bg-white p-6 shadow-sm">
-                        <div>
-                            <div className="flex items-center gap-3 border-b border-[#EBE3D5]/60 pb-4">
-                                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#9E2A1B]/10 text-[#9E2A1B]">
-                                    <Info size={18} />
-                                </div>
-                                <div>
-                                    <h3 className="text-base font-bold text-[#1A130E]">
-                                        Account Details
-                                    </h3>
-                                    <p className="text-xs text-[#8C7E74]">
-                                        Manage personal information and key details
-                                    </p>
-                                </div>
+                    <div className="rounded-2xl border border-[#EBE3D5] bg-white p-6 shadow-sm">
+                        <div className="flex items-center gap-3 border-b border-[#EBE3D5]/60 pb-4">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#9E2A1B]/10 text-[#9E2A1B]">
+                                <Info size={18} />
                             </div>
-
-                            <div className="mt-4 space-y-2">
-                                <DetailRow label="Full Name" value={profile.name} />
-                                <DetailRow label="Email Address" value={profile.email ?? "—"} />
-                                <DetailRow
-                                    label="Phone Number"
-                                    value={profile.phone ?? "—"}
-                                    onEdit={() => setShowPhoneModal(true)}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="mt-6 space-y-1 border-t border-[#EBE3D5]/60 pt-4">
-                            <NavRow
-                                icon={Bell}
-                                title="Notification Preferences"
-                                sub="Manage updates & alerts"
-                                href="/profile/notifications"
-                            />
-                            <NavRow
-                                icon={Book}
-                                title="Address Book"
-                                sub="Manage saved addresses"
-                                href="/profile/addresses"
-                            />
-                            <NavRow
-                                icon={Lock}
-                                title="Password & Security"
-                                sub="Security and authentication"
-                                href="/profile/security"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Account & Preferences Section */}
-                    <div className="flex flex-col justify-between rounded-2xl border border-[#EBE3D5] bg-white p-6 shadow-sm">
-                        <div>
-                            <div className="border-b border-[#EBE3D5]/60 pb-4">
+                            <div>
                                 <h3 className="text-base font-bold text-[#1A130E]">
-                                    Account &amp; Settings
+                                    Account Details
                                 </h3>
                                 <p className="text-xs text-[#8C7E74]">
-                                    App preferences and account control
+                                    Manage personal information and key details
                                 </p>
-                            </div>
-
-                            <div className="mt-4 space-y-1">
-                                <NavRow
-                                    icon={Bell}
-                                    title="Notification Settings"
-                                    sub="Control push notifications"
-                                    href="/profile/notifications"
-                                />
-                                <NavRow
-                                    icon={ShieldCheck}
-                                    title="Privacy Settings"
-                                    sub="Data sharing and visibility"
-                                    href="/profile/privacy"
-                                />
-                                <NavRow
-                                    icon={CreditCard}
-                                    title="Payment Methods"
-                                    sub="Manage cards and payout channels"
-                                    href="/profile/payment"
-                                />
-                                <NavRow
-                                    icon={HelpCircle}
-                                    title="Help & Support"
-                                    sub="FAQs and direct assistance"
-                                    href="/support"
-                                />
-                                <NavRow
-                                    icon={Info}
-                                    title="About RE:WEAR"
-                                    sub="Mission and terms"
-                                    href="/about"
-                                />
                             </div>
                         </div>
 
-                        <button
-                            onClick={() => {
-                                signOut();
-                                toast.info("Signed out");
-                                router.push("/login");
-                            }}
-                            className="mt-6 flex w-full items-center gap-3 rounded-xl border border-red-200 bg-red-50/50 p-3 text-xs font-bold text-[#9E2A1B] transition duration-200 hover:bg-red-100/60 active:scale-[0.99]"
-                        >
-                            <LogOut size={16} />
-                            <span className="text-left">
-              Log Out
-              <span className="block text-[10px] font-normal text-[#8C7E74]">
-                Sign out of your session
-              </span>
-            </span>
-                        </button>
+                        <div className="mt-4 space-y-2">
+                            <DetailRow label="Full Name" value={profile.name} />
+                            <DetailRow label="Email Address" value={profile.email ?? "—"} />
+                            <DetailRow
+                                label="Phone Number"
+                                value={profile.phone ?? "—"}
+                                onEdit={() => setShowPhoneModal(true)}
+                            />
+                        </div>
                     </div>
                 </div>
             </main>
@@ -740,16 +626,15 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
 
                     <div className="flex flex-1 flex-wrap items-center gap-x-8 gap-y-3">
                         <InfoItem icon={User} label="Full Name" value={profile.name} />
-                        <InfoItem icon={Calendar} label="Joined Since" value={profile.joinedDate} />
+                        <InfoItem icon={Calendar} label="Joined Since" value={profile.joinedDate || "Not available"} />
                     </div>
                 </div>
 
                 {/* Stats */}
-                <div className="mt-4 flex flex-col divide-y divide-[#EBE3D5] rounded-xl border border-[#EBE3D5] bg-white sm:flex-row sm:divide-x sm:divide-y-0">
+                <div className="mt-4 grid grid-cols-1 divide-y divide-[#EBE3D5] rounded-xl border border-[#EBE3D5] bg-white sm:grid-cols-3 sm:divide-x sm:divide-y-0">
                     <StatBlock icon={ShoppingBag} value={profile.stats.listingsPosted} label="Items Listed" description="Total items listed by seller" />
-                    <StatBlock icon={Tag} value={profile.stats.activeItems} label="Active Items" description="Currently available" />
-                    <StatBlock icon={ShoppingBag} value={profile.stats.soldOrRented} label="Sold / Rented" description="Successfully completed" />
-                    <StatBlock icon={Heart} value={profile.stats.savedByUsers} label="Saved by Users" description="Users who saved this profile" />
+                    <StatBlock icon={Tag} value={profile.stats.activeItems} label="Available Items" description="Listings marked available" />
+                    <StatBlock icon={ShoppingBag} value={profile.stats.soldOrRented} label="Sold / Reserved" description="Items marked sold or reserved" />
                 </div>
 
                 {/* Filter and Title */}
@@ -840,29 +725,30 @@ function PublicProfileView({ profile, listings }: { profile: Profile; listings: 
                     <div className="rounded-xl border border-[#EBE3D5] bg-white p-5">
                         <h3 className="text-[14px] font-bold text-[#1A130E]">About the Seller</h3>
                         <div className="mt-3 space-y-3">
-                            <InfoRow icon={MapPin} label="Location" value={profile.location ?? "—"} />
-                            <InfoRow icon={Truck} label="Ships From" value={profile.shipsFrom ?? "—"} />
-                            <InfoRow icon={Package} label="Preferred Fulfillment" value={profile.fulfillment ?? "—"} />
-                            <InfoRow icon={Calendar} label="Active Days" value={profile.activeDays ?? "—"} />
+                            <InfoRow icon={User} label="Seller" value={profile.name} />
+                            <InfoRow icon={Package} label="Shopping with this seller" value="Browse their listings for item photos, sizes, condition and prices." />
+                            <InfoRow icon={Truck} label="Delivery options" value="Shipping or pickup availability and fees are shown on each listing." />
+                            <InfoRow icon={Lock} label="Privacy" value="The seller's email address and phone number are not displayed publicly." />
                         </div>
                     </div>
                     <div className="rounded-xl border border-[#EBE3D5] bg-white p-5">
                         <h3 className="text-[14px] font-bold text-[#1A130E]">Policies</h3>
                         <div className="mt-3 space-y-3">
-                            <InfoRow icon={RefreshCw} label="Returns (Thrift)" value="7-day return available" />
-                            <InfoRow icon={Clock} label="Rental Policy" value="Return by the due date to avoid late fees" />
-                            <InfoRow icon={ShieldCheck} label="Condition Guarantee" value="All items are cleaned and quality-checked" />
-                            <InfoRow icon={XCircle} label="Cancellation" value="Orders can be cancelled within 24 hours" />
+                            <InfoRow icon={RefreshCw} label="Returns (Thrift)" value="An automatic 7-day thrift return is not offered. Check the item description and condition before paying." />
+                            <InfoRow icon={Clock} label="Rental Policy" value="Return the item by the agreed rental end date. The seller confirms receipt in Active Rentals." />
+                            <InfoRow icon={ShieldCheck} label="Item condition" value="Condition, photos and any disclosed flaws are provided by the seller. Review them before buying or renting." />
+                            <InfoRow icon={ShieldCheck} label="Security deposit" value="The full deposit becomes refundable after the seller confirms return. Refund processing is separate; wait for the refund-confirmed notification. Older payment records may need admin review." />
+                            <InfoRow icon={XCircle} label="Rental cancellation" value="Cancel before the rental start date (Nepal time). A 7% fee applies to the rental charge; cancellation is disabled from the start date." />
                         </div>
                     </div>
                 </div>
 
                 <div className="mt-6 rounded-xl border border-[#EBE3D5] bg-white p-5 text-center">
                     <p className="flex items-center justify-center gap-1.5 text-[13px] font-bold text-[#1A130E]">
-                        <ShieldCheck size={15} className="text-[#9E2A1B]" /> Shop with confidence from verified sellers.
+                        <ShieldCheck size={15} className="text-[#9E2A1B]" /> Review the details before you thrift or rent.
                     </p>
                     <p className="mt-1 text-[11px] text-[#8C7E74]">
-                        Every seller on RE:WEAR is reviewed and monitored for a safe experience.
+                        Check the listing photos, condition, rental dates and delivery options. Use the report option on a listing to flag a concern.
                     </p>
                 </div>
             </main>

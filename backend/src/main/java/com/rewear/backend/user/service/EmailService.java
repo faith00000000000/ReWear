@@ -42,9 +42,7 @@ public class EmailService {
 
         } catch (MessagingException e) {
             log.error("Failed to send OTP email to: {}. Error: {}", toEmail, e.getMessage());
-            // Note: We swallow this exception here because the method is @Async.
-            // The service layer will handle the response to the client
-            // before this runs. Log and monitor via your APM tool.
+
         }
     }
 
@@ -329,8 +327,6 @@ public class EmailService {
                                border-bottom:1px solid #EBE0D2;">%s</td>
                   </tr>
                   <tr style="background:#F9F2E8;">
-                    <td style="padding:12px 16px; color:#9C8E80; font-weight:600;
-                               border-bottom:1px solid #EBE0D2;">Gateway Transaction ID</td>
                     <td style="padding:12px 16px; color:#3A2A1E; font-weight:700;
                                border-bottom:1px solid #EBE0D2;">%s</td>
                   </tr>

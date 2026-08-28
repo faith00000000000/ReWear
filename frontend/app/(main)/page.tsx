@@ -101,6 +101,17 @@ export default function Home() {
     };
   }, []);
 
+  // Hash navigation can arrive before this client-rendered homepage is ready.
+  useEffect(() => {
+    if (!isMounted || loadingListings) return;
+    const id = window.location.hash.slice(1);
+    if (!["ready-to-wear", "rent-the-look", "donate-the-pieces", "faqs"].includes(id)) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isMounted, loadingListings]);
+
   if (!isMounted) return null;
 
   return (
@@ -113,8 +124,10 @@ export default function Home() {
         {/* Guest promotional banners (New Arrivals / Handbag / Watch / Backpack)
           intentionally removed per current requirements. */}
 
-        {!loadingListings && readyToWear.length > 0 && (
+        {(
             <ProductRail
+                id="ready-to-wear"
+                loading={loadingListings}
                 eyebrow="CURATED FINDS"
                 title="Ready-To-Wear"
                 href="/browse-finds"
@@ -123,8 +136,10 @@ export default function Home() {
             />
         )}
 
-        {!loadingListings && rentLooks.length > 0 && (
+        {(
             <ProductRail
+                id="rent-the-look"
+                loading={loadingListings}
                 eyebrow="RENT, DON'T OWN"
                 title="Rent The Look"
                 href="/rent"
@@ -148,12 +163,16 @@ export default function Home() {
    ────────────────────────────────────────────────────────────────────── */
 
 export function ProductRail({
+                                id,
+                                loading = false,
                                 eyebrow,
                                 title = "Ready-To-Wear",
                                 href,
                                 items,
                                 viewMode,
                             }: {
+    id?: string;
+    loading?: boolean;
     eyebrow: string;
     title?: string;
     href: string;
@@ -161,7 +180,7 @@ export function ProductRail({
     viewMode: "thrift" | "rent";
 }) {
     return (
-        <section className="bg-[#F7F4EB] px-4 py-10 sm:px-6 sm:py-12 lg:px-20">
+        <section id={id} className="scroll-mt-24 bg-[#F7F4EB] px-4 py-10 sm:px-6 sm:py-12 lg:px-20">
             <div className="mx-auto max-w-[1380px]">
                 <div className="mb-6 flex items-end justify-between gap-3 border-b border-gray-200/50 pb-4 sm:mb-8">
                     <div className="flex flex-col gap-1">
@@ -184,6 +203,7 @@ export function ProductRail({
                     </Link>
                 </div>
 
+                {items.length === 0 && <p role="status" className="py-6 text-[13px] text-[#756b61]">{loading ? "Loading pieces…" : "No pieces available here yet. Explore the full collection using View all."}</p>}
                 <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:gap-x-5 sm:gap-y-10 lg:grid-cols-4">
                     {items.map((item) => (
                         <ProductRailCard
@@ -346,7 +366,7 @@ const CARD_CONFIG = [
     iconWrap: "bg-[#EFF2EC]",
     iconColor: "text-[#5E6B52]",
     title: "Rent",
-    desc: "Wear once, return, repeat — style without commitment.",
+    desc: "Wear once, return, repeat style without commitment.",
     statLabel: "Active rentals",
     statKey: "activeRentals" as const,
   },
@@ -366,7 +386,7 @@ const CARD_CONFIG = [
     iconWrap: "bg-[#F5F0E8]",
     iconColor: "text-[#8B6F47]",
     title: "Try On",
-    desc: "Virtual styling — see it on you before you buy.",
+    desc: "Virtual styling see it on you before you buy.",
     statLabel: "Try-outs done",
     statKey: "tryOns" as const,
   },
@@ -608,7 +628,7 @@ function ContinueWhereYouLeftOffSection() {
 
 function DonateFeature() {
   return (
-      <section className="bg-[#F7F4EB] px-4 py-10 sm:px-12 sm:py-16 lg:px-20 border-t border-gray-200/40">
+      <section id="donate-the-pieces" className="scroll-mt-24 bg-[#F7F4EB] px-4 py-10 sm:px-12 sm:py-16 lg:px-20 border-t border-gray-200/40">
         <div className="mx-auto grid max-w-[1380px] grid-cols-1 gap-6 lg:grid-cols-2 lg:items-center lg:gap-10">
           <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-[#EFECE8] shadow-sm">
             <Image

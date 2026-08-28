@@ -21,7 +21,7 @@ const steps = [
   {
     step: '01',
     title: 'Pack Your Box',
-    body: 'Any clean clothing items you no longer wear. All conditions welcome — no pre-sorting or tags required.',
+    body: 'Any clean clothing items you no longer wear. All conditions welcome no pre-sorting or tags required.',
     icon: PackageCheck,
   },
   {

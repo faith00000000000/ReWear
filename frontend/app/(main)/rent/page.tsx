@@ -189,7 +189,7 @@ function RentPageContent() {
                   </h1>
                   <p className="mt-6 sm:mt-8 max-w-[480px] text-[15px] sm:text-[16px] leading-[1.8] text-[#6E6053]">
                     Designer pieces, occasion-ready picks, and everyday elevated
-                    styles—rent for less, love more.
+                    styles rent for less, love more.
                   </p>
 
                   {authed && (
@@ -285,10 +285,10 @@ function RentPageContent() {
                     </div>
 
                     <div className="flex items-center gap-6">
-                      <div className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-[#8C7E74]">
-                        <Truck size={14} strokeWidth={2} className="text-[#8C7E74]" />
-                        <span>Free delivery &amp; return on all rentals</span>
-                      </div>
+                      {/*<div className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-[#8C7E74]">*/}
+                      {/*  <Truck size={14} strokeWidth={2} className="text-[#8C7E74]" />*/}
+                      {/*  <span>Free delivery &amp; return on all rentals</span>*/}
+                      {/*</div>*/}
 
                       <div className="flex items-center gap-2 rounded-full border border-[#EBE3D5] bg-[#FAF6F0]/95 px-4 py-1.5 shadow-sm">
                       <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6E6053]">
@@ -357,18 +357,17 @@ function RentPageContent() {
 
                   {/* Selling Points Grid */}
                   <section className="px-4 sm:px-6 pb-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 border-t border-[#EBE3D5] pt-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 border-t border-[#EBE3D5] pt-8">
                       {[
                         { title: "Premium Pieces", desc: "Curated designer & contemporary styles", icon: ShoppingBag },
                         { title: "Flexible Rentals", desc: "4, 8, 14 or 30-day rental periods", icon: Calendar },
-                        { title: "Free Delivery & Returns", desc: "Contactless delivery & easy returns", icon: Truck },
                         { title: "Cleaned & Checked", desc: "Professionally cleaned & quality-checked", icon: Sparkles },
                       ].map((prop, index) => {
                         const IconComponent = prop.icon;
                         return (
                             <div
                                 key={index}
-                                className="flex items-start gap-4 p-4 rounded-xl bg-[#FDFAF7] border border-[#EBE3D5]/60 shadow-sm/5"
+                                className="flex items-start gap-4 p-5 rounded-xl bg-[#FDFAF7] border border-[#EBE3D5]/60 shadow-sm/5"
                             >
                               <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-[#F5EFE5] text-[#1A130E]">
                                 <IconComponent size={18} strokeWidth={1.75} className="text-[#9E2A1B]" />

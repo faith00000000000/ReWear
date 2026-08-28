@@ -20,15 +20,15 @@ const faqs = [
       "Request a free label, pack your clean clothing, and we route each piece to resale, shelter partners, or responsible recycling.",
   },
   {
-    question: "Do you ship internationally?",
+    question: "How do I receive my thrifted or rented clothes?",
     answer:
-      "We currently ship in the United States, with international shipping planned for future drops.",
+      "Choose pickup or shipping from the options offered by the seller at checkout. Check the listing for the pickup location, supported delivery area, and any delivery fee. Rewear does not offer international shipping.",
   },
 ];
 
 export default function FAQSection() {
   return (
-    <section className="bg-[#FAF2E6] px-7 py-16 sm:px-12 lg:px-24">
+    <section id="faqs" className="scroll-mt-24 bg-[#FAF2E6] px-7 py-16 sm:px-12 lg:px-24">
       <div className="mx-auto grid max-w-[1380px] gap-10 lg:grid-cols-[0.42fr_1fr]">
         <div>
           <p className="mb-4 text-[10px] font-black uppercase tracking-[0.32em] text-[#b49d89]">

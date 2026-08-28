@@ -930,8 +930,8 @@ export default function ProductDetailClient({
                         Payment
                       </span>
                           <span className="flex items-center gap-1.5">
-                        <RefreshCw size={13} className="text-[#9E2A1B]" /> Easy
-                        Returns
+                        <RefreshCw size={13} className="text-[#9E2A1B]" /> Flexible
+                        Delivery
                       </span>
                         </div>
                       </div>
@@ -1130,8 +1130,8 @@ export default function ProductDetailClient({
                         Payment
                       </span>
                           <span className="flex items-center gap-1.5">
-                        <RefreshCw size={13} className="text-[#9E2A1B]" /> Easy
-                        Returns
+                        <RefreshCw size={13} className="text-[#9E2A1B]" /> Flexible
+                        Delivery
                       </span>
                         </div>
                       </div>
@@ -1755,16 +1755,16 @@ function TryOnModal({
             {/* Column 2 — Upload */}
             <div className="rounded-xl border border-[#EBE3D5] bg-white p-4 flex flex-col gap-3">
               <div>
-              <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-[#8C7E74]">
-                2. Upload Your Photo
-              </span>
+                <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-[#8C7E74]">
+                  2. Upload Your Photo
+                </span>
                 <p className="text-[11px] text-[#6E6053]">
                   Use a clear front-facing photo in good lighting.
                 </p>
               </div>
 
               <label
-                  className={`flex min-h-[130px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 text-center transition ${
+                  className={`flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 text-center transition ${
                       fileSelected
                           ? 'border-[#4A6B3A] bg-[#F4F8F3]'
                           : 'border-[#DCD3C4] bg-[#FCFAF7] hover:border-[#9E2A1B]'
@@ -1810,26 +1810,6 @@ function TryOnModal({
                     }}
                 />
               </label>
-
-              <div className="relative text-center">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-[#EBE3D5]" />
-                </div>
-                <span className="relative bg-white px-3 text-[10px] font-medium uppercase tracking-wider text-[#8C7E74]">
-                or
-              </span>
-              </div>
-
-              <button
-                  onClick={() => {
-                    setFileSelected(true);
-                    setFileName('webcam_capture.jpg');
-                  }}
-                  className="flex w-full items-center justify-center gap-2 rounded-md border border-[#DCD3C4] bg-white py-2 text-[12px] font-semibold text-[#1A130E] transition hover:bg-[#FAF6F0]"
-              >
-                <Camera size={13} />
-                Use Webcam
-              </button>
 
               <div className="rounded-lg border border-[#EBE3D5] bg-[#FCFAF7] p-3 space-y-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#1A130E]">

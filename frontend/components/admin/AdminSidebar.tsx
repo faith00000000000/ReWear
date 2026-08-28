@@ -30,11 +30,11 @@ const NAV_ITEMS: NavItem[] = [
     href: "/admin/listings",
     icon: ClipboardList,
   },
-  {
-    label: "Order Management",
-    href: "/admin/orders",
-    icon: ShoppingBag,
-  },
+  // {
+  //   label: "Order Management",
+  //   href: "/admin/orders",
+  //   icon: ShoppingBag,
+  // },
   {
     label: "User Management",
     href: "/admin/users",
@@ -137,12 +137,6 @@ export default function AdminSidebar() {
         </ul>
       </nav>
 
-      {/* Footer */}
-      {/* <div className="px-6 py-5 border-t-[4px] border-[#A33214]">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[#1C1C1C]/40">
-          ReWear Admin v1.0
-        </p>
-      </div> */}
     </aside>
   );
 }

@@ -62,6 +62,7 @@ public class UserService {
                 .id(full.getId())
                 .fullName(full.getFullName())
                 .profilePictureUrl(full.getProfilePictureUrl())
+                .createdAt(full.getCreatedAt())
                 .build();
     }
 
