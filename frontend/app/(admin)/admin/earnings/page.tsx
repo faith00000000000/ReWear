@@ -215,7 +215,7 @@ export default function EarningsPage() {
                   className="flex-1 flex flex-col items-center h-full justify-end group relative"
                 >
                   {/* Hover tooltip */}
-                  <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1C1C1C] text-[#FDF6EC] text-[10px] p-1.5 rounded-xs pointer-events-none whitespace-nowrap z-10">
+                  <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1C1C1C] text-[#FDF6EC] text-[10px] p-1.5 rounded-xl pointer-events-none whitespace-nowrap z-10">
                     Rs {(item.thriftComm + item.rentComm).toLocaleString()}
                   </div>
 
@@ -339,10 +339,10 @@ export default function EarningsPage() {
       {/* Itemized Transactions Breakdown */}
       <section className="space-y-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="flex items-center bg-[#FDF6EC] border border-[#1C1C1C]/20 p-1 self-start rounded-xs shadow-xs">
+          <div className="flex items-center bg-[#FDF6EC] border border-[#1C1C1C]/20 p-1 self-start rounded-xl shadow-xs">
             <button
               onClick={() => { setTypeFilter("all"); setPage(0); }}
-              className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xs ${
+              className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xl ${
                 typeFilter === "all"
                   ? "bg-[#1C1C1C] text-[#FDF6EC]"
                   : "text-[#1C1C1C]/80 hover:text-[#1C1C1C]"
@@ -352,7 +352,7 @@ export default function EarningsPage() {
             </button>
             <button
               onClick={() => { setTypeFilter("thrift"); setPage(0); }}
-              className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xs flex items-center gap-1.5 ${
+              className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xl flex items-center gap-1.5 ${
                 typeFilter === "thrift"
                   ? "bg-[#1C1C1C] text-[#FDF6EC]"
                   : "text-[#1C1C1C]/80 hover:text-[#1C1C1C]"
@@ -363,7 +363,7 @@ export default function EarningsPage() {
             </button>
             <button
               onClick={() => { setTypeFilter("rent"); setPage(0); }}
-              className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xs flex items-center gap-1.5 ${
+              className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xl flex items-center gap-1.5 ${
                 typeFilter === "rent"
                   ? "bg-[#A33214] text-[#FDF6EC]"
                   : "text-[#1C1C1C]/80 hover:text-[#A33214]"
@@ -384,7 +384,7 @@ export default function EarningsPage() {
               placeholder="Search by ID, item, seller..."
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
-              className="w-full bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xs pl-9 pr-3 py-1.5 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
+              className="w-full bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xl pl-9 pr-3 py-1.5 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
             />
           </div>
         </div>
@@ -438,7 +438,7 @@ export default function EarningsPage() {
                             alt={txn.itemTitle}
                             width={36}
                             height={36}
-                            className="w-9 h-9 object-cover border border-[#1C1C1C]/20 rounded-xs shrink-0"
+                            className="w-9 h-9 object-cover border border-[#1C1C1C]/20 rounded-xl shrink-0"
                           />
                           <div>
                             <p className="font-bold line-clamp-1">
@@ -452,7 +452,7 @@ export default function EarningsPage() {
                       </td>
                       <td className="p-3">
                         <span
-                          className={`inline-block px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border rounded-xs ${
+                          className={`inline-block px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border rounded-xl ${
                             txn.type === "thrift"
                               ? "bg-stone-100 text-[#1C1C1C] border-[#1C1C1C]/30"
                               : "bg-amber-50 text-amber-900 border-amber-300"
@@ -476,7 +476,7 @@ export default function EarningsPage() {
                       <td className="p-3 text-right">
                         <button
                           onClick={() => setSelectedTxn(txn)}
-                          className="p-1.5 bg-[#1C1C1C] text-[#FDF6EC] hover:bg-[#A33214] transition-colors rounded-xs"
+                          className="p-1.5 bg-[#1C1C1C] text-[#FDF6EC] hover:bg-[#A33214] transition-colors rounded-xl"
                           title="Inspect Commission"
                         >
                           <Eye size={14} />
@@ -502,7 +502,7 @@ export default function EarningsPage() {
       {/* Transaction Detail Modal */}
       {selectedTxn && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1C1C]/50 backdrop-blur-xs">
-          <div className="bg-[#FDF6EC] border-2 border-[#1C1C1C]/20 w-full max-w-lg p-6 space-y-6 shadow-xl rounded-xs">
+          <div className="bg-[#FDF6EC] border-2 border-[#1C1C1C]/20 w-full max-w-lg p-6 space-y-6 shadow-xl rounded-xl">
             <div className="flex items-center justify-between border-b border-[#1C1C1C]/15 pb-3">
               <h2
                 className="text-lg text-[#1C1C1C] uppercase tracking-wide font-bold"
@@ -526,7 +526,7 @@ export default function EarningsPage() {
                   alt={selectedTxn.itemTitle}
                   width={64}
                   height={64}
-                  className="w-16 h-16 object-cover border border-[#1C1C1C]/20 rounded-xs"
+                  className="w-16 h-16 object-cover border border-[#1C1C1C]/20 rounded-xl"
                 />
                 <div>
                   <p className="font-bold text-sm">{selectedTxn.itemTitle}</p>

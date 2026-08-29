@@ -68,6 +68,9 @@ public class User {
     @Builder.Default
     private UserStatus status = UserStatus.ACTIVE;
 
+    @Column(name = "suspended_until")
+    private LocalDateTime suspendedUntil;
+
     // NEW — set only when status = BANNED
     @Column(name = "ban_reason", length = 500)
     private String banReason;

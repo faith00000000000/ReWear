@@ -8,6 +8,7 @@ import {
     clearTokens,
     updateStoredUser,
 } from "@/lib/auth";
+import { resetAuthClient } from "@/lib/axios";
 
 interface AuthContextType {
     authed: boolean;
@@ -47,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const signOut = () => {
+        resetAuthClient();
         clearTokens();
         setAuthed(false);
         setUser(null);

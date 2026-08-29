@@ -284,7 +284,7 @@ export default function DonationsPage() {
                   loadDonations();
                   loadOrganizations();
                 }}
-                className="flex items-center gap-2 border border-[#1C1C1C]/20 text-[#1C1C1C] px-3 py-2 font-bold text-xs uppercase tracking-wider hover:bg-white transition-colors rounded-xs"
+                className="flex items-center gap-2 border border-[#1C1C1C]/20 text-[#1C1C1C] px-3 py-2 font-bold text-xs uppercase tracking-wider hover:bg-white transition-colors rounded-xl"
             >
               <RefreshCw size={14} /> Refresh
             </button>
@@ -292,7 +292,7 @@ export default function DonationsPage() {
             {activeTab === "organizations" && (
                 <button
                     onClick={() => setIsAddOrgOpen(true)}
-                    className="flex items-center gap-2 bg-[#A33214] text-[#FDF6EC] px-4 py-2 font-bold text-xs uppercase tracking-wider hover:bg-[#1C1C1C] transition-colors rounded-xs shadow-xs"
+                    className="flex items-center gap-2 bg-[#A33214] text-[#FDF6EC] px-4 py-2 font-bold text-xs uppercase tracking-wider hover:bg-[#1C1C1C] transition-colors rounded-xl shadow-xs"
                 >
                   <Plus size={16} /> Add Organization
                 </button>
@@ -302,7 +302,7 @@ export default function DonationsPage() {
 
         {/* Top Metric Cards — verified against actual donation/organization data */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="border-2 border-[#1C1C1C]/15 bg-white/60 p-5">
+          <div className="rounded-xl border-2 border-[#A33214]/15 bg-white/60 p-5">
             <div className="flex items-center justify-between">
             <span className="text-[11px] uppercase tracking-[0.14em] text-[#1C1C1C]/60 font-semibold">
               Weight Donated (Completed)
@@ -320,7 +320,7 @@ export default function DonationsPage() {
             </p>
           </div>
 
-          <div className="border-2 border-[#1C1C1C]/15 bg-white/60 p-5">
+          <div className="rounded-xl border-2 border-[#A33214]/15 bg-white/60 p-5">
             <div className="flex items-center justify-between">
             <span className="text-[11px] uppercase tracking-[0.14em] text-[#1C1C1C]/60 font-semibold">
               Pending Donations
@@ -338,7 +338,7 @@ export default function DonationsPage() {
             </p>
           </div>
 
-          <div className="border-2 border-[#1C1C1C]/15 bg-white/60 p-5">
+          <div className="rounded-xl border-2 border-[#A33214]/15 bg-white/60 p-5">
             <div className="flex items-center justify-between">
             <span className="text-[11px] uppercase tracking-[0.14em] text-[#1C1C1C]/60 font-semibold">
               Active NGO/INGO Partners
@@ -402,7 +402,7 @@ export default function DonationsPage() {
                   }
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white/80 text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xs pl-8 pr-3 py-1.5 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
+                  className="w-full bg-white/80 text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xl pl-8 pr-3 py-1.5 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
               />
             </div>
 
@@ -425,10 +425,10 @@ export default function DonationsPage() {
 
         {/* TAB 1: DONATIONS */}
         {activeTab === "donations" && (
-            <div className="border-2 border-[#1C1C1C]/15 bg-white/60 overflow-x-auto shadow-xs">
+            <div className="overflow-x-auto rounded-xl border-2 border-[#A33214]/15 bg-white/60 shadow-xs">
               <table className="w-full text-left border-collapse">
                 <thead>
-                <tr className="bg-[#1C1C1C] text-[#FDF6EC] text-xs uppercase font-bold tracking-wider">
+                <tr className="bg-[#A33214] text-[#FDF6EC] text-xs uppercase font-bold tracking-wider">
                   <th className="p-3">Donation ID</th>
                   <th className="p-3">Donor Info</th>
                   <th className="p-3">Pickup Address</th>
@@ -511,7 +511,7 @@ export default function DonationsPage() {
                           </td>
                           <td className="p-3">
                       <span
-                          className={`inline-block px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border rounded-xs ${STATUS_STYLES[donation.status]}`}
+                          className={`inline-block px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border rounded-xl ${STATUS_STYLES[donation.status]}`}
                       >
                         {donation.status}
                       </span>
@@ -519,7 +519,7 @@ export default function DonationsPage() {
                           <td className="p-3 text-right">
                             <button
                                 onClick={() => openStatusModal(donation)}
-                                className="px-3 py-1 bg-[#1C1C1C] text-[#FDF6EC] font-bold text-[11px] uppercase hover:bg-[#A33214] transition-colors rounded-xs"
+                                className="px-3 py-1 bg-[#1C1C1C] text-[#FDF6EC] font-bold text-[11px] uppercase hover:bg-[#A33214] transition-colors rounded-xl"
                             >
                               Update Status
                             </button>
@@ -555,7 +555,7 @@ export default function DonationsPage() {
                       >
                         <div>
                           <div className="flex items-start justify-between gap-3 mb-3">
-                            <div className="flex h-12 w-12 items-center justify-center border border-[#1C1C1C]/20 rounded-xs bg-[#FDF6EC] text-[#A33214]">
+                            <div className="flex h-12 w-12 items-center justify-center border border-[#1C1C1C]/20 rounded-xl bg-[#FDF6EC] text-[#A33214]">
                               <Building2 size={20} />
                             </div>
                             <div className="flex flex-col items-end gap-1.5">
@@ -604,7 +604,7 @@ export default function DonationsPage() {
                                 onClick={() => handleToggleActive(org)}
                                 disabled={orgActionId === org.id}
                                 title={org.active ? "Deactivate" : "Activate"}
-                                className="p-1.5 border border-[#1C1C1C]/20 hover:bg-[#1C1C1C] hover:text-[#FDF6EC] transition-colors rounded-xs disabled:opacity-40"
+                                className="p-1.5 border border-[#1C1C1C]/20 hover:bg-[#1C1C1C] hover:text-[#FDF6EC] transition-colors rounded-xl disabled:opacity-40"
                             >
                               {orgActionId === org.id ? (
                                   <Loader2 size={14} className="animate-spin" />
@@ -616,7 +616,7 @@ export default function DonationsPage() {
                                 onClick={() => handleDeleteOrganization(org)}
                                 disabled={orgActionId === org.id}
                                 title="Delete"
-                                className="p-1.5 border border-[#1C1C1C]/20 text-[#A33214] hover:bg-[#A33214] hover:text-[#FDF6EC] transition-colors rounded-xs disabled:opacity-40"
+                                className="p-1.5 border border-[#1C1C1C]/20 text-[#A33214] hover:bg-[#A33214] hover:text-[#FDF6EC] transition-colors rounded-xl disabled:opacity-40"
                             >
                               <Trash2 size={14} />
                             </button>
@@ -633,7 +633,7 @@ export default function DonationsPage() {
           model — status is the only lifecycle tracking in place). */}
         {selectedDonation && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1C1C]/50 backdrop-blur-xs">
-              <div className="bg-[#FDF6EC] border-2 border-[#1C1C1C]/20 w-full max-w-md p-6 space-y-5 shadow-xl rounded-xs">
+              <div className="bg-[#FDF6EC] border-2 border-[#1C1C1C]/20 w-full max-w-md p-6 space-y-5 shadow-xl rounded-xl">
                 <div className="flex items-center justify-between border-b border-[#1C1C1C]/15 pb-3">
                   <h2
                       className="text-base text-[#1C1C1C] uppercase font-bold"
@@ -723,7 +723,7 @@ export default function DonationsPage() {
         {/* ADD ORGANIZATION MODAL — fields match OrganizationRequestDto exactly */}
         {isAddOrgOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1C1C]/50 backdrop-blur-xs">
-              <div className="bg-[#FDF6EC] border-2 border-[#1C1C1C]/20 w-full max-w-md p-6 space-y-4 shadow-xl rounded-xs">
+              <div className="bg-[#FDF6EC] border-2 border-[#1C1C1C]/20 w-full max-w-md p-6 space-y-4 shadow-xl rounded-xl">
                 <div className="flex items-center justify-between border-b border-[#1C1C1C]/15 pb-3">
                   <h2
                       className="text-base text-[#1C1C1C] uppercase font-bold"

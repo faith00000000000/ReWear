@@ -23,6 +23,9 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
     @Query("select l from Listing l where l.id=:id")
     Optional<Listing> lockListing(@Param("id") Long id);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths="seller")
+    java.util.List<Listing> findTop5ByOrderByCreatedAtDesc();
+
     // All listings by seller, newest first
     List<Listing> findBySeller_IdOrderByCreatedAtDesc(Long sellerId);
 

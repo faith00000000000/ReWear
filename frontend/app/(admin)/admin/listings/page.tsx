@@ -179,10 +179,10 @@ export default function ListingsManagementPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="px-3 py-1 bg-[#A33214] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider rounded-sm">
+          <div className="px-3 py-1 bg-[#A33214] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider rounded-xl">
             Total: {listings.length}
           </div>
-          <div className="px-3 py-1 bg-[#A33214] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider rounded-sm">
+          <div className="px-3 py-1 bg-[#A33214] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider rounded-xl">
             Pending:{' '}
             {listings.filter((l) => l.status === 'PENDING_REVIEW').length}
           </div>
@@ -191,10 +191,10 @@ export default function ListingsManagementPage() {
 
       {/* Filter Toolbar */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-        <div className="flex items-center bg-[#FDF6EC] border border-[#1C1C1C]/20 p-1 self-start rounded-sm shadow-sm">
+        <div className="flex items-center bg-[#FDF6EC] border border-[#1C1C1C]/20 p-1 self-start rounded-xl shadow-sm">
           <button
             onClick={() => setTypeFilter('all')}
-            className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm ${
+            className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xl ${
               typeFilter === 'all'
                 ? 'bg-[#A33214] text-[#FDF6EC]'
                 : 'text-[#1C1C1C]/80 hover:text-[#1C1C1C] hover:bg-[#1C1C1C]/5'
@@ -204,7 +204,7 @@ export default function ListingsManagementPage() {
           </button>
           <button
             onClick={() => setTypeFilter('thrift')}
-            className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm flex items-center gap-1.5 ${
+            className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xl flex items-center gap-1.5 ${
               typeFilter === 'thrift'
                 ? 'bg-[#A33214] text-[#FDF6EC]'
                 : 'text-[#1C1C1C]/80 hover:text-[#A33214] hover:bg-[#A33214]/5'
@@ -215,7 +215,7 @@ export default function ListingsManagementPage() {
           </button>
           <button
             onClick={() => setTypeFilter('rent')}
-            className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm flex items-center gap-1.5 ${
+            className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xl flex items-center gap-1.5 ${
               typeFilter === 'rent'
                 ? 'bg-[#A33214] text-[#FDF6EC]'
                 : 'text-[#1C1C1C]/80 hover:text-[#A33214] hover:bg-[#A33214]/5'
@@ -237,7 +237,7 @@ export default function ListingsManagementPage() {
               placeholder="Search by title or seller..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-sm pl-9 pr-3 py-1.5 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
+              className="w-full bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xl pl-9 pr-3 py-1.5 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
             />
           </div>
 
@@ -246,7 +246,7 @@ export default function ListingsManagementPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              className="w-full sm:w-auto bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-sm px-3 py-1.5 text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-[#A33214]"
+              className="w-full sm:w-auto bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xl px-3 py-1.5 text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-[#A33214]"
             >
               <option value="all">All Statuses</option>
               <option value="DRAFT">Draft</option>
@@ -260,7 +260,7 @@ export default function ListingsManagementPage() {
       </div>
 
       {/* Table */}
-      <div className="border border-[#1C1C1C]/15 bg-[#FDF6EC] overflow-x-auto shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-[#A33214]/15 bg-[#FDF6EC] shadow-sm">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-[#A33214] text-[#FDF6EC] text-xs uppercase font-bold tracking-wider border-b border-[#1C1C1C]">
@@ -313,7 +313,7 @@ export default function ListingsManagementPage() {
                       <img
                         src={item.image}
                         alt={item.title}
-                        className="w-12 h-12 object-cover border border-[#1C1C1C]/20 rounded-sm shrink-0"
+                        className="w-12 h-12 object-cover border border-[#1C1C1C]/20 rounded-xl shrink-0"
                       />
                       <p className="font-bold text-[#1C1C1C] line-clamp-1">
                         {item.title}
@@ -323,7 +323,7 @@ export default function ListingsManagementPage() {
 
                   <td className="p-3">
                     <span
-                      className={`inline-block px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border rounded-xs ${
+                      className={`inline-block px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border rounded-xl ${
                         item.type === 'thrift'
                           ? 'bg-stone-100 text-[#1C1C1C] border-[#1C1C1C]/30'
                           : 'bg-amber-50 text-amber-900 border-amber-300'
@@ -379,7 +379,7 @@ export default function ListingsManagementPage() {
                     <div className="flex items-center justify-end gap-1.5 relative">
                       <button
                         onClick={() => setSelectedListing(item)}
-                        className="p-1.5 bg-[#1C1C1C] text-[#FDF6EC] hover:bg-[#A33214] transition-colors rounded-sm"
+                        className="p-1.5 bg-[#1C1C1C] text-[#FDF6EC] hover:bg-[#A33214] transition-colors rounded-xl"
                         title="View Details"
                       >
                         <Eye size={14} />
@@ -389,7 +389,7 @@ export default function ListingsManagementPage() {
                         onClick={() =>
                           setOpenMenuId(openMenuId === item.id ? null : item.id)
                         }
-                        className="p-1.5 bg-stone-200 text-[#1C1C1C] hover:bg-stone-300 transition-colors rounded-sm"
+                        className="p-1.5 bg-stone-200 text-[#1C1C1C] hover:bg-stone-300 transition-colors rounded-xl"
                         title="Quick Actions"
                         disabled={actionLoadingId === item.id}
                       >
@@ -403,7 +403,7 @@ export default function ListingsManagementPage() {
                       {openMenuId === item.id && (
                         <div
                           ref={menuRef}
-                          className="absolute right-0 top-full mt-1 w-40 bg-[#FDF6EC] border border-[#1C1C1C]/20 shadow-lg rounded-sm z-10 overflow-hidden text-left"
+                          className="absolute right-0 top-full mt-1 w-40 bg-[#FDF6EC] border border-[#1C1C1C]/20 shadow-lg rounded-xl z-10 overflow-hidden text-left"
                         >
                           <button
                             onClick={() => handleApprove(item.id)}
@@ -439,7 +439,7 @@ export default function ListingsManagementPage() {
       {/* Detail Modal */}
       {selectedListing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1C1C]/50 backdrop-blur-xs">
-          <div className="bg-[#FDF6EC] border border-[#1C1C1C]/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-xl rounded-sm">
+          <div className="bg-[#FDF6EC] border border-[#1C1C1C]/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-xl rounded-xl">
             <div className="flex items-center justify-between border-b border-[#1C1C1C]/15 pb-3">
               <div className="flex items-center gap-2">
                 <Shirt className="text-[#A33214]" size={20} />
@@ -472,7 +472,7 @@ export default function ListingsManagementPage() {
                       key={i}
                       src={url}
                       alt={`${selectedListing.title} ${i + 1}`}
-                      className="w-full h-24 object-cover border border-[#1C1C1C]/20 rounded-sm"
+                      className="w-full h-24 object-cover border border-[#1C1C1C]/20 rounded-xl"
                     />
                   ))}
                 </div>
@@ -480,7 +480,7 @@ export default function ListingsManagementPage() {
                 <img
                   src={selectedListing.image}
                   alt={selectedListing.title}
-                  className="w-full h-56 object-cover border border-[#1C1C1C]/20 rounded-sm"
+                  className="w-full h-56 object-cover border border-[#1C1C1C]/20 rounded-xl"
                 />
               );
             })()}
@@ -489,7 +489,7 @@ export default function ListingsManagementPage() {
               <video
                 src={selectedListing.raw.videoUrl}
                 controls
-                className="w-full h-56 object-cover border border-[#1C1C1C]/20 rounded-sm bg-black"
+                className="w-full h-56 object-cover border border-[#1C1C1C]/20 rounded-xl bg-black"
               />
             )}
 
@@ -561,7 +561,7 @@ export default function ListingsManagementPage() {
 
               {/* Description */}
               {selectedListing.raw.description && (
-                <div className="bg-[#1C1C1C]/5 border border-[#1C1C1C]/10 rounded-sm px-3 py-2.5">
+                <div className="bg-[#1C1C1C]/5 border border-[#1C1C1C]/10 rounded-xl px-3 py-2.5">
                   <p className="text-[10px] font-bold uppercase text-[#1C1C1C]/60 mb-1">
                     Description
                   </p>
@@ -573,7 +573,7 @@ export default function ListingsManagementPage() {
 
               {/* Flaws */}
               {selectedListing.raw.defectFlaws && (
-                <div className="bg-[#A33214]/5 border border-[#A33214]/20 rounded-sm px-3 py-2.5">
+                <div className="bg-[#A33214]/5 border border-[#A33214]/20 rounded-xl px-3 py-2.5">
                   <p className="text-[10px] font-bold uppercase text-[#A33214] mb-1">
                     Noted Flaws
                   </p>
@@ -590,7 +590,7 @@ export default function ListingsManagementPage() {
                 </p>
                 {(selectedListing.raw.deliveryOption === 'SHIPPING' ||
                   selectedListing.raw.deliveryOption === 'FLEX') && (
-                  <div className="text-xs bg-[#1C1C1C]/5 border border-[#1C1C1C]/10 rounded-sm px-3 py-2">
+                  <div className="text-xs bg-[#1C1C1C]/5 border border-[#1C1C1C]/10 rounded-xl px-3 py-2">
                     <p className="font-bold">
                       Shipping — {selectedListing.raw.shippingAvailability}
                     </p>
@@ -605,7 +605,7 @@ export default function ListingsManagementPage() {
                 )}
                 {(selectedListing.raw.deliveryOption === 'PICKUP' ||
                   selectedListing.raw.deliveryOption === 'FLEX') && (
-                  <div className="text-xs bg-[#1C1C1C]/5 border border-[#1C1C1C]/10 rounded-sm px-3 py-2">
+                  <div className="text-xs bg-[#1C1C1C]/5 border border-[#1C1C1C]/10 rounded-xl px-3 py-2">
                     <p className="font-bold">
                       Pickup — {selectedListing.raw.pickupArea}
                     </p>
@@ -647,7 +647,7 @@ export default function ListingsManagementPage() {
                     selectedListing.status === 'PUBLISHED' ||
                     actionLoadingId === selectedListing.id
                   }
-                  className="px-3 py-2 bg-emerald-700 text-[#FDF6EC] font-bold text-xs uppercase tracking-wider hover:bg-emerald-800 transition-colors rounded-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                  className="px-3 py-2 bg-emerald-700 text-[#FDF6EC] font-bold text-xs uppercase tracking-wider hover:bg-emerald-800 transition-colors rounded-xl disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                 >
                   <Check size={13} /> Approve
                 </button>
@@ -657,7 +657,7 @@ export default function ListingsManagementPage() {
                     selectedListing.status === 'REJECTED' ||
                     actionLoadingId === selectedListing.id
                   }
-                  className="px-3 py-2 bg-amber-600 text-[#FDF6EC] font-bold text-xs uppercase tracking-wider hover:bg-amber-700 transition-colors rounded-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                  className="px-3 py-2 bg-amber-600 text-[#FDF6EC] font-bold text-xs uppercase tracking-wider hover:bg-amber-700 transition-colors rounded-xl disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                 >
                   <Ban size={13} /> Reject
                 </button>
@@ -687,32 +687,32 @@ function ListingStatusBadge({ status }: { status: BackendListingStatus }) {
   switch (status) {
     case 'PUBLISHED':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl">
           <CheckCircle2 size={11} /> Published
         </span>
       );
     case 'PENDING_REVIEW':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-sky-100 text-sky-900 border border-sky-300 rounded-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-sky-100 text-sky-900 border border-sky-300 rounded-xl">
           <Clock size={11} /> Pending
         </span>
       );
     case 'REJECTED':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 rounded-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 rounded-xl">
           <AlertTriangle size={11} /> Rejected
         </span>
       );
     case 'ARCHIVED':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-red-100 text-red-900 border border-red-300 rounded-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-red-100 text-red-900 border border-red-300 rounded-xl">
           <XCircle size={11} /> Archived
         </span>
       );
     case 'DRAFT':
     default:
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-stone-100 text-stone-700 border border-stone-300 rounded-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-stone-100 text-stone-700 border border-stone-300 rounded-xl">
           <Tag size={11} /> Draft
         </span>
       );

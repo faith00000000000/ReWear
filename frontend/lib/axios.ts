@@ -34,6 +34,7 @@ function isPublicAuthRequest(url?: string) {
 
 // Track refresh state to prevent multiple simultaneous refresh requests
 let isRefreshing = false;
+let authGeneration = 0;
 let failedQueue: Array<{
   resolve: (token: string) => void;
   reject: (err: unknown) => void;
@@ -102,6 +103,7 @@ api.interceptors.response.use(
 
       originalRequest._retry = true;
       isRefreshing = true;
+      const refreshGeneration = authGeneration;
 
       const refreshToken = localStorage.getItem("refreshToken");
 
@@ -122,6 +124,10 @@ api.interceptors.response.use(
         const { data } = await axios.post(`${baseURL}/api/auth/refresh`, {
           refreshToken,
         });
+
+        if (refreshGeneration !== authGeneration) {
+          return Promise.reject(new Error("Authentication session ended during token refresh"));
+        }
 
         const newAccessToken = data.accessToken;
         const newRefreshToken = data.refreshToken ?? refreshToken;
@@ -158,5 +164,12 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+export function resetAuthClient() {
+  authGeneration += 1;
+  isRefreshing = false;
+  delete api.defaults.headers.common.Authorization;
+  processQueue(new Error("Authentication session ended"), null);
+}
 
 export default api;

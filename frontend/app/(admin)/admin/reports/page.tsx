@@ -147,7 +147,7 @@ export default function ReportManagementPage() {
           ].map(({ label, value }) => (
               <div
                   key={label}
-                  className="rounded-sm border border-[#1C1C1C]/15 bg-[#FDF6EC] px-4 py-3 shadow-sm"
+                  className="rounded-xl border border-[#1C1C1C]/15 bg-[#FDF6EC] px-4 py-3 shadow-sm"
               >
                 <p className="text-2xl font-black text-[#A33214]">{value ?? '—'}</p>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#1C1C1C]/60">
@@ -158,7 +158,7 @@ export default function ReportManagementPage() {
         </div>
 
         {/* Status tabs */}
-        <div className="flex flex-wrap items-center gap-1 bg-[#FDF6EC] border border-[#1C1C1C]/20 p-1 rounded-sm shadow-sm w-fit">
+        <div className="flex flex-wrap items-center gap-1 bg-[#FDF6EC] border border-[#1C1C1C]/20 p-1 rounded-xl shadow-sm w-fit">
           {STATUS_TABS.map((tab) => (
               <button
                   key={tab.id}
@@ -166,7 +166,7 @@ export default function ReportManagementPage() {
                     setStatusTab(tab.id);
                     setPage(0);
                   }}
-                  className={`px-3.5 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm ${
+                  className={`px-3.5 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xl ${
                       statusTab === tab.id
                           ? 'bg-[#A33214] text-[#FDF6EC]'
                           : 'text-[#1C1C1C]/80 hover:bg-[#1C1C1C]/5'
@@ -186,7 +186,7 @@ export default function ReportManagementPage() {
                 placeholder="Search reports, listings or users..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="w-full bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-sm pl-9 pr-3 py-2 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
+                className="w-full bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
             />
           </div>
 
@@ -196,7 +196,7 @@ export default function ReportManagementPage() {
                 setListingTypeFilter(e.target.value as 'all' | ListingType);
                 setPage(0);
               }}
-              className="bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-sm px-3 py-2 text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-[#A33214]"
+              className="bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xl px-3 py-2 text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-[#A33214]"
           >
             <option value="all">All Listing Types</option>
             <option value="THRIFT">Thrift</option>
@@ -206,7 +206,7 @@ export default function ReportManagementPage() {
         </div>
 
         {/* Table */}
-        <div className="border border-[#1C1C1C]/15 bg-[#FDF6EC] overflow-x-auto shadow-sm">
+        <div className="overflow-x-auto rounded-xl border border-[#A33214]/15 bg-[#FDF6EC] shadow-sm">
           <table className="w-full text-left border-collapse">
             <thead>
             <tr className="bg-[#A33214] text-[#FDF6EC] text-xs uppercase font-bold tracking-wider border-b border-[#1C1C1C]">
@@ -247,7 +247,7 @@ export default function ReportManagementPage() {
                           <img
                               src={report.itemImage}
                               alt={report.itemTitle}
-                              className="w-10 h-10 object-cover border border-[#1C1C1C]/20 rounded-sm"
+                              className="w-10 h-10 object-cover border border-[#1C1C1C]/20 rounded-xl"
                           />
                           <div>
                             <p className="font-bold text-[#1C1C1C] line-clamp-1">{report.itemTitle}</p>
@@ -269,7 +269,7 @@ export default function ReportManagementPage() {
                       <td className="p-3 text-right">
                         <button
                             onClick={() => setSelectedReport(report)}
-                            className="p-1.5 bg-[#A33214] text-[#FDF6EC] hover:bg-[#832510] transition-colors border border-[#1C1C1C] rounded-sm"
+                            className="p-1.5 bg-[#A33214] text-[#FDF6EC] hover:bg-[#832510] transition-colors border border-[#1C1C1C] rounded-xl"
                             title="View Report Details"
                         >
                           <Eye size={14} />
@@ -292,14 +292,14 @@ export default function ReportManagementPage() {
                 <button
                     disabled={page === 0}
                     onClick={() => setPage((p) => Math.max(0, p - 1))}
-                    className="px-3 py-1.5 border border-[#1C1C1C]/20 rounded-sm disabled:opacity-40"
+                    className="px-3 py-1.5 border border-[#1C1C1C]/20 rounded-xl disabled:opacity-40"
                 >
                   Previous
                 </button>
                 <button
                     disabled={page + 1 >= totalPages}
                     onClick={() => setPage((p) => p + 1)}
-                    className="px-3 py-1.5 border border-[#1C1C1C]/20 rounded-sm disabled:opacity-40"
+                    className="px-3 py-1.5 border border-[#1C1C1C]/20 rounded-xl disabled:opacity-40"
                 >
                   Next
                 </button>
@@ -347,7 +347,7 @@ function StatusBadge({ status }: { status: ReportStatus }) {
   const { label, className, icon } = config[status];
   return (
       <span
-          className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-xs ${className}`}
+          className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-xl ${className}`}
       >
       {icon} {label}
     </span>
@@ -388,30 +388,28 @@ function ReportDetailModal({
 
   return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1C1C]/50 backdrop-blur-xs">
-        <div className="bg-[#FDF6EC] border border-[#1C1C1C]/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-xl rounded-sm">
+        <div className="bg-[#FDF6EC] border border-[#1C1C1C]/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-xl rounded-xl">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-[#1C1C1C]/15 pb-3">
-            <div className="flex items-center gap-2">
+          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-[#1C1C1C]/15 pb-3">
+            <StatusBadge status={report.status} />
+            <div className="flex items-center justify-center gap-2 text-center">
               <AlertTriangle className="text-[#A33214]" size={20} />
               <h2 className="text-lg font-black text-[#1C1C1C] uppercase tracking-wide">
                 Report Detail: REP-{report.id}
               </h2>
             </div>
-            <button onClick={onClose} className="text-[#1C1C1C]/60 hover:text-[#A33214] p-1 transition-colors">
+            <button onClick={onClose} aria-label="Close report" className="rounded-xl p-1 text-[#1C1C1C]/60 transition-colors hover:bg-[#A33214]/10 hover:text-[#A33214]">
               <XCircle size={20} />
             </button>
-            <div className="ml-2">
-              <StatusBadge status={report.status} />
-            </div>
           </div>
 
           {/* Listing info */}
-          <div className="border border-[#A33214]/15 p-4 bg-[#FDF6EC] flex flex-col sm:flex-row gap-4 rounded-sm">
+          <div className="border border-[#A33214]/15 p-4 bg-[#FDF6EC] flex flex-col sm:flex-row gap-4 rounded-xl">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
                 src={report.itemImage}
                 alt={report.itemTitle}
-                className="w-20 h-20 object-cover border border-[#1C1C1C]/20 rounded-sm"
+                className="w-20 h-20 object-cover border border-[#1C1C1C]/20 rounded-xl"
             />
             <div className="space-y-1 flex-1">
               <div className="flex items-center justify-between">
@@ -444,7 +442,7 @@ function ReportDetailModal({
                   <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#1C1C1C]/60">
                     Additional Details
                   </p>
-                  <p className="text-xs font-medium text-[#1C1C1C] bg-[#1C1C1C]/5 p-3 border border-[#1C1C1C]/10 rounded-sm mt-1">
+                  <p className="text-xs font-medium text-[#1C1C1C] bg-[#1C1C1C]/5 p-3 border border-[#1C1C1C]/10 rounded-xl mt-1">
                     &ldquo;{report.details}&rdquo;
                   </p>
                 </div>
@@ -476,7 +474,7 @@ function ReportDetailModal({
               <select
                   value={actionTaken}
                   onChange={(e) => setActionTaken(e.target.value as ReportActionTaken)}
-                  className="bg-white border border-[#1C1C1C]/20 rounded-sm px-3 py-2 text-xs font-bold uppercase tracking-wide"
+                  className="bg-white border border-[#1C1C1C]/20 rounded-xl px-3 py-2 text-xs font-bold uppercase tracking-wide"
               >
                 {ACTION_TAKEN_OPTIONS.map((opt) => (
                     <option key={opt.id} value={opt.id}>
@@ -496,7 +494,7 @@ function ReportDetailModal({
                   placeholder="Explain what was found and why this action was taken…"
                   rows={3}
                   maxLength={1000}
-                  className="w-full resize-none rounded-sm border border-[#1C1C1C]/20 bg-white px-3 py-2 text-xs"
+                  className="w-full resize-none rounded-xl border border-[#1C1C1C]/20 bg-white px-3 py-2 text-xs"
               />
             </div>
 
@@ -504,21 +502,21 @@ function ReportDetailModal({
               <button
                   onClick={() => submit('INVESTIGATING', 'investigate')}
                   disabled={submitting !== null}
-                  className="px-3 py-2 bg-amber-100 text-amber-950 border border-amber-300 font-bold text-xs uppercase tracking-wider hover:bg-amber-200 transition-colors rounded-sm disabled:opacity-50"
+                  className="px-3 py-2 bg-amber-100 text-amber-950 border border-amber-300 font-bold text-xs uppercase tracking-wider hover:bg-amber-200 transition-colors rounded-xl disabled:opacity-50"
               >
                 {submitting === 'investigate' ? 'Saving…' : 'Mark Investigating'}
               </button>
               <button
                   onClick={() => submit('RESOLVED', 'resolve')}
                   disabled={submitting !== null}
-                  className="px-3 py-2 bg-emerald-100 text-emerald-950 border border-emerald-300 font-bold text-xs uppercase tracking-wider hover:bg-emerald-200 transition-colors rounded-sm disabled:opacity-50"
+                  className="px-3 py-2 bg-emerald-100 text-emerald-950 border border-emerald-300 font-bold text-xs uppercase tracking-wider hover:bg-emerald-200 transition-colors rounded-xl disabled:opacity-50"
               >
                 {submitting === 'resolve' ? 'Saving…' : 'Resolve Report'}
               </button>
               <button
                   onClick={() => submit('DISMISSED', 'dismiss')}
                   disabled={submitting !== null}
-                  className="px-3 py-2 bg-stone-200 text-stone-800 border border-stone-300 font-bold text-xs uppercase tracking-wider hover:bg-stone-300 transition-colors rounded-sm disabled:opacity-50"
+                  className="px-3 py-2 bg-stone-200 text-stone-800 border border-stone-300 font-bold text-xs uppercase tracking-wider hover:bg-stone-300 transition-colors rounded-xl disabled:opacity-50"
               >
                 {submitting === 'dismiss' ? 'Saving…' : 'Dismiss Report'}
               </button>

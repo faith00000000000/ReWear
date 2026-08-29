@@ -28,6 +28,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .username(user.getEmail())
                 .password(user.getPassword())
                 .disabled(!Boolean.TRUE.equals(user.getIsActive()))
+                .accountLocked(user.getStatus()==com.rewear.backend.user.enums.UserStatus.BANNED || (user.getSuspendedUntil()!=null && user.getSuspendedUntil().isAfter(java.time.LocalDateTime.now())))
                 .authorities("ROLE_" + user.getRole().name())
                 .build();
     }

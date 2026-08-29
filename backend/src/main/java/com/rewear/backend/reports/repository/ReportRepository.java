@@ -8,4 +8,5 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 // (status + listingType + search) without a pile of finder methods.
 public interface ReportRepository extends JpaRepository<Report, Long>, JpaSpecificationExecutor<Report> {
     long countByStatus(ReportStatus status);
+    java.util.List<Report> findTop5ByOrderByReportedAtDesc();
 }

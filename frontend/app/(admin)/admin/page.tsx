@@ -1,332 +1,58 @@
-import {
-  ClipboardList,
-  ShoppingBag,
-  Users,
-  Flag,
-  HeartHandshake,
-  Wallet,
-  ArrowUpRight,
-} from "lucide-react";
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { ArrowUpRight, ClipboardList, Flag, HeartHandshake, Loader2, Users, Wallet } from "lucide-react";
 import AdminStatCard from "@/components/admin/AdminStatCard";
+import { fetchAdminDashboard, type AdminDashboard } from "@/lib/api/adminDashboard";
 
-// TODO: replace with live data from GET /api/admin/dashboard/summary
-const STATS = {
-  totalListings: "1,284",
-  totalUsers: "3,410",
-  totalDonations: "217",
-  totalEarnings: "Rs 482,300",
-};
-
-// TODO: replace with GET /api/admin/listings?sort=recent&limit=5
-const RECENT_LISTINGS = [
-  {
-    id: "LST-1042",
-    item: "Denim Jacket - Levi's",
-    owner: "Anjali S.",
-    type: "Rent",
-    status: "AVAILABLE",
-  },
-  {
-    id: "LST-1041",
-    item: "Batik Wrap Dress",
-    owner: "Priya M.",
-    type: "Sale",
-    status: "AVAILABLE",
-  },
-  {
-    id: "LST-1040",
-    item: "Wool Overcoat",
-    owner: "Raj K.",
-    type: "Sale + Rent",
-    status: "PENDING",
-  },
-  {
-    id: "LST-1039",
-    item: "Silk Saree - Vintage",
-    owner: "Meera T.",
-    type: "Rent",
-    status: "AVAILABLE",
-  },
-  {
-    id: "LST-1038",
-    item: "Leather Boots",
-    owner: "Suman P.",
-    type: "Sale",
-    status: "FLAGGED",
-  },
-];
-
-// TODO: replace with GET /api/admin/reports?status=pending&limit=5
-const RECENT_REPORTS = [
-  {
-    id: "RPT-221",
-    listing: "Leather Boots",
-    reason: "Misleading photos",
-    reportedBy: "user_2291",
-  },
-  {
-    id: "RPT-220",
-    listing: "Silk Kurta Set",
-    reason: "Item not as described",
-    reportedBy: "user_1187",
-  },
-  {
-    id: "RPT-219",
-    listing: "Denim Jacket",
-    reason: "Suspected counterfeit",
-    reportedBy: "user_3390",
-  },
-  {
-    id: "RPT-218",
-    listing: "Wool Overcoat",
-    reason: "Owner unresponsive",
-    reportedBy: "user_0044",
-  },
-];
-
-function statusBadgeClasses(status: string) {
-  switch (status) {
-    case "AVAILABLE":
-      return "bg-green-700/10 text-green-800";
-    case "PENDING":
-      return "bg-amber-600/10 text-amber-700";
-    case "FLAGGED":
-      return "bg-[#A33214]/10 text-[#A33214]";
-    default:
-      return "bg-[#1C1C1C]/10 text-[#1C1C1C]";
-  }
-}
+const money = (value: number) => `Rs ${Number(value || 0).toLocaleString("en-NP", { maximumFractionDigits: 2 })}`;
+const label = (value: string) => value.replaceAll("_", " ");
 
 export default function AdminDashboardPage() {
-  return (
-    <div className="flex flex-col gap-5 max-w-[1400px]">
-      {/* Stat cards */}
-      <section>
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-    <AdminStatCard
-      label="Total Listings"
-      value={STATS.totalListings}
-      icon={ClipboardList}
-      trend={{ value: "8.2%", direction: "up" }}
-    />          
-    <AdminStatCard
-      label="Total Users"
-      value={STATS.totalUsers}
-      icon={Users}
-      trend={{ value: "5.4%", direction: "up" }}
-    />
-    <AdminStatCard
-      label="Total Donations"
-      value={STATS.totalDonations}
-      icon={HeartHandshake}
-      trend={{ value: "11.6%", direction: "up" }}
-    />
-    <AdminStatCard
-      label="Total Earnings"
-      value={STATS.totalEarnings}
-      icon={Wallet}
-      trend={{ value: "6.7%", direction: "up" }}
-      accent
-    />
-  </div>
-</section>
+  const [data, setData] = useState<AdminDashboard | null>(null);
+  const [error, setError] = useState("");
 
-      {/* Recent Listings + Recent Reports */}
-      <section className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        {/* Recent Listings */}
-        <div className="xl:col-span-3 bg-white/60 border-2 rounded-lg border-[#1C1C1C]/15">
-          <div className="flex items-center justify-between px-5 py-4 border-b-2 border-[#1C1C1C]/15">
-            <h2
-              className="text-lg text-[#1C1C1C]"
-              style={{ fontFamily: "Georgia, serif" }}
-            >
-              Recent Listings
-            </h2>
-            <a
-              href="/admin/listings"
-              className="flex items-center gap-1 text-xs uppercase tracking-[0.1em] text-[#A33214] hover:underline"
-            >
-              View all
-              <ArrowUpRight size={14} />
-            </a>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[11px] uppercase tracking-[0.1em] text-[#1C1C1C]/45">
-                  <th className="px-5 py-3 font-normal">Item</th>
-                  <th className="px-5 py-3 font-normal">Owner</th>
-                  <th className="px-5 py-3 font-normal">Type</th>
-                  <th className="px-5 py-3 font-normal">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {RECENT_LISTINGS.map((listing) => (
-                  <tr
-                    key={listing.id}
-                    className="border-t border-[#1C1C1C]/10 hover:bg-[#A33214]/5"
-                  >
-                    <td className="px-5 py-3 text-[#1C1C1C]">
-                      <span className="block">{listing.item}</span>
-                      <span className="block text-[11px] text-[#1C1C1C]/40">
-                        {listing.id}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-[#1C1C1C]/70">
-                      {listing.owner}
-                    </td>
-                    <td className="px-5 py-3 text-[#1C1C1C]/70">
-                      {listing.type}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span
-                        className={`inline-block px-2 py-1 text-[10px] uppercase tracking-[0.08em] ${statusBadgeClasses(
-                          listing.status,
-                        )}`}
-                      >
-                        {listing.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchAdminDashboard(controller.signal).then(setData).catch((reason) => {
+      if (reason?.code !== "ERR_CANCELED") setError("Dashboard data could not be loaded.");
+    });
+    return () => controller.abort();
+  }, []);
 
-        {/* Recent Reports */}
-        <div className="xl:col-span-2 bg-white/60 border-2 rounded-lg border-[#1C1C1C]/15">
-          <div className="flex items-center justify-between px-5 py-4 border-b-2 border-[#1C1C1C]/15">
-            <h2
-              className="text-lg text-[#1C1C1C]"
-              style={{ fontFamily: "Georgia, serif" }}
-            >
-              Recent Reports
-            </h2>
-            <a
-              href="/admin/reports"
-              className="flex items-center gap-1 text-xs uppercase tracking-[0.1em] text-[#A33214] hover:underline"
-            >
-              View all
-              <ArrowUpRight size={14} />
-            </a>
-          </div>
-          <ul>
-            {RECENT_REPORTS.map((report) => (
-              <li
-                key={report.id}
-                className="flex items-start gap-3 px-5 py-3.5 border-t border-[#1C1C1C]/10"
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center bg-[#A33214]/10 text-[#A33214]">
-                  <Flag size={14} />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm text-[#1C1C1C] truncate">
-                    {report.listing}
-                  </p>
-                  <p className="text-xs text-[#1C1C1C]/50 truncate">
-                    {report.reason}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-[0.08em] text-[#1C1C1C]/35 mt-1">
-                    Reported by {report.reportedBy}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
+  if (!data && !error) return <div className="flex min-h-80 items-center justify-center text-[#A33214]"><Loader2 className="animate-spin" /><span className="ml-2">Loading overview…</span></div>;
+  if (!data) return <div role="alert" className="rounded-xl border border-[#A33214]/30 bg-[#A33214]/5 p-6 text-[#A33214]">{error}</div>;
 
-      {/* Donation & Earnings quick summary */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div className="border-2 border-[#1C1C1C]/15 rounded-xl bg-white/60 p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <HeartHandshake size={16} className="text-[#A33214]" />
-            <h3 className="text-[11px] uppercase tracking-[0.14em] text-[#1C1C1C]/60">
-              Donation Pipeline
-            </h3>
-          </div>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p
-                className="text-xl text-[#1C1C1C]"
-                style={{ fontFamily: "Georgia, serif" }}
-              >
-                34
-              </p>
-              <p className="text-[10px] uppercase tracking-[0.08em] text-[#1C1C1C]/45 mt-1">
-                Awaiting Pickup
-              </p>
-            </div>
-            <div>
-              <p
-                className="text-xl text-[#1C1C1C]"
-                style={{ fontFamily: "Georgia, serif" }}
-              >
-                58
-              </p>
-              <p className="text-[10px] uppercase tracking-[0.08em] text-[#1C1C1C]/45 mt-1">
-                In Transit
-              </p>
-            </div>
-            <div>
-              <p
-                className="text-xl text-[#1C1C1C]"
-                style={{ fontFamily: "Georgia, serif" }}
-              >
-                125
-              </p>
-              <p className="text-[10px] uppercase tracking-[0.08em] text-[#1C1C1C]/45 mt-1">
-                Completed
-              </p>
-            </div>
-          </div>
-        </div>
+  return <div className="flex max-w-[1400px] flex-col gap-6">
+    <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <AdminStatCard label="Total Listings" value={data.metrics.totalListings.toLocaleString()} icon={ClipboardList} />
+      <AdminStatCard label="Total Users" value={data.metrics.totalUsers.toLocaleString()} icon={Users} />
+      <AdminStatCard label="Total Donations" value={data.metrics.totalDonations.toLocaleString()} icon={HeartHandshake} />
+      <AdminStatCard label="Admin Earnings" value={money(data.metrics.totalEarnings)} icon={Wallet} accent />
+    </section>
 
-        <div className="border-2 border-[#1C1C1C]/15 rounded-xl bg-white/60 p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Wallet size={16} className="text-[#A33214]" />
-            <h3 className="text-[11px] uppercase tracking-[0.14em] text-[#1C1C1C]/60">
-              Earnings Breakdown
-            </h3>
-          </div>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p
-                className="text-xl text-[#1C1C1C]"
-                style={{ fontFamily: "Georgia, serif" }}
-              >
-                Rs 340k
-              </p>
-              <p className="text-[10px] uppercase tracking-[0.08em] text-[#1C1C1C]/45 mt-1">
-                Sale Commission
-              </p>
-            </div>
-            <div>
-              <p
-                className="text-xl text-[#1C1C1C]"
-                style={{ fontFamily: "Georgia, serif" }}
-              >
-                Rs 142k
-              </p>
-              <p className="text-[10px] uppercase tracking-[0.08em] text-[#1C1C1C]/45 mt-1">
-                Rental Commission
-              </p>
-            </div>
-            <div>
-              <p
-                className="text-xl text-[#A33214]"
-                style={{ fontFamily: "Georgia, serif" }}
-              >
-                Rs 482k
-              </p>
-              <p className="text-[10px] uppercase tracking-[0.08em] text-[#1C1C1C]/45 mt-1">
-                Total Income
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
+    <section className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+      <div className="overflow-hidden rounded-xl border-2 border-[#A33214]/15 bg-white/70 xl:col-span-3">
+        <PanelHeader title="Recent Listings" href="/admin/listings" />
+        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-[#A33214] text-left text-[11px] uppercase tracking-wider text-white"><th className="px-5 py-3">Item</th><th className="px-5 py-3">Owner</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Status</th></tr></thead>
+          <tbody>{data.recentListings.length ? data.recentListings.map((item) => <tr key={item.id} className="border-t border-[#A33214]/10 hover:bg-[#A33214]/5"><td className="px-5 py-3"><span className="block font-semibold">{item.title}</span><span className="text-[11px] opacity-50">LST-{item.id}</span></td><td className="px-5 py-3">{item.owner}</td><td className="px-5 py-3">{label(item.type)}</td><td className="px-5 py-3"><span className="rounded-xl bg-[#A33214]/10 px-2 py-1 text-[10px] font-bold text-[#A33214]">{label(item.status)}</span></td></tr>) : <EmptyRow columns={4} text="No listings yet." />}</tbody>
+        </table></div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border-2 border-[#A33214]/15 bg-white/70 xl:col-span-2">
+        <PanelHeader title="Recent Reports" href="/admin/reports" />
+        {data.recentReports.length ? <ul>{data.recentReports.map((report) => <li key={report.id} className="flex gap-3 border-t border-[#A33214]/10 px-5 py-4"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#A33214] text-white"><Flag size={14} /></span><div className="min-w-0"><p className="truncate font-semibold">{report.listing}</p><p className="truncate text-xs opacity-60">{report.reason}</p><p className="mt-1 text-[10px] uppercase tracking-wider opacity-45">REP-{report.id} · {report.reportedBy} · {label(report.status)}</p></div></li>)}</ul> : <p className="p-8 text-center text-sm opacity-60">No reports yet.</p>}
+      </div>
+    </section>
+
+    <section className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <Summary title="Donation Pipeline" icon={<HeartHandshake size={17} />} values={[["Pending", data.donations.pending], ["Confirmed", data.donations.confirmed], ["Completed", data.donations.completed], ["Rejected", data.donations.rejected]]} />
+      <Summary title="Verified Commission Earnings" icon={<Wallet size={17} />} values={[["Thrift (12%)", money(data.earnings.thriftCommission)], ["Rental (20%)", money(data.earnings.rentalCommission)], ["Total", money(data.earnings.totalCommission)]]} />
+    </section>
+  </div>;
 }
+
+function PanelHeader({ title, href }: { title: string; href: string }) { return <div className="flex items-center justify-between border-b-2 border-[#A33214]/15 px-5 py-4"><h2 className="font-serif text-lg">{title}</h2><Link href={href} className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-[#A33214]">View all <ArrowUpRight size={14} /></Link></div>; }
+function EmptyRow({ columns, text }: { columns: number; text: string }) { return <tr><td colSpan={columns} className="px-5 py-12 text-center opacity-60">{text}</td></tr>; }
+function Summary({ title, icon, values }: { title: string; icon: React.ReactNode; values: Array<[string, string | number]> }) { return <div className="rounded-xl border-2 border-[#A33214]/15 bg-white/70 p-5"><div className="mb-4 flex items-center gap-2 text-[#A33214]">{icon}<h3 className="text-xs font-bold uppercase tracking-widest">{title}</h3></div><div className={`grid gap-4 text-center ${values.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>{values.map(([name, value]) => <div key={name}><p className="font-serif text-xl text-[#A33214]">{value}</p><p className="mt-1 text-[10px] uppercase tracking-wider opacity-50">{name}</p></div>)}</div></div>; }

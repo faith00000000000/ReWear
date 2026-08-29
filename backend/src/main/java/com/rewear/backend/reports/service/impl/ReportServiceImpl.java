@@ -41,6 +41,7 @@ public class ReportServiceImpl implements ReportService {
     // TODO(ADAPT): swap for your actual repositories/services.
     private final ListingRepository listingRepository;
     private final UserRepository userRepository;
+    private final com.rewear.backend.user.service.EmailService emailService;
 
     @Override
     @Transactional
@@ -78,6 +79,16 @@ public class ReportServiceImpl implements ReportService {
     @Transactional
     public ReportResponse updateReportStatus(Long id, ReportStatusUpdateRequest request, String reviewerEmail) {
         Report report = findReportOrThrow(id);
+        User reviewer = userRepository.findByEmail(reviewerEmail)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.FORBIDDEN, "Admin access required"));
+        if (reviewer.getRole() != com.rewear.backend.user.enums.Role.ADMIN
+                || !Boolean.TRUE.equals(reviewer.getIsActive())
+                || reviewer.getStatus() == com.rewear.backend.user.enums.UserStatus.BANNED) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN, "Admin access required");
+        }
+        var previousAction = report.getActionTaken();
 
         if (report.getStatus() != request.getStatus()) {
             notificationService.notifyUser(report.getReporterId(),
@@ -99,8 +110,58 @@ public class ReportServiceImpl implements ReportService {
             report.setResolvedAt(LocalDateTime.now());
         }
 
+        if (request.getActionTaken() != null
+                && request.getActionTaken() != com.rewear.backend.reports.enums.ReportActionTaken.NONE
+                && request.getActionTaken() != previousAction) {
+            enforce(report, request.getActionTaken(), request.getAdminNote());
+        }
+
         Report saved = reportRepository.save(report);
         return reportMapper.toResponse(saved);
+    }
+
+    private void enforce(Report report, com.rewear.backend.reports.enums.ReportActionTaken action, String note) {
+        Listing listing = listingRepository.findById(report.getListingId())
+                .orElseThrow(() -> new EntityNotFoundException("Listing not found: " + report.getListingId()));
+        User seller = listing.getSeller();
+        String title;
+        String message;
+
+        switch (action) {
+            case WARNING_ISSUED -> {
+                title = "Moderation warning";
+                message = "A warning was issued for listing #" + listing.getId() + " (" + listing.getProductTitle() + ").";
+            }
+            case LISTING_HIDDEN -> {
+                listing.setStatus(com.rewear.backend.listing.enums.ListingStatus.ARCHIVED);
+                listingRepository.save(listing);
+                title = "Listing hidden";
+                message = "Listing #" + listing.getId() + " was hidden after moderation review.";
+            }
+            case LISTING_REMOVED -> {
+                listing.setStatus(com.rewear.backend.listing.enums.ListingStatus.ARCHIVED);
+                listingRepository.save(listing);
+                title = "Listing removed";
+                message = "Listing #" + listing.getId() + " was removed from the marketplace after moderation review.";
+            }
+            case SELLER_SUSPENDED -> {
+                listing.setStatus(com.rewear.backend.listing.enums.ListingStatus.ARCHIVED);
+                listingRepository.save(listing);
+                seller.setSuspendedUntil(LocalDateTime.now().plusDays(15));
+                userRepository.save(seller);
+                title = "Account suspended for 15 days";
+                message = "Your account is restricted for 15 days and listing #" + listing.getId()
+                        + " was removed from the marketplace.";
+            }
+            default -> { return; }
+        }
+
+        if (note != null && !note.isBlank()) {
+            message += " Admin note: " + note;
+        }
+        notificationService.notifyUser(seller.getId(), "report-enforcement:" + report.getId() + ":" + action,
+                com.rewear.backend.notification.enums.NotificationType.REPORT, title, message, "/profile/listings");
+        emailService.sendModerationEmail(seller.getEmail(), seller.getFullName(), title, message);
     }
 
     @Override

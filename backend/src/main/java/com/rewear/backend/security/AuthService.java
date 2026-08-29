@@ -138,9 +138,13 @@ public class AuthService {
                         return new ResourceNotFoundException("User account not found");
                     });
 
-            if (!user.getIsActive()) {
-                log.warn("Token refresh attempt with deactivated account: {}", email);
-                throw new InvalidTokenException("User account has been deactivated");
+            if (!Boolean.TRUE.equals(user.getIsActive()) || user.getStatus() == UserStatus.BANNED) {
+                log.warn("Token refresh attempt with restricted account: {}", email);
+                throw new InvalidTokenException("User account is restricted");
+            }
+            if (user.getSuspendedUntil() != null && user.getSuspendedUntil().isAfter(java.time.LocalDateTime.now())) {
+                log.warn("Token refresh attempt with suspended account: {}", email);
+                throw new InvalidTokenException("User account is temporarily suspended");
             }
 
             log.info("Token successfully refreshed for email: {}", email);

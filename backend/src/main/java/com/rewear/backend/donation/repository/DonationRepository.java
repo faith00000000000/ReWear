@@ -8,4 +8,5 @@ import java.util.List;
 public interface DonationRepository extends JpaRepository<Donation, Long> {
     // DonationRepository.java — add this alongside whatever's already there
     List<Donation> findByDonorUserIdOrderByCreatedAtDesc(Long donorUserId);
+    long countByStatus(com.rewear.backend.donation.enums.DonationStatus status);
 }

@@ -68,6 +68,13 @@ public class EmailService {
         }
     }
 
+    @Async
+    public void sendModerationEmail(String toEmail,String fullName,String subject,String explanation) {
+        try {var message=mailSender.createMimeMessage();var helper=new MimeMessageHelper(message,true,"UTF-8");helper.setFrom(fromEmail);helper.setTo(toEmail);
+            helper.setSubject("RE:WEAR — "+subject);helper.setText("Hello "+fullName+",\n\n"+explanation+"\n\nRE:WEAR moderation team",false);mailSender.send(message);
+        } catch (MessagingException e){log.error("Failed moderation email to {}: {}",toEmail,e.getMessage());}
+    }
+
     // ── HTML Templates ────────────────────────────────────────────────────────
 
     private String buildOtpEmailHtml(String fullName, String otpCode) {

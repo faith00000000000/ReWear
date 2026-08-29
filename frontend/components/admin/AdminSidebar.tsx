@@ -103,7 +103,7 @@ export default function AdminSidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`group flex items-center gap-3 px-3 py-2.5 border-2 rounded-sm transition-colors ${
+                  className={`group flex items-center gap-3 px-3 py-2.5 border-2 rounded-xl transition-colors ${
                     isActive
                       ? "bg-[#A33214] border-[#A33214] text-[#FDF6EC]"
                       : "bg-transparent border-transparent text-[#1C1C1C] hover:border-[#A33214]/40"

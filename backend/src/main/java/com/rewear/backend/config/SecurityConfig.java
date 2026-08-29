@@ -63,7 +63,7 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/ws/notifications").permitAll()
-                        .requestMatchers("/api/admin/earnings", "/api/admin/earnings/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin", "/api/admin/**").hasRole("ADMIN")
 //                        .requestMatchers(
 //                                "/api/auth/signup",
 //                                "/api/auth/login",
@@ -92,7 +92,6 @@ public class SecurityConfig {
                                         "/health/**",
                                         "/api/listings",
                                         "/api/listings/**",
-                                        "/api/admin/**",
                                         "/api/donations",
                                         "/api/organizations"
                                 ).permitAll()

@@ -176,7 +176,7 @@ export default function UsersPage() {
 
       {/* Metric Cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="border-2 border-[#1C1C1C]/15 bg-white/60 p-5">
+        <div className="rounded-xl border-2 border-[#A33214]/15 bg-white/60 p-5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] uppercase tracking-[0.14em] text-[#1C1C1C]/60 font-semibold">
               Total Community Users
@@ -194,7 +194,7 @@ export default function UsersPage() {
           </p>
         </div>
 
-        <div className="border-2 border-[#1C1C1C]/15 bg-white/60 p-5">
+        <div className="rounded-xl border-2 border-[#A33214]/15 bg-white/60 p-5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] uppercase tracking-[0.14em] text-[#1C1C1C]/60 font-semibold">
               Sellers
@@ -212,7 +212,7 @@ export default function UsersPage() {
           </p>
         </div>
 
-        <div className="border-2 border-[#1C1C1C]/15 bg-white/60 p-5">
+        <div className="rounded-xl border-2 border-[#A33214]/15 bg-white/60 p-5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] uppercase tracking-[0.14em] text-[#1C1C1C]/60 font-semibold">
               New Registrations
@@ -230,7 +230,7 @@ export default function UsersPage() {
           </p>
         </div>
 
-        <div className="border-2 border-[#1C1C1C]/15 bg-white/60 p-5 border-l-4 border-l-[#A33214]">
+        <div className="rounded-xl border-2 border-[#A33214]/15 bg-white/60 p-5 border-l-4 border-l-[#A33214]">
           <div className="flex items-center justify-between">
             <span className="text-[11px] uppercase tracking-[0.14em] text-[#1C1C1C]/60 font-semibold">
               Banned Accounts
@@ -296,7 +296,7 @@ export default function UsersPage() {
               placeholder="Search name, email, phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/80 text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xs pl-8 pr-3 py-1.5 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
+              className="w-full bg-white/80 text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xl pl-8 pr-3 py-1.5 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
             />
           </div>
 
@@ -331,7 +331,7 @@ export default function UsersPage() {
 
       {/* Users Table */}
       {!isLoading && !loadError && (
-        <div className="border-2 border-[#A33214]/15 bg-white/60 overflow-x-auto shadow-xs">
+        <div className="overflow-x-auto rounded-xl border-2 border-[#A33214]/15 bg-white/60 shadow-xs">
           <table className="w-full text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-[32%]" />
@@ -378,7 +378,7 @@ export default function UsersPage() {
                           alt={user.fullName}
                           width={40}
                           height={40}
-                          className="w-10 h-10 object-cover border border-[#1C1C1C]/20 rounded-xs shrink-0"
+                          className="w-10 h-10 object-cover border border-[#1C1C1C]/20 rounded-xl shrink-0"
                         />
                         <div className="min-w-0">
                           <div className="font-bold truncate">
@@ -396,7 +396,7 @@ export default function UsersPage() {
                     </td>
 
                     <td className="p-3">
-                      <span className="uppercase text-[10px] font-extrabold tracking-wider px-2 py-0.5 border border-[#1C1C1C]/20 rounded-xs bg-stone-100">
+                      <span className="uppercase text-[10px] font-extrabold tracking-wider px-2 py-0.5 border border-[#1C1C1C]/20 rounded-xl bg-stone-100">
                         {user.role}
                       </span>
                     </td>
@@ -429,7 +429,7 @@ export default function UsersPage() {
 
                     <td className="p-3">
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border rounded-xs ${statusBadgeClasses(
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border rounded-xl ${statusBadgeClasses(
                           user.status,
                         )}`}
                       >
@@ -449,7 +449,7 @@ export default function UsersPage() {
                             setSelectedUser(user);
                             setModalMode('inspect');
                           }}
-                          className="p-1.5 bg-[#1C1C1C] text-[#FDF6EC] hover:bg-[#A33214] transition-colors rounded-xs"
+                          className="p-1.5 bg-[#1C1C1C] text-[#FDF6EC] hover:bg-[#A33214] transition-colors rounded-xl"
                           title="View Full Profile"
                         >
                           <Eye size={13} />
@@ -461,7 +461,7 @@ export default function UsersPage() {
                               setSelectedUser(user);
                               setModalMode('ban');
                             }}
-                            className="p-1.5 bg-[#A33214] text-white hover:bg-[#1C1C1C] transition-colors rounded-xs"
+                            className="p-1.5 bg-[#A33214] text-white hover:bg-[#1C1C1C] transition-colors rounded-xl"
                             title="Ban Account"
                           >
                             <Ban size={13} />
@@ -480,7 +480,7 @@ export default function UsersPage() {
       {/* MODAL: INSPECT / BAN */}
       {selectedUser && modalMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1C1C]/50 backdrop-blur-xs">
-          <div className="bg-[#FDF6EC] border-2 border-[#1C1C1C]/20 w-full max-w-lg p-6 space-y-5 shadow-xl rounded-xs">
+          <div className="bg-[#FDF6EC] border-2 border-[#1C1C1C]/20 w-full max-w-lg p-6 space-y-5 shadow-xl rounded-xl">
             <div className="flex items-center justify-between border-b border-[#1C1C1C]/15 pb-3">
               <h2
                 className="text-base text-[#1C1C1C] uppercase font-bold flex items-center gap-2"
@@ -510,7 +510,7 @@ export default function UsersPage() {
                 alt={selectedUser.fullName}
                 width={48}
                 height={48}
-                className="w-12 h-12 object-cover border border-[#1C1C1C]/20 rounded-xs"
+                className="w-12 h-12 object-cover border border-[#1C1C1C]/20 rounded-xl"
               />
               <div className="text-xs">
                 <p className="font-bold text-sm text-[#1C1C1C]">

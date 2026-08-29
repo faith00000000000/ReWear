@@ -165,10 +165,10 @@ export default function OrdersManagementPage() {
 
         {/* Counter Badges */}
         <div className="flex items-center gap-2">
-          <div className="px-3 py-1 bg-[#1C1C1C] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider rounded-sm">
+          <div className="px-3 py-1 bg-[#1C1C1C] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider rounded-xl">
             Total Orders: {orders.length}
           </div>
-          <div className="px-3 py-1 bg-[#A33214] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider rounded-sm">
+          <div className="px-3 py-1 bg-[#A33214] text-[#FDF6EC] font-bold text-xs uppercase tracking-wider rounded-xl">
             Active Rentals:{' '}
             {orders.filter((o) => o.status === 'active_rental').length}
           </div>
@@ -178,10 +178,10 @@ export default function OrdersManagementPage() {
       {/* Filter and Control Toolbar */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
         {/* Type Toggle Buttons */}
-        <div className="flex items-center bg-[#FDF6EC] border border-[#1C1C1C]/20 p-1 self-start rounded-sm shadow-sm">
+        <div className="flex items-center bg-[#FDF6EC] border border-[#1C1C1C]/20 p-1 self-start rounded-xl shadow-sm">
           <button
             onClick={() => setTypeFilter('all')}
-            className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm ${
+            className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xl ${
               typeFilter === 'all'
                 ? 'bg-[#A33214] text-[#FDF6EC]'
                 : 'text-[#1C1C1C]/80 hover:text-[#1C1C1C] hover:bg-[#1C1C1C]/5'
@@ -191,7 +191,7 @@ export default function OrdersManagementPage() {
           </button>
           <button
             onClick={() => setTypeFilter('sale')}
-            className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm flex items-center gap-1.5 ${
+            className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xl flex items-center gap-1.5 ${
               typeFilter === 'sale'
                 ? 'bg-[#A33214] text-[#FDF6EC]'
                 : 'text-[#1C1C1C]/80 hover:text-[#A33214] hover:bg-[#A33214]/5'
@@ -202,7 +202,7 @@ export default function OrdersManagementPage() {
           </button>
           <button
             onClick={() => setTypeFilter('rental')}
-            className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-sm flex items-center gap-1.5 ${
+            className={`px-4 py-1.5 font-extrabold text-xs uppercase tracking-wider transition-all rounded-xl flex items-center gap-1.5 ${
               typeFilter === 'rental'
                 ? 'bg-[#A33214] text-[#FDF6EC]'
                 : 'text-[#1C1C1C]/80 hover:text-[#A33214] hover:bg-[#A33214]/5'
@@ -225,7 +225,7 @@ export default function OrdersManagementPage() {
               placeholder="Search by ID, buyer, seller..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-sm pl-9 pr-3 py-1.5 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
+              className="w-full bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xl pl-9 pr-3 py-1.5 text-xs font-semibold placeholder-[#1C1C1C]/40 focus:outline-none focus:border-[#A33214]"
             />
           </div>
 
@@ -234,7 +234,7 @@ export default function OrdersManagementPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full sm:w-auto bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-sm px-3 py-1.5 text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-[#A33214]"
+              className="w-full sm:w-auto bg-[#FDF6EC] text-[#1C1C1C] border border-[#1C1C1C]/20 rounded-xl px-3 py-1.5 text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-[#A33214]"
             >
               <option value="all">All Statuses</option>
               <option value="processing">Processing</option>
@@ -289,7 +289,7 @@ export default function OrdersManagementPage() {
                         alt={order.itemTitle}
                         width={40}
                         height={40}
-                        className="w-10 h-10 object-cover border border-[#1C1C1C]/20 rounded-sm shrink-0"
+                        className="w-10 h-10 object-cover border border-[#1C1C1C]/20 rounded-xl shrink-0"
                       />
                       <div>
                         <p className="font-bold text-[#1C1C1C] line-clamp-1">
@@ -303,7 +303,7 @@ export default function OrdersManagementPage() {
                   </td>
                   <td className="p-3">
                     <span
-                      className={`inline-block px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border rounded-xs ${
+                      className={`inline-block px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border rounded-xl ${
                         order.type === 'sale'
                           ? 'bg-stone-100 text-[#1C1C1C] border-[#1C1C1C]/30'
                           : 'bg-amber-50 text-amber-900 border-amber-300'
@@ -347,7 +347,7 @@ export default function OrdersManagementPage() {
                   <td className="p-3 text-right">
                     <button
                       onClick={() => setSelectedOrder(order)}
-                      className="p-1.5 bg-[#1C1C1C] text-[#FDF6EC] hover:bg-[#A33214] transition-colors rounded-sm"
+                      className="p-1.5 bg-[#1C1C1C] text-[#FDF6EC] hover:bg-[#A33214] transition-colors rounded-xl"
                       title="View Order / Rental Details"
                     >
                       <Eye size={14} />
@@ -363,7 +363,7 @@ export default function OrdersManagementPage() {
       {/* Order / Rental Inspection Modal */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1C1C]/50 backdrop-blur-xs">
-          <div className="bg-[#FDF6EC] border border-[#1C1C1C]/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-xl rounded-sm">
+          <div className="bg-[#FDF6EC] border border-[#1C1C1C]/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-xl rounded-xl">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[#1C1C1C]/15 pb-3">
               <div className="flex items-center gap-2">
@@ -387,7 +387,7 @@ export default function OrdersManagementPage() {
                 alt={selectedOrder.itemTitle}
                 width={200}
                 height={200}
-                className="w-full h-36 object-cover border border-[#1C1C1C]/20 rounded-sm"
+                className="w-full h-36 object-cover border border-[#1C1C1C]/20 rounded-xl"
               />
               <div className="sm:col-span-2 space-y-2">
                 <span className="text-xs font-mono font-bold text-[#A33214]">
@@ -415,7 +415,7 @@ export default function OrdersManagementPage() {
 
             {/* Financials & Rental Schedule */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-[#1C1C1C]/15 pt-4">
-              <div className="bg-[#1C1C1C]/5 p-3 rounded-sm border border-[#1C1C1C]/10 space-y-1">
+              <div className="bg-[#1C1C1C]/5 p-3 rounded-xl border border-[#1C1C1C]/10 space-y-1">
                 <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#1C1C1C]/60">
                   Payment Breakup
                 </p>
@@ -431,7 +431,7 @@ export default function OrdersManagementPage() {
               </div>
 
               {selectedOrder.type === 'rental' && (
-                <div className="bg-amber-50 p-3 rounded-sm border border-amber-200 space-y-1">
+                <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 space-y-1">
                   <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-900">
                     Rental Duration Tracking
                   </p>
@@ -455,7 +455,7 @@ export default function OrdersManagementPage() {
                   onClick={() =>
                     handleUpdateOrderStatus(selectedOrder.id, 'shipped')
                   }
-                  className="px-3 py-2 bg-sky-100 text-sky-950 border border-sky-300 font-bold text-xs uppercase tracking-wider hover:bg-sky-200 transition-colors rounded-sm flex items-center justify-center gap-1.5"
+                  className="px-3 py-2 bg-sky-100 text-sky-950 border border-sky-300 font-bold text-xs uppercase tracking-wider hover:bg-sky-200 transition-colors rounded-xl flex items-center justify-center gap-1.5"
                 >
                   <Truck size={14} /> Shipped
                 </button>
@@ -464,7 +464,7 @@ export default function OrdersManagementPage() {
                     onClick={() =>
                       handleUpdateOrderStatus(selectedOrder.id, 'active_rental')
                     }
-                    className="px-3 py-2 bg-amber-100 text-amber-950 border border-amber-300 font-bold text-xs uppercase tracking-wider hover:bg-amber-200 transition-colors rounded-sm flex items-center justify-center gap-1.5"
+                    className="px-3 py-2 bg-amber-100 text-amber-950 border border-amber-300 font-bold text-xs uppercase tracking-wider hover:bg-amber-200 transition-colors rounded-xl flex items-center justify-center gap-1.5"
                   >
                     <Clock size={14} /> Active Rental
                   </button>
@@ -474,7 +474,7 @@ export default function OrdersManagementPage() {
                     onClick={() =>
                       handleUpdateOrderStatus(selectedOrder.id, 'returned')
                     }
-                    className="px-3 py-2 bg-purple-100 text-purple-950 border border-purple-300 font-bold text-xs uppercase tracking-wider hover:bg-purple-200 transition-colors rounded-sm flex items-center justify-center gap-1.5"
+                    className="px-3 py-2 bg-purple-100 text-purple-950 border border-purple-300 font-bold text-xs uppercase tracking-wider hover:bg-purple-200 transition-colors rounded-xl flex items-center justify-center gap-1.5"
                   >
                     <RotateCcw size={14} /> Item Returned
                   </button>
@@ -483,7 +483,7 @@ export default function OrdersManagementPage() {
                   onClick={() =>
                     handleUpdateOrderStatus(selectedOrder.id, 'completed')
                   }
-                  className="px-3 py-2 bg-emerald-100 text-emerald-950 border border-emerald-300 font-bold text-xs uppercase tracking-wider hover:bg-emerald-200 transition-colors rounded-sm flex items-center justify-center gap-1.5"
+                  className="px-3 py-2 bg-emerald-100 text-emerald-950 border border-emerald-300 font-bold text-xs uppercase tracking-wider hover:bg-emerald-200 transition-colors rounded-xl flex items-center justify-center gap-1.5"
                 >
                   <CheckCircle2 size={14} /> Completed
                 </button>
@@ -491,7 +491,7 @@ export default function OrdersManagementPage() {
                   onClick={() =>
                     handleUpdateOrderStatus(selectedOrder.id, 'cancelled')
                   }
-                  className="px-3 py-2 bg-stone-200 text-stone-800 border border-stone-300 font-bold text-xs uppercase tracking-wider hover:bg-stone-300 transition-colors rounded-sm flex items-center justify-center gap-1.5"
+                  className="px-3 py-2 bg-stone-200 text-stone-800 border border-stone-300 font-bold text-xs uppercase tracking-wider hover:bg-stone-300 transition-colors rounded-xl flex items-center justify-center gap-1.5"
                 >
                   <XCircle size={14} /> Cancelled
                 </button>
@@ -509,37 +509,37 @@ function OrderStatusBadge({ status }: { status: OrderStatus }) {
   switch (status) {
     case 'processing':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-stone-200 text-stone-800 border border-stone-300 rounded-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-stone-200 text-stone-800 border border-stone-300 rounded-xl">
           <Clock size={11} /> Processing
         </span>
       );
     case 'shipped':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-sky-100 text-sky-900 border border-sky-300 rounded-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-sky-100 text-sky-900 border border-sky-300 rounded-xl">
           <Truck size={11} /> Shipped
         </span>
       );
     case 'active_rental':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 rounded-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 rounded-xl">
           <Clock size={11} /> Active Rental
         </span>
       );
     case 'returned':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-purple-100 text-purple-900 border border-purple-300 rounded-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-purple-100 text-purple-900 border border-purple-300 rounded-xl">
           <RotateCcw size={11} /> Returned
         </span>
       );
     case 'completed':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl">
           <CheckCircle2 size={11} /> Completed
         </span>
       );
     case 'cancelled':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-red-100 text-red-900 border border-red-300 rounded-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-red-100 text-red-900 border border-red-300 rounded-xl">
           <XCircle size={11} /> Cancelled
         </span>
       );

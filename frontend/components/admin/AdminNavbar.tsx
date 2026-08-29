@@ -1,19 +1,20 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/AuthContext";
 import { useNotifications } from "@/lib/NotificationContext";
 
 import { useState, useRef, useEffect } from "react";
 import {
-  Search,
   Bell,
   ChevronDown,
   Menu,
   LogOut,
-  Settings,
-  X,
-  UserCheck,
-  Shield,
   CheckCheck,
+  ClipboardList,
+  Users,
+  Flag,
+  HeartHandshake,
 } from "lucide-react";
 
 interface AdminNavbarProps {
@@ -31,13 +32,22 @@ export default function AdminNavbar({
   adminEmail = "admin@rewear.com",
   adminInitials = "AD",
 }: AdminNavbarProps) {
+  const router = useRouter();
+  const { signOut } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const { unreadCount, items: notifications, markRead, markAllRead, error } = useNotifications();
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
+
+  const handleSignOut = () => {
+    setProfileOpen(false);
+    setNotificationsOpen(false);
+    signOut();
+    router.replace("/login");
+    router.refresh();
+  };
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -60,7 +70,6 @@ export default function AdminNavbar({
       if (e.key === "Escape") {
         setProfileOpen(false);
         setNotificationsOpen(false);
-        setMobileSearchOpen(false);
       }
     };
 
@@ -79,7 +88,7 @@ export default function AdminNavbar({
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onMenuClick}
-            className="lg:hidden flex items-center justify-center h-10 w-10 border-2 border-[#1C1C1C] text-[#1C1C1C] hover:bg-[#A33214] hover:border-[#A33214] hover:text-[#FDF6EC] transition-colors rounded-xs focus:outline-none"
+            className="lg:hidden flex items-center justify-center h-10 w-10 border-2 border-[#1C1C1C] text-[#1C1C1C] hover:bg-[#A33214] hover:border-[#A33214] hover:text-[#FDF6EC] transition-colors rounded-xl focus:outline-none"
             aria-label="Open sidebar navigation"
           >
             <Menu size={18} />
@@ -97,34 +106,10 @@ export default function AdminNavbar({
           </div>
         </div>
 
-        {/* Center: Desktop Global Search Bar */}
-        <div className="hidden md:flex flex-1 max-w-md mx-4">
-          <div className="relative w-full">
-            <div className="flex items-center w-full gap-2 border-2 border-[#1C1C1C]/20 bg-white/70 px-3.5 py-1.5 focus-within:border-[#A33214] focus-within:bg-white focus-within:ring-1 focus-within:ring-[#A33214] transition-all rounded-2xl">
-              <Search size={16} className="text-[#1C1C1C]/50 shrink-0" />
-              <input
-                type="text"
-                placeholder="Search listings, flagged users, transactions..."
-                className="w-full bg-transparent text-xs font-medium text-[#1C1C1C] placeholder:text-[#1C1C1C]/40 outline-none"
-              />
-              {/* <kbd className="hidden lg:inline-block px-1.5 py-0.5 text-[9px] font-mono text-[#1C1C1C]/50 bg-[#1C1C1C]/5 border border-[#1C1C1C]/15 rounded-xs">
-                ⌘K
-              </kbd> */}
-            </div>
-          </div>
-        </div>
+        <div className="flex-1" />
 
-        {/* Right: Search Toggle (Mobile) + Notifications + Admin Profile */}
+        {/* Right: Notifications + Admin Profile */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {/* Mobile Search Button */}
-          <button
-            onClick={() => setMobileSearchOpen((v) => !v)}
-            className="md:hidden flex items-center justify-center h-10 w-10 border-2 border-[#1C1C1C]/15 text-[#1C1C1C] hover:border-[#A33214] hover:text-[#A33214] transition-colors rounded-xs"
-            aria-label="Toggle search"
-          >
-            {mobileSearchOpen ? <X size={18} /> : <Search size={18} />}
-          </button>
-
           {/* Notifications Dropdown Container */}
           <div className="relative" ref={notificationRef}>
             <button
@@ -132,7 +117,7 @@ export default function AdminNavbar({
                 setNotificationsOpen((v) => !v);
                 setProfileOpen(false);
               }}
-              className={`relative flex items-center justify-center h-10 w-10 transition-colors rounded-xs ${
+              className={`relative flex items-center justify-center h-10 w-10 transition-colors rounded-xl ${
                 notificationsOpen
                   ? "border-[#A33214] bg-[#A33214]/10 text-[#A33214]"
                   : "border-[#1C1C1C]/15 text-[#1C1C1C] hover:border-[#A33214] hover:text-[#A33214]"
@@ -148,7 +133,7 @@ export default function AdminNavbar({
             </button>
 
             {notificationsOpen && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#FDF6EC] border-2 border-[#1C1C1C] shadow-xl z-40 rounded-xs overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#FDF6EC] border-2 border-[#1C1C1C] shadow-xl z-40 rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="flex items-center justify-between p-3.5 border-b-2 border-[#1C1C1C]/10 bg-white/50">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-xs uppercase text-[#1C1C1C]">
@@ -211,7 +196,7 @@ export default function AdminNavbar({
                 setProfileOpen((v) => !v);
                 setNotificationsOpen(false);
               }}
-              className={`flex items-center gap-2.5  pl-1.5 pr-3 py-1 transition-colors rounded-xs ${
+              className={`flex items-center gap-2.5  pl-1.5 pr-3 py-1 transition-colors rounded-xl ${
                 profileOpen
                   ? "border-[#A33214] bg-[#A33214]/5"
                   : "border-[#1C1C1C]/15 hover:border-[#A33214]"
@@ -237,7 +222,7 @@ export default function AdminNavbar({
             </button>
 
             {profileOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-[#FDF6EC] border-2 border-[#1C1C1C] shadow-xl z-40 rounded-xs overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="absolute right-0 mt-2 w-56 bg-[#FDF6EC] border-2 border-[#1C1C1C] shadow-xl z-40 rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
                 {/* Admin Dossier Info */}
                 <div className="p-3 border-b-2 border-[#1C1C1C]/10 bg-white/60">
                   <p className="font-bold text-xs text-[#1C1C1C]">
@@ -250,20 +235,22 @@ export default function AdminNavbar({
 
                 {/* Actions */}
                 <div className="py-1">
-                  <button className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-bold text-[#1C1C1C] hover:bg-[#A33214]/10 transition-colors text-left">
-                    <Shield size={14} className="text-[#1C1C1C]/70" />
-                    Security & Permissions
-                  </button>
-                  <button className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-bold text-[#1C1C1C] hover:bg-[#A33214]/10 transition-colors text-left">
-                    <Settings size={14} className="text-[#1C1C1C]/70" />
-                    Admin Settings
-                  </button>
+                  {[
+                    ["Listings", "/admin/listings", ClipboardList],
+                    ["Users", "/admin/users", Users],
+                    ["Reports", "/admin/reports", Flag],
+                    ["Donations", "/admin/donations", HeartHandshake],
+                  ].map(([label, href, Icon]) => (
+                    <Link key={String(href)} href={String(href)} onClick={() => setProfileOpen(false)} className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-bold text-[#1C1C1C] transition-colors hover:bg-[#A33214]/10">
+                      <Icon size={14} className="text-[#A33214]" />{String(label)}
+                    </Link>
+                  ))}
                 </div>
 
                 <div className="border-t-2 border-[#1C1C1C]/10 py-1 bg-red-500/5">
-                  <button className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-bold text-[#A33214] hover:bg-[#A33214] hover:text-[#FDF6EC] transition-colors text-left">
+                  <button type="button" onClick={handleSignOut} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-bold text-[#A33214] hover:bg-[#A33214] hover:text-[#FDF6EC] transition-colors text-left">
                     <LogOut size={14} />
-                    Sign Out Console
+                    Sign Out
                   </button>
                 </div>
               </div>
@@ -272,20 +259,6 @@ export default function AdminNavbar({
         </div>
       </div>
 
-      {/* Expanded Search Bar (Mobile Viewport) */}
-      {mobileSearchOpen && (
-        <div className="mt-3 pt-3 border-t border-[#1C1C1C]/15 md:hidden animate-in fade-in duration-150">
-          <div className="flex items-center w-full gap-2 border-2 border-[#1C1C1C] bg-white px-3 py-2 rounded-xs">
-            <Search size={16} className="text-[#1C1C1C]/60" />
-            <input
-              type="text"
-              autoFocus
-              placeholder="Search listings, users, orders..."
-              className="w-full bg-transparent text-xs font-semibold text-[#1C1C1C] outline-none"
-            />
-          </div>
-        </div>
-      )}
     </header>
   );
 }
