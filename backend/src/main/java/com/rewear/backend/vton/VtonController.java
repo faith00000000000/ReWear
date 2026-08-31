@@ -69,8 +69,18 @@ public class VtonController {
             return ResponseEntity.ok(Map.of("imageUrl", publicUrl));
 
         } catch (org.springframework.web.client.HttpStatusCodeException e) {
-            log.error("Python service error: {}", e.getStatusCode());
-            return ResponseEntity.status(502).body(Map.of("error", "Try-on generation failed"));
+            String upstreamBody = e.getResponseBodyAsString();
+            log.error("Python VTON service error {}: {}", e.getStatusCode(), upstreamBody);
+            String message = upstreamBody.contains("temporarily unavailable")
+                    ? "AI try-on provider is temporarily unavailable. Please try again shortly."
+                    : "AI try-on generation failed. Please use clear, front-facing person and garment images.";
+            HttpStatus status = e.getStatusCode().value() == 503
+                    ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY;
+            return ResponseEntity.status(status).body(Map.of("error", message));
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            log.error("Local VTON worker is unavailable at {}", vtonServiceUrl, e);
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", "Virtual try-on service is starting or unavailable. Please try again shortly."));
         } catch (Exception e) {
             log.error("Try-on failed", e);
             return ResponseEntity.internalServerError()

@@ -1,3 +1,11 @@
+import sys
+
+# gradio_client prints Unicode status symbols while connecting. Windows may
+# otherwise use cp1252 and fail before the client is initialized.
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8", errors="replace")
+
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -7,6 +15,7 @@ import shutil
 import os
 import uuid
 import logging
+import threading
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,12 +34,26 @@ app.add_middleware(
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-try:
-    vton_client = Client("yisol/IDM-VTON")
-    logger.info("Connected to IDM-VTON Hugging Face Space")
-except Exception as e:
-    logger.error(f"Failed to connect to IDM-VTON space: {e}")
-    vton_client = None
+vton_client = None
+client_lock = threading.Lock()
+
+
+def get_vton_client():
+    """Initialize once, but permit a later request to recover from a transient startup failure."""
+    global vton_client
+    if vton_client is not None:
+        return vton_client
+    with client_lock:
+        if vton_client is None:
+            try:
+                vton_client = Client("yisol/IDM-VTON")
+                logger.info("Connected to IDM-VTON Hugging Face Space")
+            except Exception as exc:
+                logger.error("Failed to connect to IDM-VTON space: %s", exc)
+    return vton_client
+
+
+get_vton_client()
 
 
 def save_upload(file: UploadFile, prefix: str) -> str:
@@ -79,8 +102,9 @@ async def virtual_tryon(
     garment_image_url: str = Form(...),
     garment_description: str = Form(""),
 ):
-    if vton_client is None:
-        raise HTTPException(status_code=503, detail="Try-on service unavailable")
+    client = get_vton_client()
+    if client is None:
+        raise HTTPException(status_code=503, detail="AI try-on provider is temporarily unavailable")
 
     person_path = None
     garment_path = None
@@ -91,7 +115,7 @@ async def virtual_tryon(
 
         logger.info(f"Running try-on: person={person_path}, garment={garment_path}")
 
-        result = vton_client.predict(
+        result = client.predict(
             dict={"background": handle_file(person_path), "layers": [], "composite": None},
             garm_img=handle_file(garment_path),
             garment_des=garment_description,
@@ -126,4 +150,4 @@ async def virtual_tryon(
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "vton_connected": vton_client is not None}
+    return {"status": "ok", "vton_connected": get_vton_client() is not None}

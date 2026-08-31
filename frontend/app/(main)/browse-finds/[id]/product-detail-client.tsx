@@ -1643,8 +1643,9 @@ function TryOnModal({
       const token =
           localStorage.getItem('accessToken') || localStorage.getItem('token');
 
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
       const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/vton/image`,
+          `${apiBaseUrl}/api/vton/image`,
           {
             method: 'POST',
             body: formData,
@@ -1653,14 +1654,16 @@ function TryOnModal({
           },
       );
 
-      if (!response.ok) throw new Error(`Server error: ${response.status}`);
-
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error ?? `Virtual try-on failed (${response.status})`);
+      }
+      if (!data.imageUrl) throw new Error('The try-on service returned no image.');
       setResultImageUrl(data.imageUrl);
       setStep('result');
     } catch (err) {
       console.error('Try-on failed:', err);
-      setErrorMessage("Couldn't generate your try-on. Please try again.");
+      setErrorMessage(err instanceof Error ? err.message : "Couldn't generate your try-on. Please try again.");
       setStep('upload');
     }
   }
